@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import AdminDashboard from "./AdminDashboard";
-import EmployeeDashboard from "./EmployeeDashboard";
 
 const API = "http://localhost:8080/api";
 
@@ -288,24 +287,20 @@ function App() {
         return <AdminDashboard />;
     }
 
-    if (page === "nhan-vien") {
-        return (
-            <EmployeeDashboard
-                onBackToShop={() => setPage("home")}
-            />
-        );
-    }
+    const isCheckoutPage = page === "checkout";
 
     return (
-        <div className="fshop">
+        <div className={isCheckoutPage ? "checkout-only-page" : "fshop"}>
 
-            <Header
-                page={page}
-                setPage={setPage}
-                search={search}
-                setSearch={setSearch}
-                tongSoLuong={tongSoLuong}
-            />
+            {!isCheckoutPage && (
+                <Header
+                    page={page}
+                    setPage={setPage}
+                    search={search}
+                    setSearch={setSearch}
+                    tongSoLuong={tongSoLuong}
+                />
+            )}
 
             {page === "home" && (
                 <Home
@@ -347,7 +342,16 @@ function App() {
                 />
             )}
 
-            <Footer />
+            {page === "checkout" && (
+                <Checkout
+                    gioHang={gioHang}
+                    tongTien={tongTien}
+                    setPage={setPage}
+                    setGioHang={setGioHang}
+                />
+            )}
+
+            {!isCheckoutPage && <Footer />}
 
             {toast && (
                 <div className="toast">
@@ -358,10 +362,6 @@ function App() {
         </div>
     );
 }
-
-/* =========================================================
-   HEADER
-========================================================= */
 
 function Header({
                     page,
@@ -419,13 +419,6 @@ function Header({
                         onClick={() => setPage("admin")}
                     >
                         Admin
-                    </button>
-
-                    <button
-                        className="employee-entry-button"
-                        onClick={() => setPage("nhan-vien")}
-                    >
-                        ♙ Nhân viên
                     </button>
 
                     <div className="header-right">
@@ -516,7 +509,6 @@ function Header({
         </>
     );
 }
-
 
 function Home({
                   sanPhams,
@@ -938,6 +930,7 @@ function ProductCard({
         </div>
     );
 }
+
 
 function ProductList({
                          sanPhams,
@@ -1818,7 +1811,10 @@ function Cart({
                                     : "🎉 Bạn được miễn phí vận chuyển"}
                             </div>
 
-                            <button className="checkout-button">
+                            <button
+                                className="checkout-button"
+                                onClick={() => setPage("checkout")}
+                            >
                                 Tiến hành đặt hàng →
                             </button>
 
@@ -1834,6 +1830,865 @@ function Cart({
 
             </div>
 
+        </main>
+    );
+}
+
+function Checkout({
+                      gioHang,
+                      tongTien,
+                      setPage,
+                      setGioHang,
+                  }) {
+    const [hoTen, setHoTen] = useState("");
+    const [soDienThoai, setSoDienThoai] = useState("");
+    const [diaChi, setDiaChi] = useState("");
+    const [ghiChu, setGhiChu] = useState("");
+    const [phuongThuc, setPhuongThuc] = useState("COD");
+    const [dangDatHang, setDangDatHang] = useState(false);
+
+    const phiVanChuyen =
+        tongTien >= 500000 || tongTien === 0 ? 0 : 30000;
+
+    const tongThanhToan = tongTien + phiVanChuyen;
+
+    const datHang = async () => {
+        if (!hoTen.trim()) {
+            alert("Vui lòng nhập họ và tên.");
+            return;
+        }
+
+        if (!soDienThoai.trim()) {
+            alert("Vui lòng nhập số điện thoại.");
+            return;
+        }
+
+        if (!diaChi.trim()) {
+            alert("Vui lòng nhập địa chỉ nhận hàng.");
+            return;
+        }
+
+        if (gioHang.length === 0) {
+            alert("Giỏ hàng đang trống.");
+            setPage("cart");
+            return;
+        }
+
+        if (dangDatHang) return;
+
+        try {
+            setDangDatHang(true);
+
+            /*
+             * Backend hiện tại của bạn đang nhận gioHangId trực tiếp.
+             * Giỏ hàng test hiện tại là ID = 2.
+             * Khi backend có API lấy giỏ hàng theo tài khoản đăng nhập,
+             * chỉ cần thay số 2 bằng ID giỏ hàng thực tế.
+             */
+            const gioHangId = 2;
+
+            const response = await fetch(
+                `${API}/hoa-don/dat-hang/${gioHangId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            const text = await response.text();
+            let data = null;
+
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch {
+                data = null;
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    data?.message ||
+                    data?.error ||
+                    text ||
+                    "Đặt hàng thất bại"
+                );
+            }
+
+            const maHoaDon =
+                data?.maHoaDon ||
+                data?.ma_hoa_don ||
+                `HD${data?.id || ""}`;
+
+            const tongTienBackend =
+                data?.tongTien ??
+                data?.tongThanhToan ??
+                data?.tong_tien ??
+                tongThanhToan;
+
+            const trangThai =
+                data?.trangThai ||
+                data?.trang_thai ||
+                "CHO_XAC_NHAN";
+
+            setGioHang([]);
+
+            alert(
+                `Đặt hàng thành công!\n\n` +
+                `Mã hóa đơn: ${maHoaDon}\n` +
+                `Tổng tiền: ${formatGia(tongTienBackend)}\n` +
+                `Trạng thái: ${trangThai}`
+            );
+
+            setPage("home");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        } catch (error) {
+            console.error(error);
+            alert(
+                error?.message ||
+                "Không thể đặt hàng. Vui lòng thử lại."
+            );
+        } finally {
+            setDangDatHang(false);
+        }
+    };
+
+    if (gioHang.length === 0) {
+        return (
+            <main className="checkout-page">
+                <div className="checkout-container">
+                    <button
+                        className="checkout-back"
+                        onClick={() => setPage("home")}
+                    >
+                        ← FShop
+                    </button>
+
+                    <div className="checkout-empty">
+                        <div className="checkout-empty-icon">🛒</div>
+                        <h1>Giỏ hàng đang trống</h1>
+                        <p>
+                            Bạn chưa có sản phẩm nào để đặt hàng.
+                        </p>
+                        <button
+                            className="checkout-primary"
+                            onClick={() => setPage("products")}
+                        >
+                            Tiếp tục mua hàng →
+                        </button>
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    return (
+        <main className="checkout-page">
+            <style>{`
+                .checkout-page {
+                    min-height: 100vh;
+                    background: #f6f7f9;
+                    color: #151515;
+                    padding: 28px 20px 60px;
+                    box-sizing: border-box;
+                }
+
+                .checkout-container {
+                    width: min(1180px, 100%);
+                    margin: 0 auto;
+                }
+
+                .checkout-topbar {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 20px;
+                    margin-bottom: 28px;
+                }
+
+                .checkout-back {
+                    border: 0;
+                    background: transparent;
+                    color: #555;
+                    font-size: 15px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    padding: 8px 0;
+                }
+
+                .checkout-back:hover {
+                    color: #ef3b35;
+                }
+
+                .checkout-brand {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+
+                .checkout-logo {
+                    width: 42px;
+                    height: 42px;
+                    border-radius: 10px;
+                    background: #ef3b35;
+                    color: white;
+                    display: grid;
+                    place-items: center;
+                    font-size: 24px;
+                    font-weight: 800;
+                }
+
+                .checkout-brand strong {
+                    display: block;
+                    font-size: 23px;
+                    line-height: 1;
+                }
+
+                .checkout-brand span {
+                    display: block;
+                    color: #888;
+                    font-size: 12px;
+                    margin-top: 4px;
+                }
+
+                .checkout-progress {
+                    display: flex;
+                    align-items: center;
+                    max-width: 620px;
+                    margin: 0 auto 30px;
+                }
+
+                .checkout-step {
+                    display: flex;
+                    align-items: center;
+                    gap: 9px;
+                    white-space: nowrap;
+                }
+
+                .checkout-step > span {
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 50%;
+                    display: grid;
+                    place-items: center;
+                    background: #e5e5e5;
+                    color: #777;
+                    font-weight: 800;
+                }
+
+                .checkout-step.active > span {
+                    background: #ef3b35;
+                    color: #fff;
+                }
+
+                .checkout-step strong,
+                .checkout-step small {
+                    display: block;
+                }
+
+                .checkout-step strong {
+                    font-size: 14px;
+                }
+
+                .checkout-step small {
+                    color: #999;
+                    font-size: 11px;
+                    margin-top: 2px;
+                }
+
+                .checkout-line {
+                    height: 1px;
+                    background: #d9d9d9;
+                    flex: 1;
+                    margin: 0 18px;
+                }
+
+                .checkout-layout {
+                    display: grid;
+                    grid-template-columns: minmax(0, 1.55fr) minmax(340px, .9fr);
+                    gap: 24px;
+                    align-items: start;
+                }
+
+                .checkout-form-card,
+                .checkout-order-card {
+                    background: #fff;
+                    border: 1px solid #e9e9e9;
+                    border-radius: 18px;
+                    box-shadow: 0 8px 30px rgba(0,0,0,.05);
+                }
+
+                .checkout-form-card {
+                    padding: 30px;
+                }
+
+                .checkout-card-heading,
+                .checkout-order-title {
+                    display: flex;
+                    align-items: flex-start;
+                    justify-content: space-between;
+                    gap: 15px;
+                }
+
+                .checkout-card-heading > div > span,
+                .checkout-order-title > div > span {
+                    color: #ef3b35;
+                    font-size: 11px;
+                    font-weight: 800;
+                    letter-spacing: 1.5px;
+                }
+
+                .checkout-card-heading h1,
+                .checkout-order-title h2 {
+                    margin: 5px 0 0;
+                    font-size: 25px;
+                    line-height: 1.2;
+                }
+
+                .checkout-secure {
+                    color: #23834b;
+                    background: #edf9f1;
+                    border-radius: 999px;
+                    padding: 8px 12px;
+                    font-size: 12px;
+                    font-weight: 700;
+                }
+
+                .checkout-form-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 18px;
+                    margin-top: 28px;
+                }
+
+                .checkout-field {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 7px;
+                }
+
+                .checkout-field.full {
+                    grid-column: 1 / -1;
+                }
+
+                .checkout-field label {
+                    font-size: 13px;
+                    font-weight: 700;
+                }
+
+                .checkout-field input,
+                .checkout-field select,
+                .checkout-field textarea {
+                    width: 100%;
+                    box-sizing: border-box;
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    padding: 13px 14px;
+                    font: inherit;
+                    font-size: 14px;
+                    outline: none;
+                    background: #fff;
+                    transition: .2s;
+                }
+
+                .checkout-field input:focus,
+                .checkout-field select:focus,
+                .checkout-field textarea:focus {
+                    border-color: #ef3b35;
+                    box-shadow: 0 0 0 3px rgba(239,59,53,.08);
+                }
+
+                .checkout-field textarea {
+                    resize: vertical;
+                    min-height: 80px;
+                }
+
+                .checkout-note {
+                    display: flex;
+                    gap: 10px;
+                    align-items: flex-start;
+                    margin-top: 22px;
+                    padding: 13px 15px;
+                    border-radius: 10px;
+                    background: #fafafa;
+                    color: #777;
+                    font-size: 12px;
+                }
+
+                .checkout-note p {
+                    margin: 0;
+                    line-height: 1.5;
+                }
+
+                .checkout-order-card {
+                    padding: 25px;
+                    position: sticky;
+                    top: 20px;
+                }
+
+                .checkout-order-title > strong {
+                    color: #888;
+                    font-size: 12px;
+                    white-space: nowrap;
+                    margin-top: 4px;
+                }
+
+                .checkout-products {
+                    margin-top: 22px;
+                    max-height: 360px;
+                    overflow-y: auto;
+                    padding-right: 3px;
+                }
+
+                .checkout-product {
+                    display: grid;
+                    grid-template-columns: 64px minmax(0,1fr) auto;
+                    gap: 12px;
+                    align-items: center;
+                    padding: 13px 0;
+                    border-bottom: 1px solid #eee;
+                }
+
+                .checkout-product-image {
+                    width: 64px;
+                    height: 64px;
+                    border-radius: 10px;
+                    overflow: visible;
+                    position: relative;
+                    background: #f5f5f5;
+                }
+
+                .checkout-product-image img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    border-radius: 10px;
+                }
+
+                .checkout-product-image span {
+                    position: absolute;
+                    top: -7px;
+                    right: -7px;
+                    min-width: 21px;
+                    height: 21px;
+                    padding: 0 5px;
+                    border-radius: 999px;
+                    background: #222;
+                    color: white;
+                    display: grid;
+                    place-items: center;
+                    font-size: 11px;
+                    font-weight: 800;
+                    box-sizing: border-box;
+                }
+
+                .checkout-product-info {
+                    min-width: 0;
+                }
+
+                .checkout-product-info strong {
+                    display: block;
+                    font-size: 13px;
+                    line-height: 1.35;
+                }
+
+                .checkout-product-info small {
+                    display: block;
+                    color: #888;
+                    margin-top: 5px;
+                    font-size: 11px;
+                }
+
+                .checkout-product-price {
+                    font-size: 13px;
+                    white-space: nowrap;
+                }
+
+                .checkout-summary {
+                    margin-top: 18px;
+                }
+
+                .checkout-summary > div {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 15px;
+                    padding: 7px 0;
+                    color: #666;
+                    font-size: 13px;
+                }
+
+                .checkout-summary > div strong {
+                    color: #222;
+                }
+
+                .checkout-summary-divider {
+                    height: 1px;
+                    background: #eee;
+                    margin: 8px 0;
+                }
+
+                .checkout-summary .checkout-total {
+                    align-items: center;
+                    padding-top: 13px;
+                    color: #222;
+                }
+
+                .checkout-total span {
+                    font-size: 15px;
+                    font-weight: 700;
+                }
+
+                .checkout-total strong {
+                    color: #ef3b35 !important;
+                    font-size: 23px;
+                }
+
+                .checkout-confirm {
+                    width: 100%;
+                    border: 0;
+                    border-radius: 11px;
+                    background: #ef3b35;
+                    color: #fff;
+                    padding: 15px 18px;
+                    margin-top: 20px;
+                    font-size: 15px;
+                    font-weight: 800;
+                    cursor: pointer;
+                    transition: .2s;
+                }
+
+                .checkout-confirm:hover:not(:disabled) {
+                    background: #d92f29;
+                    transform: translateY(-1px);
+                }
+
+                .checkout-confirm:disabled {
+                    opacity: .65;
+                    cursor: not-allowed;
+                }
+
+                .checkout-return {
+                    width: 100%;
+                    border: 0;
+                    background: transparent;
+                    color: #666;
+                    padding: 12px;
+                    font-size: 13px;
+                    cursor: pointer;
+                }
+
+                .checkout-policy {
+                    margin: 8px 0 0;
+                    color: #999;
+                    text-align: center;
+                    font-size: 11px;
+                    line-height: 1.5;
+                }
+
+                .checkout-empty {
+                    max-width: 620px;
+                    margin: 80px auto;
+                    background: #fff;
+                    border: 1px solid #e9e9e9;
+                    border-radius: 18px;
+                    padding: 50px 30px;
+                    text-align: center;
+                    box-shadow: 0 8px 30px rgba(0,0,0,.05);
+                }
+
+                .checkout-empty-icon {
+                    font-size: 48px;
+                }
+
+                .checkout-empty h1 {
+                    margin: 16px 0 8px;
+                }
+
+                .checkout-empty p {
+                    color: #777;
+                    margin-bottom: 24px;
+                }
+
+                .checkout-primary {
+                    border: 0;
+                    border-radius: 10px;
+                    background: #ef3b35;
+                    color: #fff;
+                    padding: 13px 20px;
+                    font-weight: 800;
+                    cursor: pointer;
+                }
+
+                @media (max-width: 850px) {
+                    .checkout-layout {
+                        grid-template-columns: 1fr;
+                    }
+
+                    .checkout-order-card {
+                        position: static;
+                    }
+                }
+
+                @media (max-width: 620px) {
+                    .checkout-page {
+                        padding: 18px 12px 40px;
+                    }
+
+                    .checkout-topbar {
+                        align-items: flex-start;
+                    }
+
+                    .checkout-progress {
+                        margin-bottom: 20px;
+                    }
+
+                    .checkout-step small {
+                        display: none;
+                    }
+
+                    .checkout-form-grid {
+                        grid-template-columns: 1fr;
+                    }
+
+                    .checkout-field.full {
+                        grid-column: auto;
+                    }
+
+                    .checkout-form-card,
+                    .checkout-order-card {
+                        border-radius: 14px;
+                    }
+
+                    .checkout-form-card {
+                        padding: 20px;
+                    }
+
+                    .checkout-order-card {
+                        padding: 20px;
+                    }
+
+                    .checkout-card-heading h1,
+                    .checkout-order-title h2 {
+                        font-size: 21px;
+                    }
+                }
+            `}</style>
+
+            <div className="checkout-container">
+
+                <div className="checkout-topbar">
+                    <button
+                        className="checkout-back"
+                        onClick={() => setPage("cart")}
+                    >
+                        ← Quay lại giỏ hàng
+                    </button>
+
+                    <div className="checkout-brand">
+                        <div className="checkout-logo">F</div>
+                        <div>
+                            <strong>FShop</strong>
+                            <span>Đặt hàng an toàn</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="checkout-progress">
+                    <div className="checkout-step active">
+                        <span>1</span>
+                        <div>
+                            <strong>Thông tin</strong>
+                            <small>Nhận hàng</small>
+                        </div>
+                    </div>
+
+                    <div className="checkout-line"></div>
+
+                    <div className="checkout-step active">
+                        <span>2</span>
+                        <div>
+                            <strong>Đặt hàng</strong>
+                            <small>Xác nhận</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="checkout-layout">
+
+                    <section className="checkout-form-card">
+                        <div className="checkout-card-heading">
+                            <div>
+                                <span>FShop</span>
+                                <h1>Thông tin nhận hàng</h1>
+                            </div>
+                            <span className="checkout-secure">🔒 Bảo mật</span>
+                        </div>
+
+                        <div className="checkout-form-grid">
+                            <div className="checkout-field full">
+                                <label>Họ và tên *</label>
+                                <input
+                                    type="text"
+                                    placeholder="Nhập họ và tên"
+                                    value={hoTen}
+                                    onChange={(e) => setHoTen(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="checkout-field">
+                                <label>Số điện thoại *</label>
+                                <input
+                                    type="tel"
+                                    placeholder="Nhập số điện thoại"
+                                    value={soDienThoai}
+                                    onChange={(e) => setSoDienThoai(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="checkout-field">
+                                <label>Phương thức thanh toán</label>
+                                <select
+                                    value={phuongThuc}
+                                    onChange={(e) => setPhuongThuc(e.target.value)}
+                                >
+                                    <option value="COD">
+                                        Thanh toán khi nhận hàng (COD)
+                                    </option>
+                                    <option value="CHUYEN_KHOAN">
+                                        Chuyển khoản ngân hàng
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div className="checkout-field full">
+                                <label>Địa chỉ nhận hàng *</label>
+                                <textarea
+                                    rows="4"
+                                    placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố"
+                                    value={diaChi}
+                                    onChange={(e) => setDiaChi(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="checkout-field full">
+                                <label>Ghi chú đơn hàng</label>
+                                <textarea
+                                    rows="3"
+                                    placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi giao..."
+                                    value={ghiChu}
+                                    onChange={(e) => setGhiChu(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="checkout-note">
+                            <span>ℹ️</span>
+                            <p>
+                                Thông tin nhận hàng được dùng để hỗ trợ xử lý và giao đơn hàng của bạn.
+                            </p>
+                        </div>
+                    </section>
+
+                    <aside className="checkout-order-card">
+                        <div className="checkout-order-title">
+                            <div>
+                                <span>ĐƠN HÀNG</span>
+                                <h2>Tóm tắt đơn hàng</h2>
+                            </div>
+                            <strong>{gioHang.length} sản phẩm</strong>
+                        </div>
+
+                        <div className="checkout-products">
+                            {gioHang.map((item) => {
+                                const gia =
+                                    item.chiTiet?.giaBan ||
+                                    item.sanPham?.giaBan ||
+                                    0;
+
+                                return (
+                                    <div
+                                        className="checkout-product"
+                                        key={item.variantId}
+                                    >
+                                        <div className="checkout-product-image">
+                                            <img
+                                                src={
+                                                    item.sanPham.hinhAnh ||
+                                                    "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=300&q=80"
+                                                }
+                                                alt={item.sanPham.tenSanPham}
+                                            />
+                                            <span>{item.soLuong}</span>
+                                        </div>
+
+                                        <div className="checkout-product-info">
+                                            <strong>{item.sanPham.tenSanPham}</strong>
+
+                                            <small>
+                                                {item.chiTiet?.kichCo
+                                                    ? `Size ${item.chiTiet.kichCo.tenKichCo}`
+                                                    : ""}
+                                                {item.chiTiet?.mauSac
+                                                    ? ` · ${item.chiTiet.mauSac.tenMau}`
+                                                    : ""}
+                                            </small>
+                                        </div>
+
+                                        <strong className="checkout-product-price">
+                                            {formatGia(Number(gia) * item.soLuong)}
+                                        </strong>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="checkout-summary">
+                            <div>
+                                <span>Tạm tính</span>
+                                <strong>{formatGia(tongTien)}</strong>
+                            </div>
+
+                            <div>
+                                <span>Phí vận chuyển</span>
+                                <strong>
+                                    {phiVanChuyen === 0
+                                        ? "Miễn phí"
+                                        : formatGia(phiVanChuyen)}
+                                </strong>
+                            </div>
+
+                            <div className="checkout-summary-divider"></div>
+
+                            <div className="checkout-total">
+                                <span>Tổng thanh toán</span>
+                                <strong>{formatGia(tongThanhToan)}</strong>
+                            </div>
+                        </div>
+
+                        <button
+                            className="checkout-confirm"
+                            onClick={datHang}
+                            disabled={dangDatHang}
+                        >
+                            {dangDatHang
+                                ? "Đang xử lý..."
+                                : "Xác nhận đặt hàng →"}
+                        </button>
+
+                        <button
+                            className="checkout-return"
+                            onClick={() => setPage("cart")}
+                            disabled={dangDatHang}
+                        >
+                            ← Chỉnh sửa giỏ hàng
+                        </button>
+
+                        <p className="checkout-policy">
+                            🔒 Thông tin của bạn được bảo mật trong quá trình đặt hàng.
+                        </p>
+                    </aside>
+                </div>
+            </div>
         </main>
     );
 }

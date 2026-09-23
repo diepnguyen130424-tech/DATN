@@ -26,10 +26,19 @@ public class DanhMucService {
         if (danhMuc.getNgayTao() == null) {
             danhMuc.setNgayTao(LocalDateTime.now());
         }
+
+        if (danhMuc.getTrangThai() == null) {
+            danhMuc.setTrangThai("HOAT_DONG");
+        }
+
         return danhMucRepository.save(danhMuc);
     }
 
     public void delete(Long id) {
-        danhMucRepository.deleteById(id);
+        DanhMuc danhMuc = getById(id);
+
+        danhMuc.setTrangThai("NGUNG_HOAT_DONG");
+
+        danhMucRepository.save(danhMuc);
     }
 }

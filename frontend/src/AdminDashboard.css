@@ -8,7 +8,7 @@
     min-height: 100vh;
     display: grid;
     grid-template-columns: 272px minmax(0, 1fr);
-    background: #f4f6f8;
+    background: #f8f8f8;
     color: #171a1f;
     font-family: Arial, Helvetica, sans-serif;
     overflow-x: hidden;
@@ -19,12 +19,12 @@
     z-index: 2;
     width: 272px;
     min-height: 100vh;
-    background: #11161d;
+    background: #171717;
     color: #fff;
     padding: 22px 16px 16px;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid #202630;
+    border-right: 1px solid #292929;
 }
 
 .admin-brand {
@@ -33,7 +33,7 @@
     align-items: center;
     gap: 12px;
     padding: 0 8px 20px;
-    border-bottom: 1px solid #29303a;
+    border-bottom: 1px solid #333333;
 }
 
 .admin-brand-mark {
@@ -41,8 +41,8 @@
     height: 42px;
     flex: 0 0 42px;
     border-radius: 11px;
-    background: #fff;
-    color: #11161d;
+    background: #e53935;
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -100,13 +100,13 @@
 
 .admin-nav button:hover,
 .admin-sidebar-footer button:hover {
-    background: #1c232c;
+    background: #292929;
     color: #fff;
 }
 
 .admin-nav button.active {
-    background: #fff;
-    color: #11161d;
+    background: #e53935;
+    color: #ffffff;
     font-weight: 700;
     box-shadow: 0 5px 16px rgba(0, 0, 0, 0.12);
 }
@@ -124,7 +124,8 @@
 }
 
 .admin-nav button.active .admin-nav-icon {
-    background: #eef0f3;
+    background: #c62828;
+    color: #ffffff;
 }
 
 .admin-sidebar-footer {
@@ -141,7 +142,7 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: #f4f6f8;
+    background: #f8f8f8;
 }
 
 .admin-topbar {
@@ -193,7 +194,7 @@
     width: 39px;
     height: 39px;
     border-radius: 50%;
-    background: #171c23;
+    background: #e53935;
     color: #fff;
     display: flex;
     align-items: center;
@@ -238,7 +239,7 @@
 }
 
 .admin-eyebrow {
-    color: #929aa5;
+    color: #e53935;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 1.6px;
@@ -297,7 +298,8 @@
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: #f1f3f5;
+    background: #fff1f1;
+    color: #e53935;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -433,12 +435,12 @@
     width: 100%;
     max-width: 38px;
     border-radius: 7px 7px 0 0;
-    background: #20262e;
+    background: #e53935;
     transition: 0.2s ease;
 }
 
 .chart-bar:hover {
-    background: #11161d;
+    background: #171717;
     transform: translateY(-3px);
 }
 
@@ -481,14 +483,14 @@
 }
 
 .status-dot.pending { background: #e7a21a; }
-.status-dot.processing { background: #4d7fe8; }
+.status-dot.processing { background: #e53935; }
 .status-dot.shipping { background: #8a62d3; }
 .status-dot.done { background: #32a062; }
 
 .admin-link-button {
     border: 0;
     background: transparent;
-    color: #252a30;
+    color: #e53935;
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
@@ -508,7 +510,7 @@
 
 .admin-table th {
     padding: 12px 10px;
-    background: #f7f8f9;
+    background: #fff1f1;
     color: #78818c;
     font-size: 10px;
     font-weight: 800;
@@ -533,8 +535,8 @@
     min-height: 26px;
     padding: 0 9px;
     border-radius: 20px;
-    background: #f1f3f5;
-    color: #59616b;
+    background: #fff1f1;
+    color: #c62828;
     font-size: 10px;
     font-weight: 700;
 }
@@ -556,7 +558,7 @@
     height: 64px;
     margin-bottom: 16px;
     border-radius: 18px;
-    background: #f0f2f4;
+    background: #fff1f1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -682,7 +684,7 @@
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 10px;
 
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(229, 57, 53, 0.12);
         color: #ffffff;
 
         font-size: 14px;
@@ -697,8 +699,8 @@
     }
 
     .admin-home-button:hover {
-        background: #ffffff;
-        color: #0f172a;
+        background: #e53935;
+        color: #ffffff;
         transform: translateX(2px);
     }
 }

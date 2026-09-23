@@ -23,10 +23,19 @@ public class MauSacService {
     }
 
     public MauSac save(MauSac mauSac) {
+        if (mauSac.getTrangThai() == null) {
+            mauSac.setTrangThai("HOAT_DONG");
+        }
+
         return mauSacRepository.save(mauSac);
     }
 
     public void delete(Long id) {
-        mauSacRepository.deleteById(id);
+        MauSac mauSac = getById(id);
+
+        // Không xóa cứng vì màu sắc có thể đang được SPCT sử dụng
+        mauSac.setTrangThai("NGUNG_HOAT_DONG");
+
+        mauSacRepository.save(mauSac);
     }
 }

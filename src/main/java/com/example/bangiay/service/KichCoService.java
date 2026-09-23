@@ -23,10 +23,19 @@ public class KichCoService {
     }
 
     public KichCo save(KichCo kichCo) {
+        if (kichCo.getTrangThai() == null) {
+            kichCo.setTrangThai("HOAT_DONG");
+        }
+
         return kichCoRepository.save(kichCo);
     }
 
     public void delete(Long id) {
-        kichCoRepository.deleteById(id);
+        KichCo kichCo = getById(id);
+
+        // Xóa mềm vì kích cỡ có thể đang được SPCT sử dụng
+        kichCo.setTrangThai("NGUNG_HOAT_DONG");
+
+        kichCoRepository.save(kichCo);
     }
 }

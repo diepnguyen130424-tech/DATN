@@ -33,6 +33,7 @@ public class SanPhamService {
 
         if (sanPham.getId() == null) {
 
+            // Tạo mới
             if (sanPham.getNgayTao() == null) {
                 sanPham.setNgayTao(LocalDateTime.now());
             }
@@ -40,13 +41,32 @@ public class SanPhamService {
             if (sanPham.getTrangThai() == null) {
                 sanPham.setTrangThai("HOAT_DONG");
             }
+
+        } else {
+
+            // Cập nhật
+            SanPham sanPhamCu = sanPhamRepository.findById(sanPham.getId())
+                    .orElseThrow(() ->
+                            new RuntimeException("Không tìm thấy sản phẩm"));
+
+            // Giữ nguyên ngày tạo
+            sanPham.setNgayTao(sanPhamCu.getNgayTao());
+
+            // Giữ nguyên trạng thái cũ nếu PUT không truyền lên
+            if (sanPham.getTrangThai() == null) {
+                sanPham.setTrangThai(sanPhamCu.getTrangThai());
+            }
         }
 
         return sanPhamRepository.save(sanPham);
     }
 
     public void delete(Long id) {
-        sanPhamRepository.deleteById(id);
+        SanPham sanPham = getById(id);
+
+        sanPham.setTrangThai("NGUNG_HOAT_DONG");
+
+        sanPhamRepository.save(sanPham);
     }
 
     public List<SanPhamChiTiet> getChiTietBySanPhamId(Long sanPhamId) {
@@ -59,30 +79,60 @@ public class SanPhamService {
                         new RuntimeException("Không tìm thấy sản phẩm chi tiết"));
     }
 
-    public SanPhamChiTiet saveChiTiet(SanPhamChiTiet sanPhamChiTiet) {
-        if (sanPhamChiTiet.getId() == null) {
+    public SanPhamChiTiet saveChiTiet(SanPhamChiTiet spct) {
 
-            if (sanPhamChiTiet.getSoLuongTon() == null) {
-                sanPhamChiTiet.setSoLuongTon(0);
+        if (spct.getId() == null) {
+
+            if (spct.getSoLuongTon() == null) {
+                spct.setSoLuongTon(0);
             }
 
-            if (sanPhamChiTiet.getTrangThai() == null) {
-                sanPhamChiTiet.setTrangThai("HOAT_DONG");
+            if (spct.getTrangThai() == null) {
+                spct.setTrangThai("HOAT_DONG");
             }
 
-            if (sanPhamChiTiet.getNgayTao() == null) {
-                sanPhamChiTiet.setNgayTao(LocalDateTime.now());
+            if (spct.getNgayTao() == null) {
+                spct.setNgayTao(LocalDateTime.now());
             }
 
-            if (sanPhamChiTiet.getNgayCapNhat() == null) {
-                sanPhamChiTiet.setNgayCapNhat(LocalDateTime.now());
+            if (spct.getNgayCapNhat() == null) {
+                spct.setNgayCapNhat(LocalDateTime.now());
             }
+
+        } else {
+
+            SanPhamChiTiet spctCu = sanPhamChiTietRepository
+                    .findById(spct.getId())
+                    .orElseThrow(() ->
+                            new RuntimeException(
+                                    "Không tìm thấy sản phẩm chi tiết"
+                            )
+                    );
+
+            // Giữ nguyên ngày tạo cũ
+            spct.setNgayTao(spctCu.getNgayTao());
+
+            // Cập nhật ngày sửa
+            spct.setNgayCapNhat(LocalDateTime.now());
         }
 
-        return sanPhamChiTietRepository.save(sanPhamChiTiet);
+        return sanPhamChiTietRepository.save(spct);
     }
 
     public void deleteChiTiet(Long id) {
-        sanPhamChiTietRepository.deleteById(id);
+
+        SanPhamChiTiet spct = sanPhamChiTietRepository
+                .findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Không tìm thấy sản phẩm chi tiết"
+                        )
+                );
+
+        // Không xóa vật lý vì SPCT có thể đang được giỏ hàng/hóa đơn sử dụng
+        spct.setTrangThai("INACTIVE");
+        spct.setNgayCapNhat(LocalDateTime.now());
+
+        sanPhamChiTietRepository.save(spct);
     }
 }
