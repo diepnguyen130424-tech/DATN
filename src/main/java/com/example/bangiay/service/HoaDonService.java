@@ -36,6 +36,7 @@ public class HoaDonService {
     private final GioHangRepository gioHangRepository;
     private final ChiTietGioHangRepository chiTietGioHangRepository;
     private final SanPhamChiTietRepository sanPhamChiTietRepository;
+    private final KhoService khoService;
 
 
     public List<HoaDon> getAll() {
@@ -385,27 +386,23 @@ public class HoaDonService {
             );
 
 
-            // Lưu chi tiết
+            // Lưu chi tiết hóa đơn.
+            // Việc trừ tồn kho được KhoService thực hiện trong cùng transaction
+            // để tạo luôn lịch sử xuất kho.
             chiTietHoaDonRepository.save(
                     chiTietHoaDon
             );
-
-            spct.setSoLuongTon(
-                    spct.getSoLuongTon()
-                            - soLuong
-            );
-
-
-            spct.setNgayCapNhat(
-                    LocalDateTime.now()
-            );
-
-
-            sanPhamChiTietRepository.save(
-                    spct
-            );
         }
 
+        List<ChiTietHoaDon> chiTietDaLuu =
+                chiTietHoaDonRepository.findByHoaDon_Id(
+                        hoaDonDaLuu.getId()
+                );
+
+        khoService.xuatKhoTuHoaDon(
+                hoaDonDaLuu.getMaHoaDon(),
+                chiTietDaLuu
+        );
 
         chiTietGioHangRepository
                 .deleteAll(

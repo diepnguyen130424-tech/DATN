@@ -19,6 +19,13 @@ public class SanPhamChiTietController {
 
     private final SanPhamService sanPhamService;
 
+    @GetMapping
+    public ResponseEntity<List<SanPhamChiTiet>> getAll() {
+        return ResponseEntity.ok(
+                sanPhamService.getAllChiTiet()
+        );
+    }
+
     @GetMapping("/san-pham/{sanPhamId}")
     public ResponseEntity<List<SanPhamChiTiet>> getBySanPham(
             @PathVariable Long sanPhamId) {

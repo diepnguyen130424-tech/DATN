@@ -69,6 +69,10 @@ public class SanPhamService {
         sanPhamRepository.save(sanPham);
     }
 
+    public List<SanPhamChiTiet> getAllChiTiet() {
+        return sanPhamChiTietRepository.findAll();
+    }
+
     public List<SanPhamChiTiet> getChiTietBySanPhamId(Long sanPhamId) {
         return sanPhamChiTietRepository.findBySanPham_Id(sanPhamId);
     }

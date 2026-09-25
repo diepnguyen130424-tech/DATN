@@ -2,10 +2,12 @@ import { useState } from "react";
 import "./AdminDashboard.css";
 import AdminProducts from "./AdminProducts";
 import EmployeeDashboard from "./EmployeeDashboard";
+import AdminKho from "./AdminKho";
 
 const menuItems = [
     { id: "dashboard", icon: "▦", label: "Tổng quan" },
     { id: "san-pham", icon: "□", label: "Sản phẩm" },
+    { id: "kho", icon: "▥", label: "Kho" },
     { id: "danh-muc", icon: "▤", label: "Danh mục" },
     { id: "thuong-hieu", icon: "◇", label: "Thương hiệu" },
     { id: "kich-co", icon: "↔", label: "Kích cỡ" },
@@ -265,6 +267,8 @@ export default function AdminDashboard() {
                         <DashboardContent />
                     ) : activeMenu === "san-pham" ? (
                         <AdminProducts />
+                    ) : activeMenu === "kho" ? (
+                        <AdminKho />
                     ) : activeMenu === "nhan-vien" ? (
                         <EmployeeDashboard
                             onBackToShop={() => {
