@@ -2,6 +2,8 @@ package com.example.bangiay.service;
 
 import com.example.bangiay.entity.TaiKhoan;
 import com.example.bangiay.repository.TaiKhoanRepository;
+import com.example.bangiay.entity.KhachHang;
+import com.example.bangiay.repository.KhachHangRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +15,7 @@ import java.util.List;
 public class AuthService {
 
     private final TaiKhoanRepository taiKhoanRepository;
+    private final KhachHangRepository khachHangRepository;
 
     public List<TaiKhoan> getAll() {
         return taiKhoanRepository.findAll();
@@ -62,16 +65,27 @@ public class AuthService {
 
 
     public TaiKhoan register(TaiKhoan taiKhoan) {
+
         if (taiKhoanRepository.existsByTenDangNhap(
                 taiKhoan.getTenDangNhap())) {
 
             throw new RuntimeException("Tên đăng nhập đã tồn tại");
         }
 
+        // Thiết lập thông tin tài khoản
         taiKhoan.setVaiTro("KHACH_HANG");
         taiKhoan.setTrangThai("HOAT_DONG");
         taiKhoan.setNgayTao(LocalDateTime.now());
 
-        return taiKhoanRepository.save(taiKhoan);
+        TaiKhoan savedTaiKhoan = taiKhoanRepository.save(taiKhoan);
+
+        // Tạo khách hàng tương ứng
+        KhachHang khachHang = new KhachHang();
+        khachHang.setTaiKhoan(savedTaiKhoan);
+        khachHang.setHoTen("Khách hàng mới");
+
+        khachHangRepository.save(khachHang);
+
+        return savedTaiKhoan;
     }
 }
