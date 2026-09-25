@@ -107,18 +107,6 @@ public class HoaDonController {
         return ResponseEntity.noContent().build();
     }
 
-    /*
-     * ĐẶT HÀNG
-     *
-     * Nhận:
-     * - gioHangId
-     * - voucherId
-     * - hoTen
-     * - soDienThoai
-     * - diaChi
-     * - ghiChu
-     * - phuongThuc
-     */
     @PostMapping("/dat-hang/{gioHangId}")
     public ResponseEntity<HoaDon> datHang(
             @PathVariable Long gioHangId,
@@ -133,10 +121,6 @@ public class HoaDonController {
                 )
         );
     }
-
-    /*
-     * CHI TIẾT HÓA ĐƠN
-     */
 
     @PostMapping("/chi-tiet")
     public ResponseEntity<ChiTietHoaDon> createChiTiet(
@@ -156,10 +140,6 @@ public class HoaDonController {
         );
     }
 
-    /*
-     * THANH TOÁN
-     */
-
     @PostMapping("/thanh-toan")
     public ResponseEntity<ThanhToan> createThanhToan(
             @RequestBody ThanhToan thanhToan
@@ -178,10 +158,6 @@ public class HoaDonController {
         );
     }
 
-    /*
-     * LỊCH SỬ HÓA ĐƠN
-     */
-
     @PostMapping("/lich-su")
     public ResponseEntity<LichSuHoaDon> createLichSu(
             @RequestBody LichSuHoaDon lichSuHoaDon
@@ -199,10 +175,6 @@ public class HoaDonController {
                 hoaDonService.getLichSuByHoaDonId(hoaDonId)
         );
     }
-
-    /*
-     * CẬP NHẬT TRẠNG THÁI
-     */
 
     @PutMapping("/{id}/trang-thai")
     public ResponseEntity<HoaDon> capNhatTrangThai(

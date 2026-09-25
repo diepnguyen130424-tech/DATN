@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import "./Auth.css";
 import AdminDashboard from "./AdminDashboard";
+import EmployeeDashboard from "./EmployeeDashboard";
+import Login from "./Login";
+import Register from "./Register";
 
 const API = "http://localhost:8080/api";
 
@@ -73,8 +77,29 @@ function formatGia(gia) {
     return Number(gia).toLocaleString("vi-VN") + "đ";
 }
 
+function layTrangTheoVaiTro(taiKhoan) {
+    const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
+
+    if (vaiTro === "QUAN_TRI") return "admin";
+    if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN_VIÊN") return "employee";
+    return "home";
+}
+
 function App() {
-    const [page, setPage] = useState("home");
+
+    const taiKhoanDaLuu = (() => {
+        try {
+            const data = localStorage.getItem("taiKhoan");
+            return data ? JSON.parse(data) : null;
+        } catch {
+            return null;
+        }
+    })();
+
+    const [taiKhoan, setTaiKhoan] = useState(taiKhoanDaLuu);
+    const [page, setPage] = useState(
+        taiKhoanDaLuu ? layTrangTheoVaiTro(taiKhoanDaLuu) : "login"
+    );
 
     const [sanPhams, setSanPhams] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -91,298 +116,361 @@ function App() {
         taiSanPham();
     }, []);
 
+    const xuLyDangNhapThanhCong = (data) => {
+        setTaiKhoan(data);
+        localStorage.setItem("taiKhoan", JSON.stringify(data));
+        setPage(layTrangTheoVaiTro(data));
+    };
+
+    const dangXuat = () => {
+        localStorage.removeItem("taiKhoan");
+        setTaiKhoan(null);
+        setGioHang([]);
+        setPage("login");
+    };
+
     const taiSanPham = async () => {
         try {
             setLoading(true);
 
             const response = await fetch(`${API}/san-pham`);
 
-            if (!response.ok) {
-                throw new Error("Không thể lấy danh sách sản phẩm");
-            }
+if (!response.ok) {
+    throw new Error("Không thể lấy danh sách sản phẩm");
+}
 
-            const data = await response.json();
+const data = await response.json();
 
-            const danhSach = Array.isArray(data) ? data : [];
+const danhSach = Array.isArray(data) ? data : [];
 
-            const sanPhamCoGia = await Promise.all(
-                danhSach.map(async (sanPham) => {
-                    try {
-                        const detailResponse = await fetch(
-                            `${API}/san-pham/${sanPham.id}/chi-tiet`
-                        );
-
-                        if (!detailResponse.ok) {
-                            return {
-                                ...sanPham,
-                                chiTiets: [],
-                                giaBan: null,
-                            };
-                        }
-
-                        const details = await detailResponse.json();
-
-                        return {
-                            ...sanPham,
-                            chiTiets: Array.isArray(details) ? details : [],
-                            giaBan:
-                                Array.isArray(details) && details.length > 0
-                                    ? details[0].giaBan
-                                    : null,
-                        };
-                    } catch {
-                        return {
-                            ...sanPham,
-                            chiTiets: [],
-                            giaBan: null,
-                        };
-                    }
-                })
-            );
-
-            setSanPhams(sanPhamCoGia);
-        } catch (error) {
-            console.error(error);
-            setSanPhams([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const showToast = (message) => {
-        setToast(message);
-
-        setTimeout(() => {
-            setToast("");
-        }, 2000);
-    };
-
-    const xemSanPham = async (sanPham) => {
+const sanPhamCoGia = await Promise.all(
+    danhSach.map(async (sanPham) => {
         try {
-            const response = await fetch(
+            const detailResponse = await fetch(
                 `${API}/san-pham/${sanPham.id}/chi-tiet`
             );
 
-            let chiTiets = [];
-
-            if (response.ok) {
-                const data = await response.json();
-                chiTiets = Array.isArray(data) ? data : [];
+            if (!detailResponse.ok) {
+                return {
+                    ...sanPham,
+                    chiTiets: [],
+                    giaBan: null,
+                };
             }
 
-            setSelectedProduct({
+            const details = await detailResponse.json();
+
+            return {
                 ...sanPham,
-                chiTiets,
-            });
-
-            setPage("detail");
-
-            window.scrollTo({
-                top: 0,
-                behavior: "smooth",
-            });
-        } catch (error) {
-            console.error(error);
-
-            setSelectedProduct({
+                chiTiets: Array.isArray(details) ? details : [],
+                giaBan:
+                    Array.isArray(details) && details.length > 0
+                        ? details[0].giaBan
+                        : null,
+            };
+        } catch {
+            return {
                 ...sanPham,
-                chiTiets: sanPham.chiTiets || [],
-            });
-
-            setPage("detail");
+                chiTiets: [],
+                giaBan: null,
+            };
         }
-    };
+    })
+);
 
-    const themVaoGio = (sanPham, chiTiet = null, soLuong = 1) => {
-        if (!chiTiet?.id) {
-            alert("Sản phẩm chưa có biến thể để mua");
-            return;
+setSanPhams(sanPhamCoGia);
+} catch (error) {
+    console.error(error);
+    setSanPhams([]);
+} finally {
+    setLoading(false);
+}
+};
+
+const showToast = (message) => {
+    setToast(message);
+
+    setTimeout(() => {
+        setToast("");
+    }, 2000);
+};
+
+const xemSanPham = async (sanPham) => {
+    try {
+        const response = await fetch(
+            `${API}/san-pham/${sanPham.id}/chi-tiet`
+        );
+
+        let chiTiets = [];
+
+        if (response.ok) {
+            const data = await response.json();
+            chiTiets = Array.isArray(data) ? data : [];
         }
 
-        const tonKho = Number(chiTiet.soLuongTon ?? 0);
-
-        if (tonKho <= 0) {
-            alert("Sản phẩm đã hết hàng");
-            return;
-        }
-
-        const variantId = chiTiet.id;
-        const soLuongThem = Math.max(1, Number(soLuong) || 1);
-
-        setGioHang((oldCart) => {
-            const existing = oldCart.find(
-                (item) => item.variantId === variantId
-            );
-
-            if (existing) {
-                const soLuongMoi = existing.soLuong + soLuongThem;
-
-                if (soLuongMoi > tonKho) {
-                    alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
-                    return oldCart;
-                }
-
-                return oldCart.map((item) =>
-                    item.variantId === variantId
-                        ? { ...item, soLuong: soLuongMoi }
-                        : item
-                );
-            }
-
-            const soLuongMoi = Math.min(soLuongThem, tonKho);
-
-            return [
-                ...oldCart,
-                {
-                    variantId,
-                    sanPham,
-                    chiTiet,
-                    soLuong: soLuongMoi,
-                },
-            ];
+        setSelectedProduct({
+            ...sanPham,
+            chiTiets,
         });
 
-        showToast("Đã thêm sản phẩm vào giỏ hàng");
-    };
+        setPage("detail");
 
-    const tangSoLuong = (variantId) => {
-        setGioHang((oldCart) =>
-            oldCart.map((item) => {
-                if (item.variantId !== variantId) return item;
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    } catch (error) {
+        console.error(error);
 
-                const tonKho = Number(item.chiTiet?.soLuongTon ?? 0);
+        setSelectedProduct({
+            ...sanPham,
+            chiTiets: sanPham.chiTiets || [],
+        });
 
-                if (tonKho > 0 && item.soLuong >= tonKho) {
-                    alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
-                    return item;
-                }
+        setPage("detail");
+    }
+};
 
-                return {
-                    ...item,
-                    soLuong: item.soLuong + 1,
-                };
-            })
+const themVaoGio = (sanPham, chiTiet = null, soLuong = 1) => {
+    if (!chiTiet?.id) {
+        alert("Sản phẩm chưa có biến thể để mua");
+        return;
+    }
+
+    const tonKho = Number(chiTiet.soLuongTon ?? 0);
+
+    if (tonKho <= 0) {
+        alert("Sản phẩm đã hết hàng");
+        return;
+    }
+
+    const variantId = chiTiet.id;
+    const soLuongThem = Math.max(1, Number(soLuong) || 1);
+
+    setGioHang((oldCart) => {
+        const existing = oldCart.find(
+            (item) => item.variantId === variantId
         );
-    };
 
-    const giamSoLuong = (variantId) => {
-        setGioHang((oldCart) =>
-            oldCart
-                .map((item) =>
-                    item.variantId === variantId
-                        ? {
-                            ...item,
-                            soLuong: item.soLuong - 1,
-                        }
-                        : item
-                )
-                .filter((item) => item.soLuong > 0)
-        );
-    };
+        if (existing) {
+            const soLuongMoi = existing.soLuong + soLuongThem;
 
-    const xoaKhoiGio = (variantId) => {
-        setGioHang((oldCart) =>
-            oldCart.filter(
-                (item) => item.variantId !== variantId
+            if (soLuongMoi > tonKho) {
+                alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
+                return oldCart;
+            }
+
+            return oldCart.map((item) =>
+                item.variantId === variantId
+                    ? { ...item, soLuong: soLuongMoi }
+                    : item
+            );
+        }
+
+        const soLuongMoi = Math.min(soLuongThem, tonKho);
+
+        return [
+            ...oldCart,
+            {
+                variantId,
+                sanPham,
+                chiTiet,
+                soLuong: soLuongMoi,
+            },
+        ];
+    });
+
+    showToast("Đã thêm sản phẩm vào giỏ hàng");
+};
+
+const tangSoLuong = (variantId) => {
+    setGioHang((oldCart) =>
+        oldCart.map((item) => {
+            if (item.variantId !== variantId) return item;
+
+            const tonKho = Number(item.chiTiet?.soLuongTon ?? 0);
+
+            if (tonKho > 0 && item.soLuong >= tonKho) {
+                alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
+                return item;
+            }
+
+            return {
+                ...item,
+                soLuong: item.soLuong + 1,
+            };
+        })
+    );
+};
+
+const giamSoLuong = (variantId) => {
+    setGioHang((oldCart) =>
+        oldCart
+            .map((item) =>
+                item.variantId === variantId
+                    ? {
+                        ...item,
+                        soLuong: item.soLuong - 1,
+                    }
+                    : item
             )
-        );
+            .filter((item) => item.soLuong > 0)
+    );
+};
 
-        showToast("Đã xóa sản phẩm khỏi giỏ");
-    };
-
-    const tongSoLuong = gioHang.reduce(
-        (total, item) => total + item.soLuong,
-        0
+const xoaKhoiGio = (variantId) => {
+    setGioHang((oldCart) =>
+        oldCart.filter(
+            (item) => item.variantId !== variantId
+        )
     );
 
-    const tongTien = gioHang.reduce((total, item) => {
-        const gia =
-            item.chiTiet?.giaBan ||
-            item.sanPham?.giaBan ||
-            0;
+    showToast("Đã xóa sản phẩm khỏi giỏ");
+};
 
-        return total + Number(gia) * item.soLuong;
-    }, 0);
+const tongSoLuong = gioHang.reduce(
+    (total, item) => total + item.soLuong,
+    0
+);
 
-    if (page === "admin") {
-        return <AdminDashboard />;
+const tongTien = gioHang.reduce((total, item) => {
+    const gia =
+        item.chiTiet?.giaBan ||
+        item.sanPham?.giaBan ||
+        0;
+
+    return total + Number(gia) * item.soLuong;
+}, 0);
+
+if (page === "admin") {
+    if (String(taiKhoan?.vaiTro || "").toUpperCase() !== "QUAN_TRI") {
+        return (
+            <Login
+                setPage={setPage}
+                onLoginSuccess={xuLyDangNhapThanhCong}
+            />
+        );
+    }
+
+    return <AdminDashboard />;
+}
+
+if (page === "employee") {
+    const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
+
+    if (vaiTro !== "NHAN_VIEN" && vaiTro !== "NHÂN_VIÊN") {
+        return (
+            <Login
+                setPage={setPage}
+                onLoginSuccess={xuLyDangNhapThanhCong}
+            />
+        );
     }
 
     return (
-        <div className="fshop">
-
-            <Header
-                page={page}
-                setPage={setPage}
-                search={search}
-                setSearch={setSearch}
-                tongSoLuong={tongSoLuong}
-            />
-
-            {page === "home" && (
-                <Home
-                    sanPhams={sanPhams}
-                    loading={loading}
-                    xemSanPham={xemSanPham}
-                    themVaoGio={themVaoGio}
-                    setPage={setPage}
-                />
-            )}
-
-            {page === "products" && (
-                <ProductList
-                    sanPhams={sanPhams}
-                    loading={loading}
-                    search={search}
-                    setSearch={setSearch}
-                    xemSanPham={xemSanPham}
-                    themVaoGio={themVaoGio}
-                />
-            )}
-
-            {page === "detail" && selectedProduct && (
-                <ProductDetail
-                    sanPham={selectedProduct}
-                    themVaoGio={themVaoGio}
-                    setPage={setPage}
-                />
-            )}
-
-            {page === "cart" && (
-                <Cart
-                    gioHang={gioHang}
-                    tongTien={tongTien}
-                    tangSoLuong={tangSoLuong}
-                    giamSoLuong={giamSoLuong}
-                    xoaKhoiGio={xoaKhoiGio}
-                    setPage={setPage}
-                />
-            )}
-
-            {page === "checkout" && (
-                <Checkout
-                    gioHang={gioHang}
-                    tongTien={tongTien}
-                    setPage={setPage}
-                    setGioHang={setGioHang}
-                />
-            )}
-
-            <Footer />
-
-            {toast && (
-                <div className="toast">
-                    <span>✓</span>
-                    {toast}
-                </div>
-            )}
-        </div>
+        <EmployeeDashboard
+            taiKhoan={taiKhoan}
+            dangXuat={dangXuat}
+            onBackToShop={() => setPage("home")}
+        />
     );
 }
 
-/* =========================================================
-   HEADER
-========================================================= */
+if (page === "login") {
+    return (
+        <Login
+            setPage={setPage}
+            onLoginSuccess={xuLyDangNhapThanhCong}
+        />
+    );
+}
+
+if (page === "register") {
+    return <Register setPage={setPage} />;
+}
+
+if (!taiKhoan) {
+    return (
+        <Login
+            setPage={setPage}
+            onLoginSuccess={xuLyDangNhapThanhCong}
+        />
+    );
+}
+
+return (
+    <div className="fshop">
+
+        <Header
+            page={page}
+            setPage={setPage}
+            search={search}
+            setSearch={setSearch}
+            tongSoLuong={tongSoLuong}
+            taiKhoan={taiKhoan}
+            dangXuat={dangXuat}
+        />
+
+        {page === "home" && (
+            <Home
+                sanPhams={sanPhams}
+                loading={loading}
+                xemSanPham={xemSanPham}
+                themVaoGio={themVaoGio}
+                setPage={setPage}
+            />
+        )}
+
+        {page === "products" && (
+            <ProductList
+                sanPhams={sanPhams}
+                loading={loading}
+                search={search}
+                setSearch={setSearch}
+                xemSanPham={xemSanPham}
+                themVaoGio={themVaoGio}
+            />
+        )}
+
+        {page === "detail" && selectedProduct && (
+            <ProductDetail
+                sanPham={selectedProduct}
+                themVaoGio={themVaoGio}
+                setPage={setPage}
+            />
+        )}
+
+        {page === "cart" && (
+            <Cart
+                gioHang={gioHang}
+                tongTien={tongTien}
+                tangSoLuong={tangSoLuong}
+                giamSoLuong={giamSoLuong}
+                xoaKhoiGio={xoaKhoiGio}
+                setPage={setPage}
+            />
+        )}
+
+        {page === "checkout" && (
+            <Checkout
+                gioHang={gioHang}
+                tongTien={tongTien}
+                setPage={setPage}
+                setGioHang={setGioHang}
+            />
+        )}
+
+        <Footer />
+
+        {toast && (
+            <div className="toast">
+                <span>✓</span>
+                {toast}
+            </div>
+        )}
+    </div>
+);
+}
 
 function Header({
                     page,
@@ -390,6 +478,8 @@ function Header({
                     search,
                     setSearch,
                     tongSoLuong,
+                    taiKhoan,
+                    dangXuat,
                 }) {
     const submitSearch = () => {
         setPage("products");
@@ -435,25 +525,58 @@ function Header({
                         </button>
                     </div>
 
-                    <button
-                        className="admin-entry-button"
-                        onClick={() => setPage("admin")}
-                    >
-                        Admin
-                    </button>
+                    {String(taiKhoan?.vaiTro || "").toUpperCase() === "QUAN_TRI" && (
+                        <button
+                            className="admin-entry-button"
+                            onClick={() => setPage("admin")}
+                        >
+                            Admin
+                        </button>
+                    )}
+
+                    {(String(taiKhoan?.vaiTro || "").toUpperCase() === "NHAN_VIEN"
+                        || String(taiKhoan?.vaiTro || "").toUpperCase() === "NHÂN_VIÊN") && (
+                        <button
+                            className="admin-entry-button"
+                            onClick={() => setPage("employee")}
+                        >
+                            Nhân viên
+                        </button>
+                    )}
 
                     <div className="header-right">
 
-                        <div className="header-item">
+                        <div
+                            className="header-item account-header"
+                            onClick={() => {
+                                if (!taiKhoan) {
+                                    setPage("login");
+                                }
+                            }}
+                        >
               <span className="header-icon">
                 ♙
               </span>
 
                             <div>
                                 <small>Tài khoản</small>
-                                <strong>Đăng nhập</strong>
+                                <strong>
+                                    {taiKhoan
+                                        ? taiKhoan.tenDangNhap
+                                        : "Đăng nhập"}
+                                </strong>
                             </div>
                         </div>
+
+                        {taiKhoan && (
+                            <button
+                                type="button"
+                                className="logout-button"
+                                onClick={dangXuat}
+                            >
+                                Đăng xuất
+                            </button>
+                        )}
 
                         <div className="header-item">
               <span className="header-icon">
@@ -530,10 +653,6 @@ function Header({
         </>
     );
 }
-
-/* =========================================================
-   HOME
-========================================================= */
 
 function Home({
                   sanPhams,
@@ -844,10 +963,6 @@ function Home({
     );
 }
 
-/* =========================================================
-   PRODUCT CARD
-========================================================= */
-
 function ProductCard({
                          sanPham,
                          index,
@@ -940,10 +1055,6 @@ function ProductCard({
         </div>
     );
 }
-
-/* =========================================================
-   PRODUCT LIST
-========================================================= */
 
 function ProductList({
                          sanPhams,
@@ -1198,10 +1309,6 @@ function ProductList({
         </main>
     );
 }
-
-/* =========================================================
-   PRODUCT DETAIL
-========================================================= */
 
 function ProductDetail({
                            sanPham,
@@ -1595,10 +1702,6 @@ function ProductDetail({
     );
 }
 
-/* =========================================================
-   CART
-========================================================= */
-
 function Cart({
                   gioHang,
                   tongTien,
@@ -1852,10 +1955,6 @@ function Cart({
     );
 }
 
-/* =========================================================
-   CHECKOUT + BILL
-========================================================= */
-
 function Checkout({
                       gioHang,
                       tongTien,
@@ -1899,27 +1998,18 @@ function Checkout({
 
         if (dangDatHang) return;
 
-        // Chụp lại giỏ hàng trước khi gọi API để bill vẫn có dữ liệu
-        // ngay cả khi giỏ hàng được xóa sau khi đặt thành công.
         const itemsForBill = gioHang.map((item) => ({
             ...item,
             sanPham: { ...item.sanPham },
             chiTiet: item.chiTiet ? { ...item.chiTiet } : null,
         }));
 
+// ID giỏ hàng backend đang sử dụng
+        const gioHangId = 2;
+
         try {
             setDangDatHang(true);
 
-            // Backend hiện tại đang xử lý giỏ hàng ID = 2.
-            // Khi có đăng nhập thật, thay 2 bằng ID giỏ hàng của khách đang đăng nhập.
-            const gioHangId = 2;
-
-            // =====================================================
-            // ĐỒNG BỘ TOÀN BỘ GIỎ HÀNG FRONTEND -> BACKEND
-            // =====================================================
-            // Nếu người dùng mua nhiều sản phẩm, tất cả các biến thể
-            // đang có trên giao diện phải được ghi vào chi_tiet_gio_hang
-            // trước khi gọi API dat-hang.
             const cartDetailResponse = await fetch(
                 `${API}/gio-hang/${gioHangId}/chi-tiet`
             );
@@ -1947,7 +2037,6 @@ function Checkout({
                 }
             }
 
-            // Thêm TẤT CẢ sản phẩm mà khách đang thấy trong giỏ frontend.
             for (const item of itemsForBill) {
                 if (!item.chiTiet?.id) {
                     throw new Error(
@@ -1989,11 +2078,6 @@ function Checkout({
                 }
             }
 
-            // Sau khi đồng bộ xong mới tạo hóa đơn.
-            // Thông tin khách hàng được gửi lên backend và lưu:
-            // - hoTen, soDienThoai, diaChi -> bảng dia_chi
-            // - ghiChu -> bảng hoa_don
-            // - phuongThuc -> bảng thanh_toan
             const response = await fetch(
                 `${API}/hoa-don/dat-hang/${gioHangId}`,
                 {
@@ -2060,7 +2144,6 @@ function Checkout({
                     : tongTien,
             });
 
-            // Chỉ xóa giỏ hàng sau khi backend báo tạo hóa đơn thành công.
             setGioHang([]);
         } catch (error) {
             console.error("Lỗi đặt hàng:", error);
@@ -2070,7 +2153,6 @@ function Checkout({
         }
     };
 
-    // Hiện bill ngay trên trang sau khi backend tạo hóa đơn thành công.
     if (bill) {
         return (
             <main className="cart-page">
@@ -2395,10 +2477,6 @@ function Checkout({
     );
 }
 
-/* =========================================================
-   LOADING
-========================================================= */
-
 function Loading() {
     return (
         <div className="loading">
@@ -2407,10 +2485,6 @@ function Loading() {
         </div>
     );
 }
-
-/* =========================================================
-   FOOTER
-========================================================= */
 
 function Footer() {
     return (

@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class ChiTietPhieuKho {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -27,6 +28,12 @@ public class ChiTietPhieuKho {
 
     @Column(name = "so_luong", nullable = false)
     private Integer soLuong;
+
+    @Column(name = "ton_truoc", nullable = false)
+    private Integer tonTruoc;
+
+    @Column(name = "ton_sau", nullable = false)
+    private Integer tonSau;
 
     @Column(name = "don_gia", precision = 15, scale = 2)
     private BigDecimal donGia;

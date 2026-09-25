@@ -106,9 +106,12 @@ public class KhoService {
 
         LocalDateTime now = LocalDateTime.now();
 
+        String loaiPhieu = request.loaiPhieu().toUpperCase();
+
         PhieuKho phieu = PhieuKho.builder()
                 .maPhieu(maPhieu)
-                .loaiPhieu(request.loaiPhieu().toUpperCase())
+                .loaiPhieu(loaiPhieu)
+                .loai(loaiPhieu)
                 .kho(kho)
                 .nhaCungCap(nhaCungCap)
                 .nhanVien(nhanVien)
@@ -160,7 +163,6 @@ public class KhoService {
             tonKho.setNgayCapNhat(now);
             tonKhoRepository.save(tonKho);
 
-            // so_luong_ton trong san_pham_chi_tiet được giữ đồng bộ với tổng tồn.
             int spctTonMoi = safe(spct.getSoLuongTon()) + delta;
             if (spctTonMoi < 0) {
                 throw new RuntimeException("Tồn sản phẩm không thể nhỏ hơn 0: " + spct.getMaSku());
@@ -178,6 +180,8 @@ public class KhoService {
                     .phieuKho(phieu)
                     .sanPhamChiTiet(spct)
                     .soLuong(item.soLuong())
+                    .tonTruoc(tonTruoc)
+                    .tonSau(tonSau)
                     .donGia(donGia)
                     .thanhTien(thanhTien)
                     .build();

@@ -29,10 +29,6 @@ public class HoaDonService {
     private final DiaChiRepository diaChiRepository;
 
 
-    // =========================================================
-    // HÓA ĐƠN
-    // =========================================================
-
     public List<HoaDon> getAll() {
         return hoaDonRepository.findAll();
     }
@@ -85,10 +81,6 @@ public class HoaDonService {
     }
 
 
-    // =========================================================
-    // ĐẶT HÀNG
-    // =========================================================
-
     @Transactional
     public HoaDon datHang(
             Long gioHangId,
@@ -96,9 +88,6 @@ public class HoaDonService {
             DatHangRequest request
     ) {
 
-        // -----------------------------------------------------
-        // 1. KIỂM TRA THÔNG TIN KHÁCH HÀNG
-        // -----------------------------------------------------
 
         if (request == null) {
             throw new RuntimeException(
@@ -131,10 +120,6 @@ public class HoaDonService {
         }
 
 
-        // -----------------------------------------------------
-        // 2. LẤY GIỎ HÀNG
-        // -----------------------------------------------------
-
         GioHang gioHang = gioHangRepository.findById(gioHangId)
                 .orElseThrow(() ->
                         new RuntimeException(
@@ -150,10 +135,6 @@ public class HoaDonService {
         }
 
 
-        // -----------------------------------------------------
-        // 3. LẤY CHI TIẾT GIỎ HÀNG
-        // -----------------------------------------------------
-
         List<ChiTietGioHang> danhSachGioHang =
                 chiTietGioHangRepository
                         .findByGioHang_Id(gioHangId);
@@ -167,10 +148,6 @@ public class HoaDonService {
             );
         }
 
-
-        // -----------------------------------------------------
-        // 4. TÍNH TỔNG TIỀN HÀNG
-        // -----------------------------------------------------
 
         BigDecimal tongTienHang =
                 BigDecimal.ZERO;
@@ -208,11 +185,6 @@ public class HoaDonService {
                 );
             }
 
-
-            // -------------------------------------------------
-            // KIỂM TRA TRẠNG THÁI
-            // -------------------------------------------------
-
             if (spct.getTrangThai() == null
                     || (
                     !"HOAT_DONG".equalsIgnoreCase(
@@ -229,11 +201,6 @@ public class HoaDonService {
                 );
             }
 
-
-            // -------------------------------------------------
-            // KIỂM TRA TỒN KHO
-            // -------------------------------------------------
-
             if (spct.getSoLuongTon() == null
                     || spct.getSoLuongTon() < soLuong) {
 
@@ -242,10 +209,6 @@ public class HoaDonService {
                 );
             }
 
-
-            // -------------------------------------------------
-            // LẤY GIÁ
-            // -------------------------------------------------
 
             BigDecimal donGia =
                     spct.getGiaBan();
@@ -268,11 +231,6 @@ public class HoaDonService {
                     tongTienHang.add(thanhTien);
         }
 
-
-        // -----------------------------------------------------
-        // 5. VOUCHER
-        // -----------------------------------------------------
-
         MaGiamGia voucher = null;
 
         BigDecimal tienGiam =
@@ -287,37 +245,16 @@ public class HoaDonService {
                                     new RuntimeException(
                                             "Không tìm thấy voucher"
                                     )
-                            );
-
-            /*
-             * Tạm thời chưa tính tiền giảm.
-             * Phần này sẽ xử lý theo entity MaGiamGia
-             * nếu bạn muốn áp dụng voucher thực tế.
-             */
-        }
-
-
-        // -----------------------------------------------------
-        // 6. PHÍ VẬN CHUYỂN
-        // -----------------------------------------------------
+                            );}
 
         BigDecimal phiVanChuyen =
                 BigDecimal.ZERO;
 
 
-        // -----------------------------------------------------
-        // 7. TỔNG THANH TOÁN
-        // -----------------------------------------------------
-
         BigDecimal tongThanhToan =
                 tongTienHang
                         .subtract(tienGiam)
                         .add(phiVanChuyen);
-
-
-        // -----------------------------------------------------
-        // 8. TẠO ĐỊA CHỈ NHẬN HÀNG
-        // -----------------------------------------------------
 
         DiaChi diaChi =
                 DiaChi.builder()
@@ -339,11 +276,6 @@ public class HoaDonService {
 
         DiaChi diaChiDaLuu =
                 diaChiRepository.save(diaChi);
-
-
-        // -----------------------------------------------------
-        // 9. TẠO HÓA ĐƠN
-        // -----------------------------------------------------
 
         HoaDon hoaDon =
                 new HoaDon();
@@ -417,11 +349,6 @@ public class HoaDonService {
         HoaDon hoaDonDaLuu =
                 hoaDonRepository.save(hoaDon);
 
-
-        // -----------------------------------------------------
-        // 10. TẠO CHI TIẾT HÓA ĐƠN
-        // -----------------------------------------------------
-
         for (ChiTietGioHang chiTiet : danhSachGioHang) {
 
             Long spctId =
@@ -478,20 +405,10 @@ public class HoaDonService {
             chiTietHoaDon.setThanhTien(
                     thanhTien
             );
-
-
-            // Lưu chi tiết hóa đơn
-            // Việc trừ tồn kho được KhoService thực hiện
-            // trong cùng transaction để tạo lịch sử xuất kho.
             chiTietHoaDonRepository.save(
                     chiTietHoaDon
             );
         }
-
-
-        // -----------------------------------------------------
-        // 11. LƯU LỊCH SỬ HÓA ĐƠN
-        // -----------------------------------------------------
 
         LichSuHoaDon lichSu =
                 new LichSuHoaDon();
@@ -520,11 +437,6 @@ public class HoaDonService {
         lichSuHoaDonRepository.save(
                 lichSu
         );
-
-
-        // -----------------------------------------------------
-        // 12. TẠO THANH TOÁN
-        // -----------------------------------------------------
 
         if (request.getPhuongThuc() != null
                 && !request.getPhuongThuc()
@@ -565,11 +477,6 @@ public class HoaDonService {
             );
         }
 
-
-        // -----------------------------------------------------
-        // XUẤT KHO
-        // -----------------------------------------------------
-
         List<ChiTietHoaDon> chiTietDaLuu =
                 chiTietHoaDonRepository.findByHoaDon_Id(
                         hoaDonDaLuu.getId()
@@ -580,12 +487,6 @@ public class HoaDonService {
                 hoaDonDaLuu.getMaHoaDon(),
                 chiTietDaLuu
         );
-
-
-        // -----------------------------------------------------
-        // 13. XÓA GIỎ HÀNG
-        // -----------------------------------------------------
-
         chiTietGioHangRepository.deleteAll(
                 danhSachGioHang
         );
@@ -593,12 +494,6 @@ public class HoaDonService {
 
         return hoaDonDaLuu;
     }
-
-
-    // =========================================================
-    // CHI TIẾT HÓA ĐƠN
-    // =========================================================
-
     public List<ChiTietHoaDon> getChiTietByHoaDonId(
             Long hoaDonId
     ) {
@@ -622,11 +517,6 @@ public class HoaDonService {
 
         chiTietHoaDonRepository.deleteById(id);
     }
-
-
-    // =========================================================
-    // THANH TOÁN
-    // =========================================================
 
     public ThanhToan getThanhToanByHoaDonId(
             Long hoaDonId
@@ -693,11 +583,6 @@ public class HoaDonService {
         );
     }
 
-
-    // =========================================================
-    // LỊCH SỬ HÓA ĐƠN
-    // =========================================================
-
     public List<LichSuHoaDon> getLichSuByHoaDonId(
             Long hoaDonId
     ) {
@@ -725,11 +610,6 @@ public class HoaDonService {
                 lichSuHoaDon
         );
     }
-
-
-    // =========================================================
-    // TÌM HÓA ĐƠN
-    // =========================================================
 
     public List<HoaDon> getByKhachHangId(
             Long khachHangId
@@ -765,11 +645,6 @@ public class HoaDonService {
         return hoaDonRepository
                 .findByLoaiHoaDon(loaiHoaDon);
     }
-
-
-    // =========================================================
-    // CẬP NHẬT TRẠNG THÁI
-    // =========================================================
 
     @Transactional
     public HoaDon capNhatTrangThai(
@@ -810,11 +685,6 @@ public class HoaDonService {
                 hoaDonRepository.save(
                         hoaDon
                 );
-
-
-        // -----------------------------------------------------
-        // Lưu lịch sử trạng thái
-        // -----------------------------------------------------
 
         LichSuHoaDon lichSu =
                 new LichSuHoaDon();

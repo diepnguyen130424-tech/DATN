@@ -60,7 +60,6 @@ public class KhachHangController {
         );
     }
 
-    // Xóa khách hàng
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
 

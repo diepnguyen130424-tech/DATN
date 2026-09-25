@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class PhieuKho {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -22,6 +23,9 @@ public class PhieuKho {
 
     @Column(name = "loai_phieu", nullable = false)
     private String loaiPhieu;
+
+    @Column(name = "loai", nullable = false)
+    private String loai;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "kho_id", nullable = false)
@@ -49,4 +53,14 @@ public class PhieuKho {
 
     @Column(name = "ngay_cap_nhat", nullable = false)
     private LocalDateTime ngayCapNhat;
+
+    @PrePersist
+    @PreUpdate
+    private void dongBoLoai() {
+        if (loaiPhieu != null) {
+            loai = loaiPhieu;
+        } else if (loai != null) {
+            loaiPhieu = loai;
+        }
+    }
 }

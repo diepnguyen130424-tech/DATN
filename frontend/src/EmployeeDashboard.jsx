@@ -274,9 +274,9 @@ function EmployeeOverview() {
                                 </td>
 
                                 <td>
-                                        <span className="employee-type">
-                                            {order.loai}
-                                        </span>
+                                    <span className="employee-type">
+                                        {order.loai}
+                                    </span>
                                 </td>
 
                                 <td>
@@ -284,16 +284,16 @@ function EmployeeOverview() {
                                 </td>
 
                                 <td>
-                                        <span
-                                            className={
-                                                order.trangThai ===
-                                                "Đã thanh toán"
-                                                    ? "employee-status paid"
-                                                    : "employee-status waiting"
-                                            }
-                                        >
-                                            {order.trangThai}
-                                        </span>
+                                    <span
+                                        className={
+                                            order.trangThai ===
+                                            "Đã thanh toán"
+                                                ? "employee-status paid"
+                                                : "employee-status waiting"
+                                        }
+                                    >
+                                        {order.trangThai}
+                                    </span>
                                 </td>
 
                             </tr>
@@ -332,6 +332,8 @@ function ComingSoon({ title }) {
 }
 
 export default function EmployeeDashboard({
+                                              taiKhoan,
+                                              dangXuat,
                                               onBackToShop,
                                           }) {
 
@@ -342,6 +344,12 @@ export default function EmployeeDashboard({
         menuItems.find(
             (item) => item.id === activeMenu
         )?.label || "Tổng quan";
+
+    const tenDangNhap =
+        taiKhoan?.tenDangNhap || "Nhân viên";
+
+    const vaiTro =
+        taiKhoan?.vaiTro || "NHAN_VIEN";
 
     return (
         <div className="employee-layout">
@@ -417,7 +425,10 @@ export default function EmployeeDashboard({
                         Cài đặt
                     </button>
 
-                    <button type="button">
+                    <button
+                        type="button"
+                        onClick={dangXuat}
+                    >
                         <span>↪</span>
                         Đăng xuất
                     </button>
@@ -453,17 +464,19 @@ export default function EmployeeDashboard({
                         </button>
 
                         <div className="employee-avatar">
-                            NV
+                            {tenDangNhap
+                                .substring(0, 2)
+                                .toUpperCase()}
                         </div>
 
                         <div className="employee-account-info">
 
                             <strong>
-                                Nhân viên bán hàng
+                                {tenDangNhap}
                             </strong>
 
                             <span>
-                                NHÂN VIÊN
+                                {vaiTro}
                             </span>
 
                         </div>

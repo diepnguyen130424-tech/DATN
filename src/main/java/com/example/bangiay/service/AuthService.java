@@ -50,14 +50,32 @@ public class AuthService {
         TaiKhoan taiKhoan = taiKhoanRepository
                 .findByTenDangNhap(tenDangNhap)
                 .orElseThrow(() ->
-                        new RuntimeException("Sai tên đăng nhập hoặc mật khẩu"));
+                        new RuntimeException(
+                                "Sai tên đăng nhập hoặc mật khẩu"
+                        ));
 
         if (!taiKhoan.getMatKhau().equals(matKhau)) {
-            throw new RuntimeException("Sai tên đăng nhập hoặc mật khẩu");
+            throw new RuntimeException(
+                    "Sai tên đăng nhập hoặc mật khẩu"
+            );
         }
 
         if (!"HOAT_DONG".equalsIgnoreCase(taiKhoan.getTrangThai())) {
-            throw new RuntimeException("Tài khoản không hoạt động");
+            throw new RuntimeException(
+                    "Tài khoản không hoạt động"
+            );
+        }
+
+        String vaiTro = taiKhoan.getVaiTro();
+
+        if (vaiTro == null ||
+                (!"QUAN_TRI".equalsIgnoreCase(vaiTro)
+                        && !"NHAN_VIEN".equalsIgnoreCase(vaiTro)
+                        && !"KHACH_HANG".equalsIgnoreCase(vaiTro))) {
+
+            throw new RuntimeException(
+                    "Vai trò tài khoản không hợp lệ"
+            );
         }
 
         return taiKhoan;
@@ -66,21 +84,43 @@ public class AuthService {
 
     public TaiKhoan register(TaiKhoan taiKhoan) {
 
-        if (taiKhoanRepository.existsByTenDangNhap(
-                taiKhoan.getTenDangNhap())) {
+        if (taiKhoan.getTenDangNhap() == null
+                || taiKhoan.getTenDangNhap().trim().isEmpty()) {
 
-            throw new RuntimeException("Tên đăng nhập đã tồn tại");
+            throw new RuntimeException(
+                    "Tên đăng nhập không được để trống"
+            );
         }
 
-        // Thiết lập thông tin tài khoản
+        if (taiKhoan.getMatKhau() == null
+                || taiKhoan.getMatKhau().isEmpty()) {
+
+            throw new RuntimeException(
+                    "Mật khẩu không được để trống"
+            );
+        }
+
+        String tenDangNhap = taiKhoan
+                .getTenDangNhap()
+                .trim();
+
+        if (taiKhoanRepository.existsByTenDangNhap(tenDangNhap)) {
+            throw new RuntimeException(
+                    "Tên đăng nhập đã tồn tại"
+            );
+        }
+
+
+        taiKhoan.setTenDangNhap(tenDangNhap);
         taiKhoan.setVaiTro("KHACH_HANG");
         taiKhoan.setTrangThai("HOAT_DONG");
         taiKhoan.setNgayTao(LocalDateTime.now());
 
-        TaiKhoan savedTaiKhoan = taiKhoanRepository.save(taiKhoan);
+        TaiKhoan savedTaiKhoan =
+                taiKhoanRepository.save(taiKhoan);
 
-        // Tạo khách hàng tương ứng
         KhachHang khachHang = new KhachHang();
+
         khachHang.setTaiKhoan(savedTaiKhoan);
         khachHang.setHoTen("Khách hàng mới");
 
