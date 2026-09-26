@@ -118,9 +118,18 @@ function App() {
     }, []);
 
     const xuLyDangNhapThanhCong = (data) => {
+        const vaiTro = String(data?.vaiTro || "").toUpperCase();
+
         setTaiKhoan(data);
         localStorage.setItem("taiKhoan", JSON.stringify(data));
-        setPage(layTrangTheoVaiTro(data));
+
+        if (vaiTro === "QUAN_TRI") {
+            setPage("admin");
+        } else if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN VIÊN") {
+            setPage("employee");
+        } else {
+            setPage("home");
+        }
     };
 
     const dangXuat = () => {
@@ -345,16 +354,28 @@ function App() {
     }, 0);
 
     if (page === "admin") {
-        if (String(taiKhoan?.vaiTro || "").toUpperCase() !== "QUAN_TRI") {
+        const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
+
+        if (vaiTro === "QUAN_TRI") {
+            return <AdminDashboard dangXuat={dangXuat} />;
+        }
+
+        if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN_VIÊN") {
             return (
-                <Login
-                    setPage={setPage}
-                    onLoginSuccess={xuLyDangNhapThanhCong}
+                <EmployeeDashboard
+                    taiKhoan={taiKhoan}
+                    dangXuat={dangXuat}
+                    onBackToShop={() => setPage("home")}
                 />
             );
         }
 
-        return <AdminDashboard dangXuat={dangXuat} />;
+        return (
+            <Login
+                setPage={setPage}
+                onLoginSuccess={xuLyDangNhapThanhCong}
+            />
+        );
     }
 
     if (page === "employee") {
