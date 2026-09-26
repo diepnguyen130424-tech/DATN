@@ -190,7 +190,7 @@ function ComingSoon({ title }) {
     );
 }
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ dangXuat }) {
     const [activeMenu, setActiveMenu] = useState("dashboard");
 
     const activeLabel =
@@ -225,18 +225,20 @@ export default function AdminDashboard() {
 
                 <div className="admin-sidebar-footer">
 
-                    <button
-                        type="button"
-                        className="admin-home-button" onClick={() => {window.location.href = "/";
-                        }}>
-                        <span>←</span>
-                        Về trang chủ
-                    </button>
                     <button type="button">
                         <span>⚙</span>
                         Cài đặt
                     </button>
-                    <button type="button">
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (typeof dangXuat === "function") {
+                                dangXuat();
+                            }
+                        }}
+                    >
                         <span>↪</span>
                         Đăng xuất
                     </button>
@@ -281,3 +283,4 @@ export default function AdminDashboard() {
         </div>
     );
 }
+

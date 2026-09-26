@@ -97,8 +97,9 @@ function App() {
     })();
 
     const [taiKhoan, setTaiKhoan] = useState(taiKhoanDaLuu);
+
     const [page, setPage] = useState(
-        taiKhoanDaLuu ? layTrangTheoVaiTro(taiKhoanDaLuu) : "login"
+        taiKhoanDaLuu ? layTrangTheoVaiTro(taiKhoanDaLuu) : "home"
     );
 
     const [sanPhams, setSanPhams] = useState([]);
@@ -126,7 +127,7 @@ function App() {
         localStorage.removeItem("taiKhoan");
         setTaiKhoan(null);
         setGioHang([]);
-        setPage("login");
+        setPage("home");
     };
 
     const taiSanPham = async () => {
@@ -135,215 +136,248 @@ function App() {
 
             const response = await fetch(`${API}/san-pham`);
 
-if (!response.ok) {
-    throw new Error("Không thể lấy danh sách sản phẩm");
-}
+            if (!response.ok) {
+                throw new Error("Không thể lấy danh sách sản phẩm");
+            }
 
-const data = await response.json();
+            const data = await response.json();
 
-const danhSach = Array.isArray(data) ? data : [];
+            const danhSach = Array.isArray(data) ? data : [];
 
-const sanPhamCoGia = await Promise.all(
-    danhSach.map(async (sanPham) => {
+            const sanPhamCoGia = await Promise.all(
+                danhSach.map(async (sanPham) => {
+                    try {
+                        const detailResponse = await fetch(
+                            `${API}/san-pham/${sanPham.id}/chi-tiet`
+                        );
+
+                        if (!detailResponse.ok) {
+                            return {
+                                ...sanPham,
+                                chiTiets: [],
+                                giaBan: null,
+                            };
+                        }
+
+                        const details = await detailResponse.json();
+
+                        return {
+                            ...sanPham,
+                            chiTiets: Array.isArray(details) ? details : [],
+                            giaBan:
+                                Array.isArray(details) && details.length > 0
+                                    ? details[0].giaBan
+                                    : null,
+                        };
+                    } catch {
+                        return {
+                            ...sanPham,
+                            chiTiets: [],
+                            giaBan: null,
+                        };
+                    }
+                })
+            );
+
+            setSanPhams(sanPhamCoGia);
+        } catch (error) {
+            console.error(error);
+            setSanPhams([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const showToast = (message) => {
+        setToast(message);
+
+        setTimeout(() => {
+            setToast("");
+        }, 2000);
+    };
+
+    const xemSanPham = async (sanPham) => {
         try {
-            const detailResponse = await fetch(
+            const response = await fetch(
                 `${API}/san-pham/${sanPham.id}/chi-tiet`
             );
 
-            if (!detailResponse.ok) {
+            let chiTiets = [];
+
+            if (response.ok) {
+                const data = await response.json();
+                chiTiets = Array.isArray(data) ? data : [];
+            }
+
+            setSelectedProduct({
+                ...sanPham,
+                chiTiets,
+            });
+
+            setPage("detail");
+
+            window.scrollTo({
+                top: 0,
+                behavior: "smooth",
+            });
+        } catch (error) {
+            console.error(error);
+
+            setSelectedProduct({
+                ...sanPham,
+                chiTiets: sanPham.chiTiets || [],
+            });
+
+            setPage("detail");
+        }
+    };
+
+    const themVaoGio = (sanPham, chiTiet = null, soLuong = 1) => {
+        if (!chiTiet?.id) {
+            alert("Sản phẩm chưa có biến thể để mua");
+            return;
+        }
+
+        const tonKho = Number(chiTiet.soLuongTon ?? 0);
+
+        if (tonKho <= 0) {
+            alert("Sản phẩm đã hết hàng");
+            return;
+        }
+
+        const variantId = chiTiet.id;
+        const soLuongThem = Math.max(1, Number(soLuong) || 1);
+
+        setGioHang((oldCart) => {
+            const existing = oldCart.find(
+                (item) => item.variantId === variantId
+            );
+
+            if (existing) {
+                const soLuongMoi = existing.soLuong + soLuongThem;
+
+                if (soLuongMoi > tonKho) {
+                    alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
+                    return oldCart;
+                }
+
+                return oldCart.map((item) =>
+                    item.variantId === variantId
+                        ? { ...item, soLuong: soLuongMoi }
+                        : item
+                );
+            }
+
+            const soLuongMoi = Math.min(soLuongThem, tonKho);
+
+            return [
+                ...oldCart,
+                {
+                    variantId,
+                    sanPham,
+                    chiTiet,
+                    soLuong: soLuongMoi,
+                },
+            ];
+        });
+
+        showToast("Đã thêm sản phẩm vào giỏ hàng");
+        return true;
+    };
+
+    const tangSoLuong = (variantId) => {
+        setGioHang((oldCart) =>
+            oldCart.map((item) => {
+                if (item.variantId !== variantId) return item;
+
+                const tonKho = Number(item.chiTiet?.soLuongTon ?? 0);
+
+                if (tonKho > 0 && item.soLuong >= tonKho) {
+                    alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
+                    return item;
+                }
+
                 return {
-                    ...sanPham,
-                    chiTiets: [],
-                    giaBan: null,
+                    ...item,
+                    soLuong: item.soLuong + 1,
                 };
-            }
+            })
+        );
+    };
 
-            const details = await detailResponse.json();
+    const giamSoLuong = (variantId) => {
+        setGioHang((oldCart) =>
+            oldCart
+                .map((item) =>
+                    item.variantId === variantId
+                        ? {
+                            ...item,
+                            soLuong: item.soLuong - 1,
+                        }
+                        : item
+                )
+                .filter((item) => item.soLuong > 0)
+        );
+    };
 
-            return {
-                ...sanPham,
-                chiTiets: Array.isArray(details) ? details : [],
-                giaBan:
-                    Array.isArray(details) && details.length > 0
-                        ? details[0].giaBan
-                        : null,
-            };
-        } catch {
-            return {
-                ...sanPham,
-                chiTiets: [],
-                giaBan: null,
-            };
-        }
-    })
-);
-
-setSanPhams(sanPhamCoGia);
-} catch (error) {
-    console.error(error);
-    setSanPhams([]);
-} finally {
-    setLoading(false);
-}
-};
-
-const showToast = (message) => {
-    setToast(message);
-
-    setTimeout(() => {
-        setToast("");
-    }, 2000);
-};
-
-const xemSanPham = async (sanPham) => {
-    try {
-        const response = await fetch(
-            `${API}/san-pham/${sanPham.id}/chi-tiet`
+    const xoaKhoiGio = (variantId) => {
+        setGioHang((oldCart) =>
+            oldCart.filter(
+                (item) => item.variantId !== variantId
+            )
         );
 
-        let chiTiets = [];
+        showToast("Đã xóa sản phẩm khỏi giỏ");
+    };
 
-        if (response.ok) {
-            const data = await response.json();
-            chiTiets = Array.isArray(data) ? data : [];
-        }
+    const tongSoLuong = gioHang.reduce(
+        (total, item) => total + item.soLuong,
+        0
+    );
 
-        setSelectedProduct({
-            ...sanPham,
-            chiTiets,
-        });
+    const tongTien = gioHang.reduce((total, item) => {
+        const gia =
+            item.chiTiet?.giaBan ||
+            item.sanPham?.giaBan ||
+            0;
 
-        setPage("detail");
+        return total + Number(gia) * item.soLuong;
+    }, 0);
 
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth",
-        });
-    } catch (error) {
-        console.error(error);
-
-        setSelectedProduct({
-            ...sanPham,
-            chiTiets: sanPham.chiTiets || [],
-        });
-
-        setPage("detail");
-    }
-};
-
-const themVaoGio = (sanPham, chiTiet = null, soLuong = 1) => {
-    if (!chiTiet?.id) {
-        alert("Sản phẩm chưa có biến thể để mua");
-        return;
-    }
-
-    const tonKho = Number(chiTiet.soLuongTon ?? 0);
-
-    if (tonKho <= 0) {
-        alert("Sản phẩm đã hết hàng");
-        return;
-    }
-
-    const variantId = chiTiet.id;
-    const soLuongThem = Math.max(1, Number(soLuong) || 1);
-
-    setGioHang((oldCart) => {
-        const existing = oldCart.find(
-            (item) => item.variantId === variantId
-        );
-
-        if (existing) {
-            const soLuongMoi = existing.soLuong + soLuongThem;
-
-            if (soLuongMoi > tonKho) {
-                alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
-                return oldCart;
-            }
-
-            return oldCart.map((item) =>
-                item.variantId === variantId
-                    ? { ...item, soLuong: soLuongMoi }
-                    : item
+    if (page === "admin") {
+        if (String(taiKhoan?.vaiTro || "").toUpperCase() !== "QUAN_TRI") {
+            return (
+                <Login
+                    setPage={setPage}
+                    onLoginSuccess={xuLyDangNhapThanhCong}
+                />
             );
         }
 
-        const soLuongMoi = Math.min(soLuongThem, tonKho);
+        return <AdminDashboard dangXuat={dangXuat} />;
+    }
 
-        return [
-            ...oldCart,
-            {
-                variantId,
-                sanPham,
-                chiTiet,
-                soLuong: soLuongMoi,
-            },
-        ];
-    });
+    if (page === "employee") {
+        const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
 
-    showToast("Đã thêm sản phẩm vào giỏ hàng");
-};
+        if (vaiTro !== "NHAN_VIEN" && vaiTro !== "NHÂN_VIÊN") {
+            return (
+                <Login
+                    setPage={setPage}
+                    onLoginSuccess={xuLyDangNhapThanhCong}
+                />
+            );
+        }
 
-const tangSoLuong = (variantId) => {
-    setGioHang((oldCart) =>
-        oldCart.map((item) => {
-            if (item.variantId !== variantId) return item;
+        return (
+            <EmployeeDashboard
+                taiKhoan={taiKhoan}
+                dangXuat={dangXuat}
+            />
+        );
+    }
 
-            const tonKho = Number(item.chiTiet?.soLuongTon ?? 0);
-
-            if (tonKho > 0 && item.soLuong >= tonKho) {
-                alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
-                return item;
-            }
-
-            return {
-                ...item,
-                soLuong: item.soLuong + 1,
-            };
-        })
-    );
-};
-
-const giamSoLuong = (variantId) => {
-    setGioHang((oldCart) =>
-        oldCart
-            .map((item) =>
-                item.variantId === variantId
-                    ? {
-                        ...item,
-                        soLuong: item.soLuong - 1,
-                    }
-                    : item
-            )
-            .filter((item) => item.soLuong > 0)
-    );
-};
-
-const xoaKhoiGio = (variantId) => {
-    setGioHang((oldCart) =>
-        oldCart.filter(
-            (item) => item.variantId !== variantId
-        )
-    );
-
-    showToast("Đã xóa sản phẩm khỏi giỏ");
-};
-
-const tongSoLuong = gioHang.reduce(
-    (total, item) => total + item.soLuong,
-    0
-);
-
-const tongTien = gioHang.reduce((total, item) => {
-    const gia =
-        item.chiTiet?.giaBan ||
-        item.sanPham?.giaBan ||
-        0;
-
-    return total + Number(gia) * item.soLuong;
-}, 0);
-
-if (page === "admin") {
-    if (String(taiKhoan?.vaiTro || "").toUpperCase() !== "QUAN_TRI") {
+    if (page === "login") {
         return (
             <Login
                 setPage={setPage}
@@ -352,124 +386,83 @@ if (page === "admin") {
         );
     }
 
-    return <AdminDashboard />;
-}
-
-if (page === "employee") {
-    const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
-
-    if (vaiTro !== "NHAN_VIEN" && vaiTro !== "NHÂN_VIÊN") {
-        return (
-            <Login
-                setPage={setPage}
-                onLoginSuccess={xuLyDangNhapThanhCong}
-            />
-        );
+    if (page === "register") {
+        return <Register setPage={setPage} />;
     }
 
     return (
-        <EmployeeDashboard
-            taiKhoan={taiKhoan}
-            dangXuat={dangXuat}
-            onBackToShop={() => setPage("home")}
-        />
-    );
-}
+        <div className="fshop">
 
-if (page === "login") {
-    return (
-        <Login
-            setPage={setPage}
-            onLoginSuccess={xuLyDangNhapThanhCong}
-        />
-    );
-}
-
-if (page === "register") {
-    return <Register setPage={setPage} />;
-}
-
-if (!taiKhoan) {
-    return (
-        <Login
-            setPage={setPage}
-            onLoginSuccess={xuLyDangNhapThanhCong}
-        />
-    );
-}
-
-return (
-    <div className="fshop">
-
-        <Header
-            page={page}
-            setPage={setPage}
-            search={search}
-            setSearch={setSearch}
-            tongSoLuong={tongSoLuong}
-            taiKhoan={taiKhoan}
-            dangXuat={dangXuat}
-        />
-
-        {page === "home" && (
-            <Home
-                sanPhams={sanPhams}
-                loading={loading}
-                xemSanPham={xemSanPham}
-                themVaoGio={themVaoGio}
+            <Header
+                page={page}
                 setPage={setPage}
-            />
-        )}
-
-        {page === "products" && (
-            <ProductList
-                sanPhams={sanPhams}
-                loading={loading}
                 search={search}
                 setSearch={setSearch}
-                xemSanPham={xemSanPham}
-                themVaoGio={themVaoGio}
+                tongSoLuong={tongSoLuong}
+                taiKhoan={taiKhoan}
+                dangXuat={dangXuat}
             />
-        )}
 
-        {page === "detail" && selectedProduct && (
-            <ProductDetail
-                sanPham={selectedProduct}
-                themVaoGio={themVaoGio}
-                setPage={setPage}
-            />
-        )}
+            {page === "home" && (
+                <Home
+                    sanPhams={sanPhams}
+                    loading={loading}
+                    xemSanPham={xemSanPham}
+                    themVaoGio={themVaoGio}
+                    setPage={setPage}
+                />
+            )}
 
-        {page === "cart" && (
-            <Cart
-                gioHang={gioHang}
-                tongTien={tongTien}
-                tangSoLuong={tangSoLuong}
-                giamSoLuong={giamSoLuong}
-                xoaKhoiGio={xoaKhoiGio}
-                setPage={setPage}
-            />
-        )}
+            {page === "products" && (
+                <ProductList
+                    sanPhams={sanPhams}
+                    loading={loading}
+                    search={search}
+                    setSearch={setSearch}
+                    xemSanPham={xemSanPham}
+                    themVaoGio={themVaoGio}
+                />
+            )}
 
-        {page === "checkout" && (
-            <Checkout
-                gioHang={gioHang}
-                tongTien={tongTien}
-                setPage={setPage}
-                setGioHang={setGioHang}
-            />
-        )}
+            {page === "detail" && selectedProduct && (
+                <ProductDetail
+                    sanPham={selectedProduct}
+                    themVaoGio={themVaoGio}
+                    setPage={setPage}
+                />
+            )}
 
-        <Footer />
+            {page === "cart" && (
+                <Cart
+                    gioHang={gioHang}
+                    tongTien={tongTien}
+                    tangSoLuong={tangSoLuong}
+                    giamSoLuong={giamSoLuong}
+                    xoaKhoiGio={xoaKhoiGio}
+                    setPage={setPage}
+                    taiKhoan={taiKhoan}
+                />
+            )}
 
-        {toast && (
-            <div className="toast">
-                <span>✓</span>
-                {toast}
-            </div>
-        )}
-    </div>
-);
+            {page === "checkout" && (
+                <Checkout
+                    gioHang={gioHang}
+                    tongTien={tongTien}
+                    setPage={setPage}
+                    setGioHang={setGioHang}
+                />
+            )}
+
+            <Footer />
+
+            {toast && (
+                <div className="toast">
+                    <span>✓</span>
+                    {toast}
+                </div>
+            )}
+        </div>
+    );
 }
 
 function Header({
@@ -546,36 +539,44 @@ function Header({
 
                     <div className="header-right">
 
-                        <div
-                            className="header-item account-header"
-                            onClick={() => {
-                                if (!taiKhoan) {
-                                    setPage("login");
-                                }
-                            }}
-                        >
-              <span className="header-icon">
-                ♙
-              </span>
+                        {!taiKhoan ? (
+                            <div className="header-auth-buttons" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <button
+                                    type="button"
+                                    className="header-login-button"
+                                    style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid #111", background: "#fff", color: "#111", fontWeight: 700, cursor: "pointer" }}
+                                    onClick={() => setPage("login")}
+                                >
+                                    Đăng nhập
+                                </button>
 
-                            <div>
-                                <small>Tài khoản</small>
-                                <strong>
-                                    {taiKhoan
-                                        ? taiKhoan.tenDangNhap
-                                        : "Đăng nhập"}
-                                </strong>
+                                <button
+                                    type="button"
+                                    className="header-register-button"
+                                    style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid #111", background: "#111", color: "#fff", fontWeight: 700, cursor: "pointer" }}
+                                    onClick={() => setPage("register")}
+                                >
+                                    Đăng ký
+                                </button>
                             </div>
-                        </div>
+                        ) : (
+                            <>
+                                <div className="header-item account-header">
+                                    <span className="header-icon">♙</span>
+                                    <div>
+                                        <small>Tài khoản</small>
+                                        <strong>{taiKhoan.tenDangNhap}</strong>
+                                    </div>
+                                </div>
 
-                        {taiKhoan && (
-                            <button
-                                type="button"
-                                className="logout-button"
-                                onClick={dangXuat}
-                            >
-                                Đăng xuất
-                            </button>
+                                <button
+                                    type="button"
+                                    className="logout-button"
+                                    onClick={dangXuat}
+                                >
+                                    Đăng xuất
+                                </button>
+                            </>
                         )}
 
                         <div className="header-item">
@@ -963,6 +964,7 @@ function Home({
     );
 }
 
+
 function ProductCard({
                          sanPham,
                          index,
@@ -1055,6 +1057,7 @@ function ProductCard({
         </div>
     );
 }
+
 
 function ProductList({
                          sanPhams,
@@ -1309,6 +1312,7 @@ function ProductList({
         </main>
     );
 }
+
 
 function ProductDetail({
                            sanPham,
@@ -1594,13 +1598,15 @@ function ProductDetail({
                             <button
                                 className="detail-buy"
                                 onClick={() => {
-                                    themVaoGio(
+                                    const daThem = themVaoGio(
                                         sanPham,
                                         selectedVariant,
                                         soLuong
                                     );
 
-                                    setPage("cart");
+                                    if (daThem) {
+                                        setPage("cart");
+                                    }
                                 }}
                             >
                                 Mua ngay
@@ -1709,6 +1715,7 @@ function Cart({
                   giamSoLuong,
                   xoaKhoiGio,
                   setPage,
+                  taiKhoan,
               }) {
     const phiVanChuyen = 0;
 
@@ -1934,7 +1941,13 @@ function Cart({
 
                             <button
                                 className="checkout-button"
-                                onClick={() => setPage("checkout")}
+                                onClick={() => {
+                                    if (!taiKhoan) {
+                                        setPage("login");
+                                        return;
+                                    }
+                                    setPage("checkout");
+                                }}
                             >
                                 Tiến hành đặt hàng →
                             </button>
@@ -1997,19 +2010,15 @@ function Checkout({
         }
 
         if (dangDatHang) return;
-
         const itemsForBill = gioHang.map((item) => ({
             ...item,
             sanPham: { ...item.sanPham },
             chiTiet: item.chiTiet ? { ...item.chiTiet } : null,
         }));
 
-// ID giỏ hàng backend đang sử dụng
-        const gioHangId = 2;
-
         try {
             setDangDatHang(true);
-
+            const gioHangId = 2;
             const cartDetailResponse = await fetch(
                 `${API}/gio-hang/${gioHangId}/chi-tiet`
             );
@@ -2023,7 +2032,6 @@ function Checkout({
 
             const cartDetails = await cartDetailResponse.json();
 
-            // Xóa toàn bộ chi tiết cũ để không bị trộn với đơn mới.
             for (const detail of Array.isArray(cartDetails) ? cartDetails : []) {
                 const deleteResponse = await fetch(
                     `${API}/gio-hang/chi-tiet/${detail.id}`,
@@ -2144,6 +2152,7 @@ function Checkout({
                     : tongTien,
             });
 
+            // Chỉ xóa giỏ hàng sau khi backend báo tạo hóa đơn thành công.
             setGioHang([]);
         } catch (error) {
             console.error("Lỗi đặt hàng:", error);
@@ -2153,6 +2162,7 @@ function Checkout({
         }
     };
 
+    // Hiện bill ngay trên trang sau khi backend tạo hóa đơn thành công.
     if (bill) {
         return (
             <main className="cart-page">
@@ -2485,6 +2495,7 @@ function Loading() {
         </div>
     );
 }
+
 
 function Footer() {
     return (

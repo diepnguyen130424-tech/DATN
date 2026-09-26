@@ -1,508 +1,262 @@
 import { useState } from "react";
-import "./EmployeeDashboard.css";
+import "./AdminDashboard.css";
 
 const menuItems = [
-    {
-        id: "dashboard",
-        icon: "▦",
-        label: "Tổng quan",
-    },
-    {
-        id: "ban-hang",
-        icon: "🛒",
-        label: "Bán hàng tại quầy",
-    },
-    {
-        id: "hoa-don",
-        icon: "▧",
-        label: "Hóa đơn",
-    },
-    {
-        id: "khach-hang",
-        icon: "◎",
-        label: "Khách hàng",
-    },
-    {
-        id: "san-pham",
-        icon: "□",
-        label: "Sản phẩm",
-    },
+    { id: "dashboard", icon: "▦", label: "Tổng quan" },
+    { id: "san-pham", icon: "□", label: "Sản phẩm" },
+    { id: "danh-muc", icon: "▤", label: "Danh mục" },
+    { id: "thuong-hieu", icon: "◇", label: "Thương hiệu" },
+    { id: "kich-co", icon: "↔", label: "Kích cỡ" },
+    { id: "mau-sac", icon: "●", label: "Màu sắc" },
+    { id: "voucher", icon: "◇", label: "Voucher" },
+    { id: "khuyen-mai", icon: "✦", label: "Khuyến mãi" },
+    { id: "hoa-don", icon: "▧", label: "Hóa đơn" },
+    { id: "thanh-toan", icon: "▤", label: "Thanh toán" },
+    { id: "khach-hang", icon: "◎", label: "Khách hàng" },
+    { id: "nhan-vien", icon: "♙", label: "Nhân viên" },
 ];
 
-const todayOrders = [
-    {
-        ma: "HD001",
-        khachHang: "Nguyễn Văn A",
-        loai: "Tại quầy",
-        tongTien: "1.500.000đ",
-        trangThai: "Đã thanh toán",
-    },
-    {
-        ma: "HD002",
-        khachHang: "Trần Văn B",
-        loai: "Tại quầy",
-        tongTien: "2.350.000đ",
-        trangThai: "Đã thanh toán",
-    },
-    {
-        ma: "HD003",
-        khachHang: "Khách lẻ",
-        loai: "Tại quầy",
-        tongTien: "850.000đ",
-        trangThai: "Chờ thanh toán",
-    },
+const stats = [
+    { label: "Tổng sản phẩm", value: "128", icon: "□", note: "+12%" },
+    { label: "Đơn hàng", value: "56", icon: "▧", note: "+12%" },
+    { label: "Khách hàng", value: "320", icon: "◎", note: "+12%" },
+    { label: "Doanh thu", value: "48.500.000đ", icon: "₫", note: "+12%" },
 ];
 
-function EmployeeOverview() {
+const orders = [
+    ["HD001", "Nguyễn Văn A", "4.800.000đ", "Chờ xác nhận"],
+    ["HD002", "Trần Văn B", "2.350.000đ", "Đang giao"],
+    ["HD003", "Lê Văn C", "1.500.000đ", "Đã giao"],
+    ["HD004", "Phạm Văn D", "3.200.000đ", "Đã thanh toán"],
+];
+
+function DashboardContent() {
     return (
-        <div className="employee-content">
-
-            <div className="employee-heading">
+        <div className="admin-dashboard-content">
+            <div className="admin-page-heading">
                 <div>
-                    <span className="employee-eyebrow">
-                        FSHOP NHÂN VIÊN
-                    </span>
-
+                    <div className="admin-eyebrow">FSHOP ADMIN</div>
                     <h1>Tổng quan</h1>
-
-                    <p>
-                        Quản lý bán hàng và đơn hàng tại cửa hàng.
-                    </p>
+                    <p>Theo dõi hoạt động kinh doanh của cửa hàng.</p>
                 </div>
 
-                <button
-                    className="employee-date"
-                    type="button"
-                >
-                    ▣ Hôm nay
+                <button className="admin-date-button">
+                    <span>▣</span>
+                    Tháng 09/2026
                 </button>
             </div>
 
-            {/* STATISTICS */}
-
-            <div className="employee-stats">
-
-                <div className="employee-stat-card">
-                    <div className="employee-stat-icon">
-                        🛒
+            <div className="admin-stats">
+                {stats.map((item) => (
+                    <div className="admin-stat-card" key={item.label}>
+                        <div className="admin-stat-top">
+                            <div className="admin-stat-icon">{item.icon}</div>
+                            <span className="admin-growth">{item.note}</span>
+                        </div>
+                        <div className="admin-stat-value">{item.value}</div>
+                        <div className="admin-stat-label">{item.label}</div>
                     </div>
-
-                    <div>
-                        <span>Đơn hàng hôm nay</span>
-                        <strong>24</strong>
-                    </div>
-                </div>
-
-                <div className="employee-stat-card">
-                    <div className="employee-stat-icon">
-                        ₫
-                    </div>
-
-                    <div>
-                        <span>Doanh thu hôm nay</span>
-                        <strong>18.500.000đ</strong>
-                    </div>
-                </div>
-
-                <div className="employee-stat-card">
-                    <div className="employee-stat-icon">
-                        ◎
-                    </div>
-
-                    <div>
-                        <span>Khách hàng hôm nay</span>
-                        <strong>19</strong>
-                    </div>
-                </div>
-
-                <div className="employee-stat-card">
-                    <div className="employee-stat-icon">
-                        □
-                    </div>
-
-                    <div>
-                        <span>Sản phẩm đã bán</span>
-                        <strong>42</strong>
-                    </div>
-                </div>
-
+                ))}
             </div>
 
-            {/* QUICK ACTION */}
-
-            <div className="employee-section-grid">
-
-                <section className="employee-card quick-card">
-
-                    <div className="employee-card-heading">
+            <div className="admin-dashboard-grid">
+                <section className="admin-card revenue-card">
+                    <div className="admin-card-heading">
                         <div>
-                            <h2>Thao tác nhanh</h2>
+                            <h2>Doanh thu</h2>
+                            <p>Doanh thu trong 7 ngày gần nhất</p>
+                        </div>
+                        <strong>48.500.000đ</strong>
+                    </div>
 
-                            <p>
-                                Các chức năng thường sử dụng
-                            </p>
+                    <div className="revenue-chart">
+                        <div className="chart-labels">
+                            <span>10tr</span>
+                            <span>8tr</span>
+                            <span>6tr</span>
+                            <span>4tr</span>
+                            <span>2tr</span>
+                            <span>0</span>
+                        </div>
+
+                        <div className="chart-main">
+                            <div className="chart-grid-lines">
+                                <i />
+                                <i />
+                                <i />
+                                <i />
+                                <i />
+                            </div>
+
+                            <div className="chart-bars">
+                                {[35, 52, 42, 72, 58, 88, 76].map((height, index) => (
+                                    <div className="chart-bar-wrap" key={index}>
+                                        <div
+                                            className="chart-bar"
+                                            style={{ height: `${height}%` }}
+                                        />
+                                        <span>{["T2", "T3", "T4", "T5", "T6", "T7", "CN"][index]}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
-
-                    <div className="quick-actions">
-
-                        <button type="button">
-                            <span>🛒</span>
-
-                            <div>
-                                <strong>Bán hàng tại quầy</strong>
-                                <small>
-                                    Tạo hóa đơn mới
-                                </small>
-                            </div>
-                        </button>
-
-                        <button type="button">
-                            <span>▧</span>
-
-                            <div>
-                                <strong>Hóa đơn</strong>
-                                <small>
-                                    Xem và xử lý hóa đơn
-                                </small>
-                            </div>
-                        </button>
-
-                        <button type="button">
-                            <span>◎</span>
-
-                            <div>
-                                <strong>Khách hàng</strong>
-                                <small>
-                                    Tra cứu khách hàng
-                                </small>
-                            </div>
-                        </button>
-
-                    </div>
-
                 </section>
 
-                {/* TODAY SUMMARY */}
-
-                <section className="employee-card">
-
-                    <div className="employee-card-heading">
+                <section className="admin-card">
+                    <div className="admin-card-heading">
                         <div>
-                            <h2>Tình hình hôm nay</h2>
-
-                            <p>
-                                Tổng quan hoạt động
-                            </p>
+                            <h2>Trạng thái đơn hàng</h2>
+                            <p>Tổng quan đơn hàng</p>
                         </div>
                     </div>
 
-                    <div className="employee-summary">
-
+                    <div className="order-status-list">
                         <div>
-                            <span>Đã thanh toán</span>
-                            <strong>21</strong>
+                            <span className="status-dot pending" />
+                            <span>Chờ xác nhận</span>
+                            <strong>12</strong>
                         </div>
-
                         <div>
-                            <span>Chờ thanh toán</span>
-                            <strong>3</strong>
+                            <span className="status-dot processing" />
+                            <span>Đang xử lý</span>
+                            <strong>18</strong>
                         </div>
-
                         <div>
-                            <span>Đã hủy</span>
-                            <strong>0</strong>
+                            <span className="status-dot shipping" />
+                            <span>Đang giao</span>
+                            <strong>15</strong>
                         </div>
-
+                        <div>
+                            <span className="status-dot done" />
+                            <span>Đã giao</span>
+                            <strong>11</strong>
+                        </div>
                     </div>
-
                 </section>
-
             </div>
 
-            {/* RECENT ORDERS */}
-
-            <section className="employee-card employee-orders">
-
-                <div className="employee-card-heading">
-
+            <section className="admin-card">
+                <div className="admin-card-heading">
                     <div>
-                        <h2>Hóa đơn gần đây</h2>
-
-                        <p>
-                            Các hóa đơn được tạo gần nhất
-                        </p>
+                        <h2>Đơn hàng gần đây</h2>
+                        <p>Các đơn hàng mới nhất</p>
                     </div>
-
-                    <button
-                        className="employee-link"
-                        type="button"
-                    >
-                        Xem tất cả →
-                    </button>
-
+                    <button className="admin-link-button">Xem tất cả →</button>
                 </div>
 
-                <div className="employee-table-wrapper">
-
-                    <table className="employee-table">
-
+                <div className="admin-table-scroll">
+                    <table className="admin-table">
                         <thead>
                         <tr>
                             <th>Mã hóa đơn</th>
                             <th>Khách hàng</th>
-                            <th>Loại</th>
                             <th>Tổng tiền</th>
                             <th>Trạng thái</th>
                         </tr>
                         </thead>
-
                         <tbody>
-
-                        {todayOrders.map((order) => (
-
-                            <tr key={order.ma}>
-
+                        {orders.map(([code, customer, total, status]) => (
+                            <tr key={code}>
+                                <td><strong>{code}</strong></td>
+                                <td>{customer}</td>
+                                <td>{total}</td>
                                 <td>
-                                    <strong>
-                                        {order.ma}
-                                    </strong>
+                    <span className={`order-status ${status.replaceAll(" ", "-")}`}>
+                      {status}
+                    </span>
                                 </td>
-
-                                <td>
-                                    {order.khachHang}
-                                </td>
-
-                                <td>
-                                    <span className="employee-type">
-                                        {order.loai}
-                                    </span>
-                                </td>
-
-                                <td>
-                                    {order.tongTien}
-                                </td>
-
-                                <td>
-                                    <span
-                                        className={
-                                            order.trangThai ===
-                                            "Đã thanh toán"
-                                                ? "employee-status paid"
-                                                : "employee-status waiting"
-                                        }
-                                    >
-                                        {order.trangThai}
-                                    </span>
-                                </td>
-
                             </tr>
-
                         ))}
-
                         </tbody>
-
                     </table>
-
                 </div>
-
             </section>
-
         </div>
     );
 }
 
 function ComingSoon({ title }) {
     return (
-        <div className="employee-placeholder">
-
-            <div className="employee-placeholder-icon">
-                ✦
-            </div>
-
+        <div className="admin-placeholder">
+            <div className="admin-placeholder-icon">✦</div>
             <h2>{title}</h2>
-
-            <p>
-                Chức năng này sẽ được team triển khai
-                ở bước tiếp theo.
-            </p>
-
+            <p>Giao diện chức năng này sẽ được team triển khai ở bước tiếp theo.</p>
         </div>
     );
 }
 
-export default function EmployeeDashboard({
-                                              taiKhoan,
-                                              dangXuat,
-                                              onBackToShop,
-                                          }) {
-
-    const [activeMenu, setActiveMenu] =
-        useState("dashboard");
+export default function AdminDashboard({ dangXuat }) {
+    const [activeMenu, setActiveMenu] = useState("dashboard");
 
     const activeLabel =
-        menuItems.find(
-            (item) => item.id === activeMenu
-        )?.label || "Tổng quan";
-
-    const tenDangNhap =
-        taiKhoan?.tenDangNhap || "Nhân viên";
-
-    const vaiTro =
-        taiKhoan?.vaiTro || "NHAN_VIEN";
+        menuItems.find((item) => item.id === activeMenu)?.label || "Tổng quan";
 
     return (
-        <div className="employee-layout">
-
-            {/* SIDEBAR */}
-
-            <aside className="employee-sidebar">
-
-                <div className="employee-brand">
-
-                    <div className="employee-brand-mark">
-                        F
-                    </div>
-
+        <div className="admin-layout">
+            <aside className="admin-sidebar">
+                <div className="admin-brand">
+                    <div className="admin-brand-mark">F</div>
                     <div>
                         <strong>FShop</strong>
-
-                        <span>
-                            NHÂN VIÊN
-                        </span>
+                        <span>ADMIN PANEL</span>
                     </div>
-
                 </div>
 
-                <div className="employee-menu-title">
-                    LÀM VIỆC
-                </div>
+                <div className="admin-section-title">QUẢN LÝ</div>
 
-                <nav className="employee-nav">
-
+                <nav className="admin-nav">
                     {menuItems.map((item) => (
-
                         <button
                             type="button"
                             key={item.id}
-                            className={
-                                activeMenu === item.id
-                                    ? "active"
-                                    : ""
-                            }
-                            onClick={() =>
-                                setActiveMenu(item.id)
-                            }
+                            className={activeMenu === item.id ? "active" : ""}
+                            onClick={() => setActiveMenu(item.id)}
                         >
-
-                            <span className="employee-nav-icon">
-                                {item.icon}
-                            </span>
-
-                            <span>
-                                {item.label}
-                            </span>
-
+                            <span className="admin-nav-icon">{item.icon}</span>
+                            <span>{item.label}</span>
                         </button>
-
                     ))}
-
                 </nav>
 
-                <div className="employee-sidebar-footer">
-
-                    <button
-                        type="button"
-                        className="employee-home-button"
-                        onClick={onBackToShop}
-                    >
-                        <span>←</span>
-                        Về trang chủ
-                    </button>
-
+                <div className="admin-sidebar-footer">
                     <button type="button">
                         <span>⚙</span>
                         Cài đặt
                     </button>
-
-                    <button
-                        type="button"
-                        onClick={dangXuat}
-                    >
+                    <button type="button" onClick={dangXuat}>
                         <span>↪</span>
                         Đăng xuất
                     </button>
-
                 </div>
-
             </aside>
 
-            {/* MAIN */}
-
-            <main className="employee-main">
-
-                <header className="employee-topbar">
-
-                    <div className="employee-breadcrumb">
-                        FShop
-                        <span>/</span>
-                        Nhân viên
-                        <span>/</span>
-
-                        <strong>
-                            {activeLabel}
-                        </strong>
+            <main className="admin-main">
+                <header className="admin-topbar">
+                    <div className="admin-topbar-left">
+                        <div className="admin-breadcrumb">
+                            FShop <span>/</span> Admin <span>/</span> <strong>{activeLabel}</strong>
+                        </div>
                     </div>
 
-                    <div className="employee-account">
-
-                        <button
-                            className="employee-notification"
-                            type="button"
-                        >
-                            ♢
-                        </button>
-
-                        <div className="employee-avatar">
-                            {tenDangNhap
-                                .substring(0, 2)
-                                .toUpperCase()}
+                    <div className="admin-account">
+                        <button className="admin-notification" type="button">♢</button>
+                        <div className="admin-avatar">A</div>
+                        <div className="admin-account-info">
+                            <strong>Quản trị viên</strong>
+                            <span>ADMIN</span>
                         </div>
-
-                        <div className="employee-account-info">
-
-                            <strong>
-                                {tenDangNhap}
-                            </strong>
-
-                            <span>
-                                {vaiTro}
-                            </span>
-
-                        </div>
-
                     </div>
-
                 </header>
 
-                <div className="employee-main-body">
-
+                <div className="admin-main-body">
                     {activeMenu === "dashboard" ? (
-
-                        <EmployeeOverview />
-
+                        <DashboardContent />
                     ) : (
-
-                        <ComingSoon
-                            title={activeLabel}
-                        />
-
+                        <ComingSoon title={activeLabel} />
                     )}
-
                 </div>
-
             </main>
-
         </div>
     );
 }
