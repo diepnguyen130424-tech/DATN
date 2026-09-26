@@ -3,7 +3,8 @@ import "./AdminDashboard.css";
 import AdminProducts from "./AdminProducts";
 import EmployeeDashboard from "./EmployeeDashboard";
 import AdminKho from "./AdminKho";
-
+import AdminVoucher from "./AdminVoucher";
+import AdminKhuyenMai from "./AdminKhuyenMai";
 const menuItems = [
     { id: "dashboard", icon: "▦", label: "Tổng quan" },
     { id: "san-pham", icon: "□", label: "Sản phẩm" },
@@ -271,6 +272,10 @@ export default function AdminDashboard({ dangXuat }) {
                         <AdminProducts />
                     ) : activeMenu === "kho" ? (
                         <AdminKho />
+                    ) : activeMenu === "voucher" ? (
+                        <AdminVoucher />
+                    ) : activeMenu === "khuyen-mai" ? (
+                        <AdminKhuyenMai />
                     ) : activeMenu === "nhan-vien" ? (
                         <EmployeeDashboard
                             onBackToShop={() => {

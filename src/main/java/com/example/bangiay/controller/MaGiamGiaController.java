@@ -6,7 +6,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/ma-giam-gia")
@@ -24,6 +26,13 @@ public class MaGiamGiaController {
     public ResponseEntity<List<MaGiamGia>> getAll() {
         return ResponseEntity.ok(
                 maGiamGiaService.getAll()
+        );
+    }
+
+    @GetMapping("/dang-hoat-dong")
+    public ResponseEntity<List<MaGiamGia>> getDangHoatDong() {
+        return ResponseEntity.ok(
+                maGiamGiaService.getDangHoatDong()
         );
     }
 
@@ -74,5 +83,24 @@ public class MaGiamGiaController {
         maGiamGiaService.delete(id);
 
         return ResponseEntity.noContent().build();
+    }
+    // ⭐ MỚI — KIỂM TRA VOUCHER
+    @PostMapping("/kiem-tra")
+    public ResponseEntity<?> kiemTra(
+            @RequestBody Map<String, Object> body
+    ) {
+        try {
+            String ma = (String) body.get("ma");
+            BigDecimal tongTien = new BigDecimal(
+                    body.get("tongTien").toString()
+            );
+
+            return ResponseEntity.ok(
+                    maGiamGiaService.kiemTraVoucher(ma, tongTien)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", e.getMessage()));
+        }
     }
 }

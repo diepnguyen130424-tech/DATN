@@ -5,6 +5,7 @@ import AdminDashboard from "./AdminDashboard";
 import EmployeeDashboard from "./EmployeeDashboard";
 import Login from "./Login";
 import Register from "./Register";
+import KhuyenMai from "./KhuyenMai";
 
 const API = "http://localhost:8080/api";
 
@@ -464,6 +465,9 @@ function App() {
                     taiKhoan={taiKhoan}
                 />
             )}
+         {page === "khuyen-mai" && (
+                        <KhuyenMai setPage={setPage} />
+                    )}
 
             {page === "checkout" && (
                 <Checkout
@@ -662,9 +666,12 @@ function Header({
                         Thương hiệu
                     </a>
 
-                    <a>
-                        Khuyến mãi
-                    </a>
+                   <a
+                       className={page === "khuyen-mai" ? "nav-active" : ""}
+                       onClick={() => setPage("khuyen-mai")}
+                   >
+                       Khuyến mãi
+                   </a>
 
                     <a>
                         Liên hệ
@@ -2003,6 +2010,56 @@ function Checkout({
     const [dangDatHang, setDangDatHang] = useState(false);
     const [bill, setBill] = useState(null);
 
+    const [maVoucher, setMaVoucher] = useState("");
+        const [voucherInfo, setVoucherInfo] = useState(null);
+        const [voucherError, setVoucherError] = useState("");
+        const [checkingVoucher, setCheckingVoucher] = useState(false);
+
+          const phiVanChuyen = 0;
+            const tienGiam = voucherInfo?.tienGiam ? Number(voucherInfo.tienGiam) : 0;
+            const tongThanhToan = Math.max(0, tongTien + phiVanChuyen - tienGiam);
+
+              const apDungVoucher = async () => {
+                  if (!maVoucher.trim()) {
+                      setVoucherError("Vui lòng nhập mã giảm giá");
+                      return;
+                  }
+
+                  setCheckingVoucher(true);
+                  setVoucherError("");
+
+                  try {
+                      const res = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                              ma: maVoucher,
+                              tongTien: tongTien,
+                          }),
+                      });
+
+                      const data = await res.json();
+
+                      if (!res.ok) {
+                          throw new Error(data.message || "Mã giảm giá không hợp lệ");
+                      }
+
+                      setVoucherInfo(data);
+                      setVoucherError("");
+                  } catch (err) {
+                      setVoucherError(err.message);
+                      setVoucherInfo(null);
+                  } finally {
+                      setCheckingVoucher(false);
+                  }
+              };
+
+              // ===== 🆕 XÓA VOUCHER =====
+              const xoaVoucher = () => {
+                  setMaVoucher("");
+                  setVoucherInfo(null);
+                  setVoucherError("");
+              };
     const datHang = async () => {
         if (!gioHang || gioHang.length === 0) {
             alert("Giỏ hàng đang trống");
