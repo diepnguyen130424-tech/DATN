@@ -3127,6 +3127,17 @@ function EmployeeContent() {
                     type="button"
                     className="customer-add-button"
                     onClick={() => setShowAdd(true)}
+                    style={{
+                        border: "none",
+                        background: "#111",
+                        color: "#fff",
+                        padding: "8px 18px",
+                        borderRadius: "14px",
+                        cursor: "pointer",
+                        fontSize: "15px",
+                        fontWeight: 500,
+                        minWidth: "174px"
+                    }}
                 >
                     + Thêm nhân viên
                 </button>
