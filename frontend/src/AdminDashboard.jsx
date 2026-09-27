@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "./AdminDashboard.css";
-
+import AdminProducts from "./AdminProducts";
+import EmployeeDashboard from "./EmployeeDashboard";
 import AdminVoucher from "./AdminVoucher";
 import AdminKhuyenMai from "./AdminKhuyenMai";
 const API = "http://localhost:8080/api";
@@ -2883,6 +2884,10 @@ export default function AdminDashboard({
                     ) : activeMenu ===
                     "thanh-toan" ? (
                         <ThanhToanContent />
+                    ) : activeMenu === "san-pham" ? (
+                         <AdminProducts />
+                    ) : activeMenu === "kho" ? (
+                        <AdminKho />
                     ) : activeMenu === "voucher" ? (
                         <AdminVoucher />
                     ) : activeMenu === "khuyen-mai" ? (
