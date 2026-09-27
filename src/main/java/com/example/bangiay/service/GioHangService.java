@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -205,10 +206,15 @@ public class GioHangService {
 
     public void deleteChiTiet(Long id) {
 
-        ChiTietGioHang chiTiet = chiTietGioHangRepository.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Không tìm thấy chi tiết giỏ hàng"));
+        Optional<ChiTietGioHang> optionalChiTiet =
+                chiTietGioHangRepository.findById(id);
+
+        // Nếu sản phẩm đã bị xóa khỏi DB thì không báo lỗi 500
+        if (optionalChiTiet.isEmpty()) {
+            return;
+        }
+
+        ChiTietGioHang chiTiet = optionalChiTiet.get();
 
         Long gioHangId = chiTiet.getGioHang().getId();
 
