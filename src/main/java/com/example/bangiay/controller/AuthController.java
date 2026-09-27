@@ -1,5 +1,6 @@
 package com.example.bangiay.controller;
 
+import com.example.bangiay.dto.LoginResponse;
 import com.example.bangiay.entity.TaiKhoan;
 import com.example.bangiay.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<TaiKhoan> login(
+    public ResponseEntity<LoginResponse> login(
             @RequestParam String tenDangNhap,
             @RequestParam String matKhau
     ) {

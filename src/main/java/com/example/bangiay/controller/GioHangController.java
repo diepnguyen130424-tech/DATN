@@ -39,7 +39,18 @@ public class GioHangController {
         return ResponseEntity.ok(
                 gioHangService.getByKhachHangId(khachHangId)
         );
+
     }
+
+    @GetMapping("/khach-hang/{khachHangId}/lay-hoac-tao")
+    public ResponseEntity<GioHang> getOrCreateByKhachHangId(
+            @PathVariable Long khachHangId
+    ) {
+        return ResponseEntity.ok(
+                gioHangService.getOrCreateByKhachHangId(khachHangId)
+        );
+    }
+
 
     @PostMapping
     public ResponseEntity<GioHang> create(

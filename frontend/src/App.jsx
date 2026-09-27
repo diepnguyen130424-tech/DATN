@@ -5,7 +5,6 @@ import AdminDashboard from "./AdminDashboard";
 import EmployeeDashboard from "./EmployeeDashboard";
 import Login from "./Login";
 import Register from "./Register";
-import KhuyenMai from "./KhuyenMai";
 
 const API = "http://localhost:8080/api";
 
@@ -111,6 +110,7 @@ function App() {
     const [selectedProduct, setSelectedProduct] = useState(null);
 
     const [gioHang, setGioHang] = useState([]);
+    const [gioHangId, setGioHangId] = useState(null);
 
     const [toast, setToast] = useState("");
 
@@ -118,7 +118,73 @@ function App() {
         taiSanPham();
     }, []);
 
-    const xuLyDangNhapThanhCong = (data) => {
+    const taiGioHang = async (taiKhoanHienTai, danhSachSanPham = sanPhams) => {
+        try {
+            const khachHangId = taiKhoanHienTai?.khachHangId;
+
+            if (!khachHangId) {
+                setGioHangId(null);
+                setGioHang([]);
+                return null;
+            }
+
+            const gioHangResponse = await fetch(
+                `${API}/gio-hang/khach-hang/${khachHangId}/lay-hoac-tao`
+            );
+
+            if (!gioHangResponse.ok) {
+                throw new Error("Không lấy được giỏ hàng");
+            }
+
+            const gioHangData = await gioHangResponse.json();
+            setGioHangId(gioHangData.id);
+
+            const detailResponse = await fetch(
+                `${API}/gio-hang/${gioHangData.id}/chi-tiet`
+            );
+
+            if (!detailResponse.ok) {
+                throw new Error("Không lấy được chi tiết giỏ hàng");
+            }
+
+            const details = await detailResponse.json();
+
+            if (!Array.isArray(details)) {
+                setGioHang([]);
+                return gioHangData.id;
+            }
+
+            const cartFrontend = details
+                .map((detail) => {
+                    const spct = detail?.sanPhamChiTiet;
+                    const sanPham =
+                        danhSachSanPham.find(
+                            (sp) => sp.id === spct?.sanPham?.id
+                        ) ||
+                        spct?.sanPham ||
+                        null;
+
+                    return {
+                        id: detail.id,
+                        variantId: spct?.id,
+                        sanPham,
+                        chiTiet: spct,
+                        soLuong: detail.soLuong,
+                    };
+                })
+                .filter((item) => item.variantId && item.sanPham);
+
+            setGioHang(cartFrontend);
+            return gioHangData.id;
+        } catch (error) {
+            console.error("Lỗi tải giỏ hàng:", error);
+            setGioHang([]);
+            setGioHangId(null);
+            return null;
+        }
+    };
+
+    const xuLyDangNhapThanhCong = async (data) => {
         const vaiTro = String(data?.vaiTro || "").toUpperCase();
 
         setTaiKhoan(data);
@@ -126,12 +192,30 @@ function App() {
 
         if (vaiTro === "QUAN_TRI") {
             setPage("admin");
-        } else if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN VIÊN") {
-            setPage("employee");
-        } else {
-            setPage("home");
+            return;
         }
+
+        if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN_VIÊN") {
+            setPage("employee");
+            return;
+        }
+
+        if (vaiTro === "KHACH_HANG") {
+            await taiGioHang(data, sanPhams);
+        }
+
+        setPage("home");
     };
+
+    useEffect(() => {
+        if (
+            taiKhoan &&
+            String(taiKhoan.vaiTro || "").toUpperCase() === "KHACH_HANG" &&
+            sanPhams.length > 0
+        ) {
+            taiGioHang(taiKhoan, sanPhams);
+        }
+    }, [taiKhoan, sanPhams]);
 
     const dangXuat = () => {
         localStorage.removeItem("taiKhoan");
@@ -242,102 +326,265 @@ function App() {
         }
     };
 
-    const themVaoGio = (sanPham, chiTiet = null, soLuong = 1) => {
-        if (!chiTiet?.id) {
-            alert("Sản phẩm chưa có biến thể để mua");
-            return;
+    const themVaoGio = async (sanPham, chiTiet = null, soLuong = 1) => {
+        if (!taiKhoan) {
+            setPage("login");
+            return false;
         }
 
+        if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") {
+            alert("Chỉ khách hàng mới có thể thêm sản phẩm vào giỏ");
+            return false;
+        }
+
+        if (!chiTiet?.id) {
+            alert("Sản phẩm chưa có biến thể để mua");
+            return false;
+        }
+
+        const variantId = chiTiet.id;
         const tonKho = Number(chiTiet.soLuongTon ?? 0);
 
         if (tonKho <= 0) {
             alert("Sản phẩm đã hết hàng");
-            return;
+            return false;
         }
 
-        const variantId = chiTiet.id;
+        let currentGioHangId = gioHangId;
+
+        if (!currentGioHangId) {
+            currentGioHangId = await taiGioHang(taiKhoan, sanPhams);
+        }
+
+        if (!currentGioHangId) {
+            alert("Không thể khởi tạo giỏ hàng");
+            return false;
+        }
+
         const soLuongThem = Math.max(1, Number(soLuong) || 1);
+        const existing = gioHang.find(
+            (item) => item.variantId === variantId
+        );
 
-        setGioHang((oldCart) => {
-            const existing = oldCart.find(
-                (item) => item.variantId === variantId
-            );
-
+        try {
             if (existing) {
                 const soLuongMoi = existing.soLuong + soLuongThem;
 
                 if (soLuongMoi > tonKho) {
                     alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
-                    return oldCart;
+                    return false;
                 }
 
-                return oldCart.map((item) =>
-                    item.variantId === variantId
-                        ? { ...item, soLuong: soLuongMoi }
-                        : item
+                const response = await fetch(
+                    `${API}/gio-hang/chi-tiet/${existing.id}`,
+                    {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            gioHang: { id: currentGioHangId },
+                            sanPhamChiTiet: { id: variantId },
+                            soLuong: soLuongMoi,
+                        }),
+                    }
                 );
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || "Không thể cập nhật giỏ hàng");
+                }
+
+                setGioHang((oldCart) =>
+                    oldCart.map((item) =>
+                        item.variantId === variantId
+                            ? { ...item, soLuong: soLuongMoi }
+                            : item
+                    )
+                );
+
+                showToast("Đã cập nhật số lượng");
+                return true;
             }
 
             const soLuongMoi = Math.min(soLuongThem, tonKho);
 
-            return [
+            const response = await fetch(`${API}/gio-hang/chi-tiet`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    gioHang: { id: currentGioHangId },
+                    sanPhamChiTiet: { id: variantId },
+                    soLuong: soLuongMoi,
+                }),
+            });
+
+            const text = await response.text();
+            let data = null;
+
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch {
+                data = null;
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    data?.message ||
+                    data?.error ||
+                    text ||
+                    "Không thể thêm sản phẩm vào giỏ"
+                );
+            }
+
+            setGioHang((oldCart) => [
                 ...oldCart,
                 {
+                    id: data.id,
                     variantId,
                     sanPham,
-                    chiTiet,
-                    soLuong: soLuongMoi,
+                    chiTiet: data.sanPhamChiTiet || chiTiet,
+                    soLuong: data.soLuong,
                 },
-            ];
-        });
+            ]);
 
-        showToast("Đã thêm sản phẩm vào giỏ hàng");
-        return true;
+            showToast("Đã thêm sản phẩm vào giỏ hàng");
+            return true;
+        } catch (error) {
+            console.error("Lỗi thêm sản phẩm vào giỏ:", error);
+            alert(error.message || "Không thể thêm sản phẩm vào giỏ");
+            return false;
+        }
     };
 
-    const tangSoLuong = (variantId) => {
-        setGioHang((oldCart) =>
-            oldCart.map((item) => {
-                if (item.variantId !== variantId) return item;
+    const tangSoLuong = async (variantId) => {
+        const item = gioHang.find(
+            (item) => item.variantId === variantId
+        );
 
-                const tonKho = Number(item.chiTiet?.soLuongTon ?? 0);
+        if (!item) return;
 
-                if (tonKho > 0 && item.soLuong >= tonKho) {
-                    alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
-                    return item;
+        const tonKho = Number(item.chiTiet?.soLuongTon ?? 0);
+        const soLuongMoi = item.soLuong + 1;
+
+        if (tonKho > 0 && soLuongMoi > tonKho) {
+            alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `${API}/gio-hang/chi-tiet/${item.id}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        gioHang: { id: gioHangId },
+                        sanPhamChiTiet: { id: variantId },
+                        soLuong: soLuongMoi,
+                    }),
                 }
+            );
 
-                return {
-                    ...item,
-                    soLuong: item.soLuong + 1,
-                };
-            })
-        );
-    };
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || "Không thể tăng số lượng");
+            }
 
-    const giamSoLuong = (variantId) => {
-        setGioHang((oldCart) =>
-            oldCart
-                .map((item) =>
-                    item.variantId === variantId
-                        ? {
-                            ...item,
-                            soLuong: item.soLuong - 1,
-                        }
-                        : item
+            setGioHang((oldCart) =>
+                oldCart.map((cartItem) =>
+                    cartItem.variantId === variantId
+                        ? { ...cartItem, soLuong: soLuongMoi }
+                        : cartItem
                 )
-                .filter((item) => item.soLuong > 0)
-        );
+            );
+        } catch (error) {
+            console.error("Lỗi tăng số lượng:", error);
+            alert(error.message || "Không thể tăng số lượng");
+        }
     };
 
-    const xoaKhoiGio = (variantId) => {
-        setGioHang((oldCart) =>
-            oldCart.filter(
-                (item) => item.variantId !== variantId
-            )
+    const giamSoLuong = async (variantId) => {
+        const item = gioHang.find(
+            (item) => item.variantId === variantId
         );
 
-        showToast("Đã xóa sản phẩm khỏi giỏ");
+        if (!item) return;
+
+        if (item.soLuong <= 1) {
+            await xoaKhoiGio(variantId);
+            return;
+        }
+
+        const soLuongMoi = item.soLuong - 1;
+
+        try {
+            const response = await fetch(
+                `${API}/gio-hang/chi-tiet/${item.id}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        gioHang: { id: gioHangId },
+                        sanPhamChiTiet: { id: variantId },
+                        soLuong: soLuongMoi,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || "Không thể giảm số lượng");
+            }
+
+            setGioHang((oldCart) =>
+                oldCart.map((cartItem) =>
+                    cartItem.variantId === variantId
+                        ? { ...cartItem, soLuong: soLuongMoi }
+                        : cartItem
+                )
+            );
+        } catch (error) {
+            console.error("Lỗi giảm số lượng:", error);
+            alert(error.message || "Không thể giảm số lượng");
+        }
+    };
+
+    const xoaKhoiGio = async (variantId) => {
+        const item = gioHang.find(
+            (item) => item.variantId === variantId
+        );
+
+        if (!item) return;
+
+        try {
+            const response = await fetch(
+                `${API}/gio-hang/chi-tiet/${item.id}`,
+                { method: "DELETE" }
+            );
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || "Không thể xóa sản phẩm khỏi giỏ");
+            }
+
+            setGioHang((oldCart) =>
+                oldCart.filter(
+                    (cartItem) => cartItem.variantId !== variantId
+                )
+            );
+
+            showToast("Đã xóa sản phẩm khỏi giỏ");
+        } catch (error) {
+            console.error("Lỗi xóa sản phẩm khỏi giỏ:", error);
+            alert(error.message || "Không thể xóa sản phẩm khỏi giỏ");
+        }
     };
 
     const tongSoLuong = gioHang.reduce(
@@ -465,13 +712,11 @@ function App() {
                     taiKhoan={taiKhoan}
                 />
             )}
-         {page === "khuyen-mai" && (
-                        <KhuyenMai setPage={setPage} />
-                    )}
 
             {page === "checkout" && (
                 <Checkout
                     gioHang={gioHang}
+                    gioHangId={gioHangId}
                     tongTien={tongTien}
                     setPage={setPage}
                     setGioHang={setGioHang}
@@ -666,12 +911,9 @@ function Header({
                         Thương hiệu
                     </a>
 
-                   <a
-                       className={page === "khuyen-mai" ? "nav-active" : ""}
-                       onClick={() => setPage("khuyen-mai")}
-                   >
-                       Khuyến mãi
-                   </a>
+                    <a>
+                        Khuyến mãi
+                    </a>
 
                     <a>
                         Liên hệ
@@ -1998,69 +2240,147 @@ function Cart({
 
 function Checkout({
                       gioHang,
+                      gioHangId,
                       tongTien,
                       setPage,
                       setGioHang,
                   }) {
+
     const [hoTen, setHoTen] = useState("");
     const [soDienThoai, setSoDienThoai] = useState("");
     const [diaChi, setDiaChi] = useState("");
     const [ghiChu, setGhiChu] = useState("");
+
     const [phuongThuc, setPhuongThuc] = useState("TIEN_MAT");
+
     const [dangDatHang, setDangDatHang] = useState(false);
     const [bill, setBill] = useState(null);
 
-    const [maVoucher, setMaVoucher] = useState("");
-        const [voucherInfo, setVoucherInfo] = useState(null);
-        const [voucherError, setVoucherError] = useState("");
-        const [checkingVoucher, setCheckingVoucher] = useState(false);
+    /*
+     * =========================================================
+     * THÔNG TIN TÀI KHOẢN NHẬN CHUYỂN KHOẢN
+     * =========================================================
+     *
+     * BẠN CHỈ CẦN SỬA 3 GIÁ TRỊ NÀY.
+     *
+     * NGAN_HANG_QR:
+     * - MB
+     * - VCB
+     * - TCB
+     * - BIDV
+     * ...
+     *
+     * SO_TAI_KHOAN:
+     * - Số tài khoản thật của shop
+     *
+     * CHU_TAI_KHOAN:
+     * - Tên chủ tài khoản thật
+     *
+     * Ví dụ:
+     *
+     * const NGAN_HANG_QR = "MB";
+     * const SO_TAI_KHOAN = "0123456789";
+     * const CHU_TAI_KHOAN = "NGUYEN VAN A";
+     *
+     * LƯU Ý:
+     * Không để thông tin ví dụ khi đưa website thật lên.
+     * =========================================================
+     */
 
-          const phiVanChuyen = 0;
-            const tienGiam = voucherInfo?.tienGiam ? Number(voucherInfo.tienGiam) : 0;
-            const tongThanhToan = Math.max(0, tongTien + phiVanChuyen - tienGiam);
+    const NGAN_HANG_QR = "MB";
+    const SO_TAI_KHOAN = "0123456789";
+    const CHU_TAI_KHOAN = "FSHOP";
 
-              const apDungVoucher = async () => {
-                  if (!maVoucher.trim()) {
-                      setVoucherError("Vui lòng nhập mã giảm giá");
-                      return;
-                  }
+    /*
+     * =========================================================
+     * TẠO NỘI DUNG CHUYỂN KHOẢN
+     * =========================================================
+     *
+     * Khi chưa có mã hóa đơn thì dùng tạm nội dung này.
+     * Sau khi backend tạo hóa đơn xong, bill sẽ dùng mã hóa đơn thật.
+     */
 
-                  setCheckingVoucher(true);
-                  setVoucherError("");
+    const taoNoiDungChuyenKhoan = (maHoaDon = null) => {
+        if (maHoaDon) {
+            return `FSHOP ${maHoaDon}`;
+        }
 
-                  try {
-                      const res = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                              ma: maVoucher,
-                              tongTien: tongTien,
-                          }),
-                      });
+        return "FSHOP THANH TOAN";
+    };
 
-                      const data = await res.json();
+    /*
+     * =========================================================
+     * FORMAT TEXT ĐỂ HIỂN THỊ PHƯƠNG THỨC THANH TOÁN
+     * =========================================================
+     */
 
-                      if (!res.ok) {
-                          throw new Error(data.message || "Mã giảm giá không hợp lệ");
-                      }
+    const hienThiPhuongThuc = (phuongThucThanhToan) => {
+        return phuongThucThanhToan === "CHUYEN_KHOAN"
+            ? "Chuyển khoản"
+            : "Tiền mặt khi nhận hàng";
+    };
 
-                      setVoucherInfo(data);
-                      setVoucherError("");
-                  } catch (err) {
-                      setVoucherError(err.message);
-                      setVoucherInfo(null);
-                  } finally {
-                      setCheckingVoucher(false);
-                  }
-              };
+    /*
+     * =========================================================
+     * TẠO URL QR VIETQR
+     * =========================================================
+     *
+     * QR sẽ tự thay đổi:
+     * - Số tiền
+     * - Nội dung chuyển khoản
+     *
+     * Khi có mã hóa đơn:
+     * FSHOP HD00001
+     *
+     * =========================================================
+     */
 
-              // ===== 🆕 XÓA VOUCHER =====
-              const xoaVoucher = () => {
-                  setMaVoucher("");
-                  setVoucherInfo(null);
-                  setVoucherError("");
-              };
+    const taoQrUrl = (soTien, maHoaDon = null) => {
+
+        const amount = Math.round(Number(soTien) || 0);
+
+        const noiDung = taoNoiDungChuyenKhoan(maHoaDon);
+
+        return (
+            `https://img.vietqr.io/image/` +
+            `${NGAN_HANG_QR}-${SO_TAI_KHOAN}-compact2.png` +
+            `?amount=${amount}` +
+            `&addInfo=${encodeURIComponent(noiDung)}` +
+            `&accountName=${encodeURIComponent(CHU_TAI_KHOAN)}`
+        );
+    };
+
+    /*
+     * =========================================================
+     * SAO CHÉP
+     * =========================================================
+     */
+
+    const saoChep = async (noiDung, thongBao) => {
+        try {
+
+            await navigator.clipboard.writeText(noiDung);
+
+            alert(thongBao);
+
+        } catch (error) {
+
+            console.error("Không thể sao chép:", error);
+
+            alert(
+                `Không thể sao chép tự động.\n\n${noiDung}`
+            );
+        }
+    };
+
+    /*
+     * =========================================================
+     * ĐẶT HÀNG
+     * =========================================================
+     */
+
     const datHang = async () => {
+
         if (!gioHang || gioHang.length === 0) {
             alert("Giỏ hàng đang trống");
             setPage("cart");
@@ -2078,7 +2398,9 @@ function Checkout({
         }
 
         if (!/^0\d{9}$/.test(soDienThoai.trim())) {
-            alert("Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0");
+            alert(
+                "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0"
+            );
             return;
         }
 
@@ -2087,111 +2409,233 @@ function Checkout({
             return;
         }
 
-        if (dangDatHang) return;
+        if (!gioHangId) {
+            alert(
+                "Không xác định được giỏ hàng của khách hàng. " +
+                "Vui lòng đăng nhập lại."
+            );
+            return;
+        }
+
+        if (dangDatHang) {
+            return;
+        }
+
+        /*
+         * Chụp lại giỏ hàng trước khi gọi API.
+         * Sau khi đặt thành công backend/frontend có thể xóa giỏ.
+         */
         const itemsForBill = gioHang.map((item) => ({
             ...item,
-            sanPham: { ...item.sanPham },
-            chiTiet: item.chiTiet ? { ...item.chiTiet } : null,
+            sanPham: {
+                ...item.sanPham,
+            },
+            chiTiet: item.chiTiet
+                ? {
+                    ...item.chiTiet,
+                }
+                : null,
         }));
 
         try {
+
             setDangDatHang(true);
-            const gioHangId = 2;
+
+            /*
+             * =================================================
+             * BƯỚC 1:
+             * LẤY GIỎ HÀNG TỪ BACKEND
+             * =================================================
+             */
+
             const cartDetailResponse = await fetch(
                 `${API}/gio-hang/${gioHangId}/chi-tiet`
             );
 
             if (!cartDetailResponse.ok) {
-                const errorText = await cartDetailResponse.text();
+
+                const errorText =
+                    await cartDetailResponse.text();
+
                 throw new Error(
-                    errorText || "Không lấy được giỏ hàng trên hệ thống"
+                    errorText ||
+                    "Không lấy được giỏ hàng trên hệ thống"
                 );
             }
 
-            const cartDetails = await cartDetailResponse.json();
+            const cartDetails =
+                await cartDetailResponse.json();
 
-            for (const detail of Array.isArray(cartDetails) ? cartDetails : []) {
-                const deleteResponse = await fetch(
-                    `${API}/gio-hang/chi-tiet/${detail.id}`,
-                    { method: "DELETE" }
-                );
+            /*
+             * =================================================
+             * BƯỚC 2:
+             * XÓA CHI TIẾT GIỎ HÀNG CŨ
+             * =================================================
+             */
+
+            for (
+                const detail of
+                Array.isArray(cartDetails)
+                    ? cartDetails
+                    : []
+                ) {
+
+                const deleteResponse =
+                    await fetch(
+                        `${API}/gio-hang/chi-tiet/${detail.id}`,
+                        {
+                            method: "DELETE",
+                        }
+                    );
 
                 if (!deleteResponse.ok) {
+
                     throw new Error(
-                        `Không thể làm sạch sản phẩm cũ trong giỏ hàng (ID ${detail.id})`
+                        `Không thể làm sạch sản phẩm cũ ` +
+                        `(ID ${detail.id})`
                     );
                 }
             }
 
+            /*
+             * =================================================
+             * BƯỚC 3:
+             * ĐỒNG BỘ TOÀN BỘ GIỎ HÀNG FRONTEND
+             * SANG BACKEND
+             * =================================================
+             */
+
             for (const item of itemsForBill) {
+
                 if (!item.chiTiet?.id) {
+
                     throw new Error(
-                        `Sản phẩm "${item.sanPham?.tenSanPham || "không xác định"}" chưa có biến thể`
+                        `Sản phẩm "${item.sanPham?.tenSanPham || "không xác định"}" ` +
+                        `chưa có biến thể`
                     );
                 }
 
-                const addResponse = await fetch(
-                    `${API}/gio-hang/chi-tiet`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            gioHang: { id: gioHangId },
-                            sanPhamChiTiet: { id: item.chiTiet.id },
-                            soLuong: item.soLuong,
-                        }),
-                    }
-                );
+                const addResponse =
+                    await fetch(
+                        `${API}/gio-hang/chi-tiet`,
+                        {
+                            method: "POST",
 
-                const addText = await addResponse.text();
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+
+                            body: JSON.stringify({
+                                gioHang: {
+                                    id: gioHangId,
+                                },
+
+                                sanPhamChiTiet: {
+                                    id: item.chiTiet.id,
+                                },
+
+                                soLuong:
+                                item.soLuong,
+                            }),
+                        }
+                    );
+
+                const addText =
+                    await addResponse.text();
+
                 let addData = null;
 
                 try {
-                    addData = addText ? JSON.parse(addText) : null;
+
+                    addData =
+                        addText
+                            ? JSON.parse(addText)
+                            : null;
+
                 } catch {
+
                     addData = null;
                 }
 
                 if (!addResponse.ok) {
+
                     throw new Error(
                         addData?.message ||
                         addData?.error ||
                         addText ||
-                        `Không thể thêm ${item.sanPham?.tenSanPham || "sản phẩm"} vào giỏ hàng`
+                        `Không thể thêm ` +
+                        `${item.sanPham?.tenSanPham || "sản phẩm"} ` +
+                        `vào giỏ hàng`
                     );
                 }
             }
 
-            const response = await fetch(
-                `${API}/hoa-don/dat-hang/${gioHangId}`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        hoTen: hoTen.trim(),
-                        soDienThoai: soDienThoai.trim(),
-                        diaChi: diaChi.trim(),
-                        ghiChu: ghiChu.trim(),
-                        phuongThuc,
-                        voucherId: null,
-                    }),
-                }
-            );
+            /*
+             * =================================================
+             * BƯỚC 4:
+             * TẠO HÓA ĐƠN
+             * =================================================
+             *
+             * phuongThuc:
+             * - TIEN_MAT
+             * - CHUYEN_KHOAN
+             *
+             * Backend sẽ lưu phương thức này vào thanh toán.
+             */
 
-            const responseText = await response.text();
+            const response =
+                await fetch(
+                    `${API}/hoa-don/dat-hang/${gioHangId}`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                        },
+
+                        body: JSON.stringify({
+
+                            hoTen:
+                                hoTen.trim(),
+
+                            soDienThoai:
+                                soDienThoai.trim(),
+
+                            diaChi:
+                                diaChi.trim(),
+
+                            ghiChu:
+                                ghiChu.trim(),
+
+                            phuongThuc,
+
+                            voucherId:
+                                null,
+                        }),
+                    }
+                );
+
+            const responseText =
+                await response.text();
+
             let data = null;
 
             try {
-                data = responseText ? JSON.parse(responseText) : null;
+
+                data =
+                    responseText
+                        ? JSON.parse(responseText)
+                        : null;
+
             } catch {
+
                 data = null;
             }
 
             if (!response.ok) {
+
                 throw new Error(
                     data?.message ||
                     data?.error ||
@@ -2200,12 +2644,26 @@ function Checkout({
                 );
             }
 
+            /*
+             * =================================================
+             * BƯỚC 5:
+             * LẤY MÃ HÓA ĐƠN BACKEND TRẢ VỀ
+             * =================================================
+             */
+
             const maHoaDon =
                 data?.maHoaDon ||
                 data?.id ||
                 data?.hoaDon?.maHoaDon ||
                 data?.hoaDon?.id ||
                 `FS-${Date.now()}`;
+
+            /*
+             * =================================================
+             * BƯỚC 6:
+             * LẤY TỔNG THANH TOÁN BACKEND
+             * =================================================
+             */
 
             const tongThanhToanBackend =
                 data?.tongThanhToan ??
@@ -2215,36 +2673,106 @@ function Checkout({
                 data?.hoaDon?.tongTienThanhToan ??
                 data?.hoaDon?.tongTien;
 
-            setBill({
-                maHoaDon,
-                ngayDat: new Date().toLocaleString("vi-VN"),
-                hoTen: hoTen.trim(),
-                soDienThoai: soDienThoai.trim(),
-                diaChi: diaChi.trim(),
-                ghiChu: ghiChu.trim(),
-                phuongThuc,
-                items: itemsForBill,
-                tamTinh: tongTien,
-                tongThanhToan: Number.isFinite(Number(tongThanhToanBackend))
+            const tongThanhToan =
+                Number.isFinite(
+                    Number(tongThanhToanBackend)
+                )
                     ? Number(tongThanhToanBackend)
-                    : tongTien,
+                    : Number(tongTien);
+
+            /*
+             * =================================================
+             * BƯỚC 7:
+             * TẠO BILL HIỂN THỊ CHO KHÁCH
+             * =================================================
+             */
+
+            setBill({
+
+                maHoaDon,
+
+                ngayDat:
+                    new Date().toLocaleString(
+                        "vi-VN"
+                    ),
+
+                hoTen:
+                    hoTen.trim(),
+
+                soDienThoai:
+                    soDienThoai.trim(),
+
+                diaChi:
+                    diaChi.trim(),
+
+                ghiChu:
+                    ghiChu.trim(),
+
+                phuongThuc,
+
+                items:
+                itemsForBill,
+
+                tamTinh:
+                    Number(tongTien),
+
+                tongThanhToan,
+
+                noiDungChuyenKhoan:
+                    taoNoiDungChuyenKhoan(
+                        maHoaDon
+                    ),
             });
 
-            // Chỉ xóa giỏ hàng sau khi backend báo tạo hóa đơn thành công.
+            /*
+             * Chỉ xóa giỏ hàng sau khi backend
+             * báo tạo hóa đơn thành công.
+             */
+
             setGioHang([]);
+
         } catch (error) {
-            console.error("Lỗi đặt hàng:", error);
-            alert(error.message || "Có lỗi xảy ra khi đặt hàng");
+
+            console.error(
+                "Lỗi đặt hàng:",
+                error
+            );
+
+            alert(
+                error.message ||
+                "Có lỗi xảy ra khi đặt hàng"
+            );
+
         } finally {
+
             setDangDatHang(false);
         }
     };
 
-    // Hiện bill ngay trên trang sau khi backend tạo hóa đơn thành công.
+    /*
+     * =========================================================
+     * BILL SAU KHI ĐẶT HÀNG
+     * =========================================================
+     */
+
     if (bill) {
+
+        const laChuyenKhoan =
+            bill.phuongThuc === "CHUYEN_KHOAN";
+
+        const qrUrl =
+            laChuyenKhoan
+                ? taoQrUrl(
+                    bill.tongThanhToan,
+                    bill.maHoaDon
+                )
+                : null;
+
         return (
             <main className="cart-page">
+
                 <div className="container">
+
                     <div
                         className="bill-card"
                         style={{
@@ -2254,40 +2782,79 @@ function Checkout({
                             background: "#fff",
                             border: "1px solid #e5e5e5",
                             borderRadius: "10px",
-                            boxShadow: "0 10px 35px rgba(0,0,0,.06)",
+                            boxShadow:
+                                "0 10px 35px rgba(0,0,0,.06)",
                         }}
                     >
-                        <div style={{ textAlign: "center", marginBottom: "28px" }}>
+
+                        {/* =========================
+                            HEADER BILL
+                        ========================= */}
+
+                        <div
+                            style={{
+                                textAlign: "center",
+                                marginBottom: "28px",
+                            }}
+                        >
+
                             <div
                                 style={{
                                     width: "58px",
                                     height: "58px",
-                                    margin: "0 auto 14px",
+                                    margin:
+                                        "0 auto 14px",
                                     borderRadius: "50%",
-                                    background: "#eaf7ed",
+                                    background:
+                                        "#eaf7ed",
                                     color: "#24833b",
                                     display: "flex",
                                     alignItems: "center",
-                                    justifyContent: "center",
+                                    justifyContent:
+                                        "center",
                                     fontSize: "30px",
                                     fontWeight: 700,
                                 }}
                             >
                                 ✓
                             </div>
-                            <span className="section-label">FSHOP</span>
-                            <h1 style={{ margin: "8px 0", fontSize: "30px" }}>
+
+                            <span className="section-label">
+                                FSHOP
+                            </span>
+
+                            <h1
+                                style={{
+                                    margin:
+                                        "8px 0",
+                                    fontSize:
+                                        "30px",
+                                }}
+                            >
                                 Đặt hàng thành công!
                             </h1>
-                            <p style={{ color: "#777", margin: 0 }}>
-                                Cảm ơn bạn đã mua hàng. Đây là hóa đơn của bạn.
+
+                            <p
+                                style={{
+                                    color: "#777",
+                                    margin: 0,
+                                }}
+                            >
+                                Cảm ơn bạn đã mua hàng.
+                                Đây là hóa đơn của bạn.
                             </p>
+
                         </div>
+
+                        {/* =========================
+                            THÔNG TIN ĐƠN
+                        ========================= */}
 
                         <div
                             style={{
                                 display: "grid",
-                                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                                gridTemplateColumns:
+                                    "repeat(auto-fit, minmax(220px, 1fr))",
                                 gap: "14px",
                                 padding: "18px",
                                 background: "#fafafa",
@@ -2296,271 +2863,1726 @@ function Checkout({
                                 fontSize: "13px",
                             }}
                         >
+
                             <div>
-                                <span style={{ color: "#888", display: "block", marginBottom: "5px" }}>
+
+                                <span
+                                    style={{
+                                        color: "#888",
+                                        display: "block",
+                                        marginBottom:
+                                            "5px",
+                                    }}
+                                >
                                     Mã hóa đơn
                                 </span>
-                                <strong>{bill.maHoaDon}</strong>
+
+                                <strong>
+                                    {bill.maHoaDon}
+                                </strong>
+
                             </div>
+
                             <div>
-                                <span style={{ color: "#888", display: "block", marginBottom: "5px" }}>
+
+                                <span
+                                    style={{
+                                        color: "#888",
+                                        display: "block",
+                                        marginBottom:
+                                            "5px",
+                                    }}
+                                >
                                     Ngày đặt
                                 </span>
-                                <strong>{bill.ngayDat}</strong>
+
+                                <strong>
+                                    {bill.ngayDat}
+                                </strong>
+
                             </div>
+
                             <div>
-                                <span style={{ color: "#888", display: "block", marginBottom: "5px" }}>
+
+                                <span
+                                    style={{
+                                        color: "#888",
+                                        display: "block",
+                                        marginBottom:
+                                            "5px",
+                                    }}
+                                >
                                     Phương thức thanh toán
                                 </span>
+
                                 <strong>
-                                    {bill.phuongThuc === "CHUYEN_KHOAN"
-                                        ? "Chuyển khoản"
-                                        : "Tiền mặt khi nhận hàng"}
+                                    {hienThiPhuongThuc(
+                                        bill.phuongThuc
+                                    )}
                                 </strong>
+
                             </div>
+
                         </div>
 
-                        <h2 style={{ fontSize: "18px", marginBottom: "15px" }}>
+                        {/* =========================
+                            THÔNG TIN CHUYỂN KHOẢN
+                        ========================= */}
+
+                        {laChuyenKhoan && (
+
+                            <div
+                                style={{
+                                    marginBottom: "28px",
+                                    padding: "22px",
+                                    border:
+                                        "1px solid #e0e0e0",
+                                    borderRadius:
+                                        "12px",
+                                    background:
+                                        "#fffaf5",
+                                }}
+                            >
+
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent:
+                                            "space-between",
+                                        alignItems:
+                                            "center",
+                                        gap: "15px",
+                                        flexWrap:
+                                            "wrap",
+                                        marginBottom:
+                                            "18px",
+                                    }}
+                                >
+
+                                    <div>
+
+                                        <h2
+                                            style={{
+                                                fontSize:
+                                                    "19px",
+                                                margin:
+                                                    "0 0 6px",
+                                            }}
+                                        >
+                                            🏦 Thông tin
+                                            chuyển khoản
+                                        </h2>
+
+                                        <p
+                                            style={{
+                                                margin: 0,
+                                                color:
+                                                    "#777",
+                                                fontSize:
+                                                    "13px",
+                                            }}
+                                        >
+                                            Vui lòng chuyển
+                                            đúng số tiền
+                                            và nội dung.
+                                        </p>
+
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            padding:
+                                                "8px 12px",
+                                            borderRadius:
+                                                "999px",
+                                            background:
+                                                "#fff",
+                                            border:
+                                                "1px solid #eee",
+                                            fontSize:
+                                                "12px",
+                                            fontWeight:
+                                                700,
+                                        }}
+                                    >
+                                        CHỜ THANH TOÁN
+                                    </div>
+
+                                </div>
+
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gridTemplateColumns:
+                                            "minmax(0, 1fr) 220px",
+                                        gap: "25px",
+                                        alignItems:
+                                            "center",
+                                    }}
+                                >
+
+                                    {/* THÔNG TIN NGÂN HÀNG */}
+
+                                    <div
+                                        style={{
+                                            display:
+                                                "grid",
+                                            gap: "12px",
+                                        }}
+                                    >
+
+                                        <div
+                                            style={{
+                                                display:
+                                                    "flex",
+                                                justifyContent:
+                                                    "space-between",
+                                                gap: "15px",
+                                                padding:
+                                                    "11px 0",
+                                                borderBottom:
+                                                    "1px solid #eee",
+                                            }}
+                                        >
+                                            <span>
+                                                Ngân hàng
+                                            </span>
+
+                                            <strong>
+                                                {NGAN_HANG_QR}
+                                            </strong>
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                display:
+                                                    "flex",
+                                                justifyContent:
+                                                    "space-between",
+                                                gap: "15px",
+                                                padding:
+                                                    "11px 0",
+                                                borderBottom:
+                                                    "1px solid #eee",
+                                            }}
+                                        >
+
+                                            <span>
+                                                Số tài khoản
+                                            </span>
+
+                                            <div
+                                                style={{
+                                                    display:
+                                                        "flex",
+                                                    alignItems:
+                                                        "center",
+                                                    gap: "8px",
+                                                }}
+                                            >
+
+                                                <strong>
+                                                    {SO_TAI_KHOAN}
+                                                </strong>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        saoChep(
+                                                            SO_TAI_KHOAN,
+                                                            "Đã sao chép số tài khoản"
+                                                        )
+                                                    }
+                                                    style={{
+                                                        border:
+                                                            "1px solid #ddd",
+                                                        background:
+                                                            "#fff",
+                                                        borderRadius:
+                                                            "6px",
+                                                        padding:
+                                                            "5px 8px",
+                                                        cursor:
+                                                            "pointer",
+                                                    }}
+                                                >
+                                                    📋
+                                                </button>
+
+                                            </div>
+
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                display:
+                                                    "flex",
+                                                justifyContent:
+                                                    "space-between",
+                                                gap: "15px",
+                                                padding:
+                                                    "11px 0",
+                                                borderBottom:
+                                                    "1px solid #eee",
+                                            }}
+                                        >
+                                            <span>
+                                                Chủ tài khoản
+                                            </span>
+
+                                            <strong>
+                                                {CHU_TAI_KHOAN}
+                                            </strong>
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                display:
+                                                    "flex",
+                                                justifyContent:
+                                                    "space-between",
+                                                gap: "15px",
+                                                padding:
+                                                    "11px 0",
+                                                borderBottom:
+                                                    "1px solid #eee",
+                                            }}
+                                        >
+
+                                            <span>
+                                                Số tiền
+                                            </span>
+
+                                            <strong
+                                                style={{
+                                                    color:
+                                                        "#e53935",
+                                                    fontSize:
+                                                        "18px",
+                                                }}
+                                            >
+                                                {formatGia(
+                                                    bill.tongThanhToan
+                                                )}
+                                            </strong>
+
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                padding:
+                                                    "13px",
+                                                background:
+                                                    "#fff",
+                                                borderRadius:
+                                                    "8px",
+                                                border:
+                                                    "1px solid #eee",
+                                            }}
+                                        >
+
+                                            <div
+                                                style={{
+                                                    fontSize:
+                                                        "12px",
+                                                    color:
+                                                        "#777",
+                                                    marginBottom:
+                                                        "5px",
+                                                }}
+                                            >
+                                                Nội dung
+                                                chuyển khoản
+                                            </div>
+
+                                            <div
+                                                style={{
+                                                    display:
+                                                        "flex",
+                                                    alignItems:
+                                                        "center",
+                                                    justifyContent:
+                                                        "space-between",
+                                                    gap: "10px",
+                                                }}
+                                            >
+
+                                                <strong
+                                                    style={{
+                                                        color:
+                                                            "#111",
+                                                        wordBreak:
+                                                            "break-word",
+                                                    }}
+                                                >
+                                                    {bill.noiDungChuyenKhoan}
+                                                </strong>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        saoChep(
+                                                            bill.noiDungChuyenKhoan,
+                                                            "Đã sao chép nội dung chuyển khoản"
+                                                        )
+                                                    }
+                                                    style={{
+                                                        flexShrink:
+                                                            0,
+                                                        border:
+                                                            "1px solid #ddd",
+                                                        background:
+                                                            "#fff",
+                                                        borderRadius:
+                                                            "6px",
+                                                        padding:
+                                                            "5px 8px",
+                                                        cursor:
+                                                            "pointer",
+                                                    }}
+                                                >
+                                                    📋
+                                                </button>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    {/* QR */}
+
+                                    <div
+                                        style={{
+                                            textAlign:
+                                                "center",
+                                        }}
+                                    >
+
+                                        <div
+                                            style={{
+                                                background:
+                                                    "#fff",
+                                                padding:
+                                                    "10px",
+                                                border:
+                                                    "1px solid #eee",
+                                                borderRadius:
+                                                    "10px",
+                                                display:
+                                                    "inline-block",
+                                            }}
+                                        >
+
+                                            <img
+                                                src={qrUrl}
+                                                alt="QR thanh toán"
+                                                style={{
+                                                    width:
+                                                        "190px",
+                                                    height:
+                                                        "190px",
+                                                    objectFit:
+                                                        "contain",
+                                                    display:
+                                                        "block",
+                                                }}
+                                                onError={(e) => {
+                                                    e.currentTarget.style.display =
+                                                        "none";
+                                                }}
+                                            />
+
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                marginTop:
+                                                    "10px",
+                                                fontSize:
+                                                    "12px",
+                                                color:
+                                                    "#777",
+                                            }}
+                                        >
+                                            Quét QR để
+                                            thanh toán
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                                <div
+                                    style={{
+                                        marginTop: "18px",
+                                        padding: "12px 14px",
+                                        background: "#fff",
+                                        borderRadius: "8px",
+                                        fontSize: "13px",
+                                        color: "#666",
+                                    }}
+                                >
+                                    ⚠️ Sau khi chuyển khoản,
+                                    FShop sẽ kiểm tra giao dịch
+                                    và xác nhận thanh toán.
+                                </div>
+
+                            </div>
+                        )}
+
+                        {/* =========================
+                            THÔNG TIN NHẬN HÀNG
+                        ========================= */}
+
+                        <h2
+                            style={{
+                                fontSize: "18px",
+                                marginBottom: "15px",
+                            }}
+                        >
                             Thông tin nhận hàng
                         </h2>
-                        <div style={{ lineHeight: 1.8, fontSize: "13px", marginBottom: "25px" }}>
-                            <div><strong>Người nhận:</strong> {bill.hoTen}</div>
-                            <div><strong>Số điện thoại:</strong> {bill.soDienThoai}</div>
-                            <div><strong>Địa chỉ:</strong> {bill.diaChi}</div>
-                            {bill.ghiChu && <div><strong>Ghi chú:</strong> {bill.ghiChu}</div>}
+
+                        <div
+                            style={{
+                                lineHeight: 1.8,
+                                fontSize: "13px",
+                                marginBottom: "25px",
+                            }}
+                        >
+
+                            <div>
+                                <strong>
+                                    Người nhận:
+                                </strong>{" "}
+                                {bill.hoTen}
+                            </div>
+
+                            <div>
+                                <strong>
+                                    Số điện thoại:
+                                </strong>{" "}
+                                {bill.soDienThoai}
+                            </div>
+
+                            <div>
+                                <strong>
+                                    Địa chỉ:
+                                </strong>{" "}
+                                {bill.diaChi}
+                            </div>
+
+                            {bill.ghiChu && (
+                                <div>
+                                    <strong>
+                                        Ghi chú:
+                                    </strong>{" "}
+                                    {bill.ghiChu}
+                                </div>
+                            )}
+
                         </div>
 
-                        <h2 style={{ fontSize: "18px", marginBottom: "12px" }}>
+                        {/* =========================
+                            CHI TIẾT HÓA ĐƠN
+                        ========================= */}
+
+                        <h2
+                            style={{
+                                fontSize: "18px",
+                                marginBottom: "15px",
+                            }}
+                        >
                             Chi tiết hóa đơn
                         </h2>
-                        <div style={{ overflowX: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+
+                        <div
+                            style={{
+                                overflowX: "auto",
+                            }}
+                        >
+
+                            <table
+                                style={{
+                                    width: "100%",
+                                    borderCollapse:
+                                        "collapse",
+                                    fontSize: "13px",
+                                }}
+                            >
+
                                 <thead>
-                                <tr style={{ background: "#f7f7f7", textAlign: "left" }}>
-                                    <th style={{ padding: "13px 10px" }}>Sản phẩm</th>
-                                    <th style={{ padding: "13px 10px" }}>Đơn giá</th>
-                                    <th style={{ padding: "13px 10px", textAlign: "center" }}>SL</th>
-                                    <th style={{ padding: "13px 10px", textAlign: "right" }}>Thành tiền</th>
+
+                                <tr
+                                    style={{
+                                        background:
+                                            "#f7f7f7",
+                                        textAlign:
+                                            "left",
+                                    }}
+                                >
+
+                                    <th
+                                        style={{
+                                            padding:
+                                                "13px 10px",
+                                        }}
+                                    >
+                                        Sản phẩm
+                                    </th>
+
+                                    <th
+                                        style={{
+                                            padding:
+                                                "13px 10px",
+                                        }}
+                                    >
+                                        Đơn giá
+                                    </th>
+
+                                    <th
+                                        style={{
+                                            padding:
+                                                "13px 10px",
+                                            textAlign:
+                                                "center",
+                                        }}
+                                    >
+                                        SL
+                                    </th>
+
+                                    <th
+                                        style={{
+                                            padding:
+                                                "13px 10px",
+                                            textAlign:
+                                                "right",
+                                        }}
+                                    >
+                                        Thành tiền
+                                    </th>
+
                                 </tr>
+
                                 </thead>
+
                                 <tbody>
-                                {bill.items.map((item, index) => {
-                                    const donGia = Number(
-                                        item.chiTiet?.giaBan ?? item.sanPham?.giaBan ?? 0
-                                    );
-                                    const thanhTien = donGia * Number(item.soLuong || 0);
-                                    return (
-                                        <tr key={`${item.variantId}-${index}`}>
-                                            <td style={{ padding: "14px 10px", borderBottom: "1px solid #eee" }}>
-                                                <strong>{item.sanPham?.tenSanPham || "Sản phẩm"}</strong>
-                                                <div style={{ color: "#888", fontSize: "11px", marginTop: "5px" }}>
-                                                    {item.chiTiet?.kichCo?.tenKichCo
-                                                        ? `Size: ${item.chiTiet.kichCo.tenKichCo}`
-                                                        : ""}
-                                                    {item.chiTiet?.mauSac?.tenMau
-                                                        ? ` · Màu: ${item.chiTiet.mauSac.tenMau}`
-                                                        : ""}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: "14px 10px", borderBottom: "1px solid #eee", whiteSpace: "nowrap" }}>
-                                                {formatGia(donGia)}
-                                            </td>
-                                            <td style={{ padding: "14px 10px", borderBottom: "1px solid #eee", textAlign: "center" }}>
-                                                {item.soLuong}
-                                            </td>
-                                            <td style={{ padding: "14px 10px", borderBottom: "1px solid #eee", textAlign: "right", whiteSpace: "nowrap", color: "#e53935", fontWeight: 700 }}>
-                                                {formatGia(thanhTien)}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+
+                                {bill.items.map(
+                                    (item, index) => {
+
+                                        const donGia =
+                                            Number(
+                                                item.chiTiet
+                                                    ?.giaBan ??
+                                                item.sanPham
+                                                    ?.giaBan ??
+                                                0
+                                            );
+
+                                        const thanhTien =
+                                            donGia *
+                                            Number(
+                                                item.soLuong ||
+                                                0
+                                            );
+
+                                        return (
+                                            <tr
+                                                key={`${item.variantId}-${index}`}
+                                            >
+
+                                                <td
+                                                    style={{
+                                                        padding:
+                                                            "14px 10px",
+                                                        borderBottom:
+                                                            "1px solid #eee",
+                                                    }}
+                                                >
+
+                                                    <strong>
+                                                        {item
+                                                                .sanPham
+                                                                ?.tenSanPham ||
+                                                            "Sản phẩm"}
+                                                    </strong>
+
+                                                    <div
+                                                        style={{
+                                                            color:
+                                                                "#888",
+                                                            fontSize:
+                                                                "11px",
+                                                            marginTop:
+                                                                "5px",
+                                                        }}
+                                                    >
+
+                                                        {item
+                                                            .chiTiet
+                                                            ?.kichCo
+                                                            ?.tenKichCo
+                                                            ? `Size: ${item.chiTiet.kichCo.tenKichCo}`
+                                                            : ""}
+
+                                                        {item
+                                                            .chiTiet
+                                                            ?.mauSac
+                                                            ?.tenMau
+                                                            ? ` · Màu: ${item.chiTiet.mauSac.tenMau}`
+                                                            : ""}
+
+                                                    </div>
+
+                                                </td>
+
+                                                <td
+                                                    style={{
+                                                        padding:
+                                                            "14px 10px",
+                                                        borderBottom:
+                                                            "1px solid #eee",
+                                                        whiteSpace:
+                                                            "nowrap",
+                                                    }}
+                                                >
+                                                    {formatGia(
+                                                        donGia
+                                                    )}
+                                                </td>
+
+                                                <td
+                                                    style={{
+                                                        padding:
+                                                            "14px 10px",
+                                                        borderBottom:
+                                                            "1px solid #eee",
+                                                        textAlign:
+                                                            "center",
+                                                    }}
+                                                >
+                                                    {item.soLuong}
+                                                </td>
+
+                                                <td
+                                                    style={{
+                                                        padding:
+                                                            "14px 10px",
+                                                        borderBottom:
+                                                            "1px solid #eee",
+                                                        textAlign:
+                                                            "right",
+                                                        whiteSpace:
+                                                            "nowrap",
+                                                        color:
+                                                            "#e53935",
+                                                        fontWeight:
+                                                            700,
+                                                    }}
+                                                >
+                                                    {formatGia(
+                                                        thanhTien
+                                                    )}
+                                                </td>
+
+                                            </tr>
+                                        );
+                                    }
+                                )}
+
                                 </tbody>
+
                             </table>
+
                         </div>
 
-                        <div style={{ maxWidth: "360px", margin: "22px 0 0 auto" }}>
+                        {/* =========================
+                            TỔNG TIỀN
+                        ========================= */}
+
+                        <div
+                            style={{
+                                maxWidth: "360px",
+                                margin:
+                                    "22px 0 0 auto",
+                            }}
+                        >
+
                             <div className="summary-line">
-                                <span>Tạm tính</span>
-                                <strong>{formatGia(bill.tamTinh)}</strong>
+
+                                <span>
+                                    Tạm tính
+                                </span>
+
+                                <strong>
+                                    {formatGia(
+                                        bill.tamTinh
+                                    )}
+                                </strong>
+
                             </div>
+
                             <div className="summary-line">
-                                <span>Phí vận chuyển</span>
-                                <strong>Miễn phí</strong>
+
+                                <span>
+                                    Phí vận chuyển
+                                </span>
+
+                                <strong>
+                                    Miễn phí
+                                </strong>
+
                             </div>
+
                             <div className="summary-divider" />
+
                             <div className="summary-total">
-                                <span>Tổng thanh toán</span>
-                                <strong>{formatGia(bill.tongThanhToan)}</strong>
+
+                                <span>
+                                    Tổng thanh toán
+                                </span>
+
+                                <strong>
+                                    {formatGia(
+                                        bill.tongThanhToan
+                                    )}
+                                </strong>
+
                             </div>
+
                         </div>
+
+                        {/* =========================
+                            NÚT
+                        ========================= */}
 
                         <div
                             className="bill-actions"
-                            style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "30px" }}
+                            style={{
+                                display: "flex",
+                                gap: "12px",
+                                justifyContent:
+                                    "center",
+                                flexWrap:
+                                    "wrap",
+                                marginTop:
+                                    "30px",
+                            }}
                         >
+
                             <button
                                 className="checkout-button"
-                                style={{ width: "auto", minWidth: "180px", padding: "0 22px" }}
-                                onClick={() => window.print()}
+                                style={{
+                                    width: "auto",
+                                    minWidth:
+                                        "180px",
+                                    padding:
+                                        "0 22px",
+                                }}
+                                onClick={() =>
+                                    window.print()
+                                }
                             >
-                                In hóa đơn / Lưu PDF
+                                🖨 In hóa đơn / Lưu PDF
                             </button>
+
                             <button
                                 className="continue-shopping"
-                                style={{ marginTop: 0, border: "1px solid #ddd", borderRadius: "4px", padding: "0 22px", minHeight: "48px" }}
-                                onClick={() => setPage("home")}
+                                style={{
+                                    marginTop: 0,
+                                    border:
+                                        "1px solid #ddd",
+                                    borderRadius:
+                                        "4px",
+                                    padding:
+                                        "0 22px",
+                                    minHeight:
+                                        "48px",
+                                }}
+                                onClick={() =>
+                                    setPage("home")
+                                }
                             >
                                 Tiếp tục mua hàng
                             </button>
+
                         </div>
+
                     </div>
+
                 </div>
+
             </main>
         );
     }
+
+    /*
+     * =========================================================
+     * GIỎ HÀNG TRỐNG
+     * =========================================================
+     */
 
     if (!gioHang || gioHang.length === 0) {
+
         return (
             <main className="cart-page">
+
                 <div className="container">
+
                     <div className="empty-cart">
-                        <div className="empty-cart-icon">🛒</div>
-                        <h2>Giỏ hàng đang trống</h2>
-                        <p>Hãy thêm sản phẩm trước khi đặt hàng.</p>
-                        <button onClick={() => setPage("products")}>
+
+                        <div className="empty-cart-icon">
+                            🛒
+                        </div>
+
+                        <h2>
+                            Giỏ hàng đang trống
+                        </h2>
+
+                        <p>
+                            Hãy thêm sản phẩm trước khi đặt hàng.
+                        </p>
+
+                        <button
+                            onClick={() =>
+                                setPage("products")
+                            }
+                        >
                             Tiếp tục mua hàng →
                         </button>
+
                     </div>
+
                 </div>
+
             </main>
         );
     }
 
+    /*
+     * =========================================================
+     * TRANG CHECKOUT
+     * =========================================================
+     */
+
     return (
+
         <main className="cart-page">
+
             <div className="container">
-                <div className="breadcrumb">Trang chủ / Giỏ hàng / Đặt hàng</div>
+
+                <div className="breadcrumb">
+                    Trang chủ / Giỏ hàng / Đặt hàng
+                </div>
 
                 <div className="cart-title">
-                    <span className="section-label">FSHOP</span>
-                    <h1>Đặt hàng</h1>
-                    <p>Nhập thông tin nhận hàng để hoàn tất đơn.</p>
+
+                    <span className="section-label">
+                        FSHOP
+                    </span>
+
+                    <h1>
+                        Đặt hàng
+                    </h1>
+
+                    <p>
+                        Nhập thông tin nhận hàng để hoàn tất đơn.
+                    </p>
+
                 </div>
 
                 <div className="cart-layout">
+
+                    {/* =================================================
+                        FORM NHẬN HÀNG
+                    ================================================= */}
+
                     <div className="cart-items">
-                        <h2 style={{ marginTop: 0 }}>Thông tin nhận hàng</h2>
-                        <div style={{ display: "grid", gap: "16px", marginTop: "25px" }}>
+
+                        <h2
+                            style={{
+                                marginTop: 0,
+                            }}
+                        >
+                            Thông tin nhận hàng
+                        </h2>
+
+                        <div
+                            style={{
+                                display: "grid",
+                                gap: "16px",
+                                marginTop: "25px",
+                            }}
+                        >
+
+                            {/* HỌ TÊN */}
+
                             <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
-                                    Họ và tên <span style={{ color: "#e53935" }}>*</span>
+
+                                <label
+                                    style={{
+                                        display:
+                                            "block",
+                                        fontSize:
+                                            "12px",
+                                        fontWeight:
+                                            700,
+                                        marginBottom:
+                                            "8px",
+                                    }}
+                                >
+                                    Họ và tên{" "}
+                                    <span
+                                        style={{
+                                            color:
+                                                "#e53935",
+                                        }}
+                                    >
+                                        *
+                                    </span>
                                 </label>
+
                                 <input
                                     className="price-input"
                                     type="text"
                                     value={hoTen}
-                                    onChange={(e) => setHoTen(e.target.value)}
+                                    onChange={(e) =>
+                                        setHoTen(
+                                            e.target.value
+                                        )
+                                    }
                                     placeholder="Nhập họ và tên"
                                 />
+
                             </div>
 
+                            {/* SỐ ĐIỆN THOẠI */}
+
                             <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
-                                    Số điện thoại <span style={{ color: "#e53935" }}>*</span>
+
+                                <label
+                                    style={{
+                                        display:
+                                            "block",
+                                        fontSize:
+                                            "12px",
+                                        fontWeight:
+                                            700,
+                                        marginBottom:
+                                            "8px",
+                                    }}
+                                >
+                                    Số điện thoại{" "}
+                                    <span
+                                        style={{
+                                            color:
+                                                "#e53935",
+                                        }}
+                                    >
+                                        *
+                                    </span>
                                 </label>
+
                                 <input
                                     className="price-input"
                                     type="tel"
                                     value={soDienThoai}
-                                    onChange={(e) => setSoDienThoai(e.target.value)}
+                                    onChange={(e) =>
+                                        setSoDienThoai(
+                                            e.target.value
+                                        )
+                                    }
                                     placeholder="Nhập số điện thoại"
                                 />
+
                             </div>
 
+                            {/* ĐỊA CHỈ */}
+
                             <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
-                                    Địa chỉ nhận hàng <span style={{ color: "#e53935" }}>*</span>
+
+                                <label
+                                    style={{
+                                        display:
+                                            "block",
+                                        fontSize:
+                                            "12px",
+                                        fontWeight:
+                                            700,
+                                        marginBottom:
+                                            "8px",
+                                    }}
+                                >
+                                    Địa chỉ nhận hàng{" "}
+                                    <span
+                                        style={{
+                                            color:
+                                                "#e53935",
+                                        }}
+                                    >
+                                        *
+                                    </span>
                                 </label>
+
                                 <textarea
                                     className="price-input"
                                     value={diaChi}
-                                    onChange={(e) => setDiaChi(e.target.value)}
+                                    onChange={(e) =>
+                                        setDiaChi(
+                                            e.target.value
+                                        )
+                                    }
                                     placeholder="Nhập địa chỉ nhận hàng"
-                                    style={{ minHeight: "90px", paddingTop: "10px", resize: "vertical" }}
+                                    style={{
+                                        minHeight:
+                                            "90px",
+                                        paddingTop:
+                                            "10px",
+                                        resize:
+                                            "vertical",
+                                    }}
                                 />
+
                             </div>
 
+                            {/* =================================================
+                                PHƯƠNG THỨC THANH TOÁN
+                            ================================================= */}
+
                             <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
+
+                                <label
+                                    style={{
+                                        display:
+                                            "block",
+                                        fontSize:
+                                            "12px",
+                                        fontWeight:
+                                            700,
+                                        marginBottom:
+                                            "8px",
+                                    }}
+                                >
                                     Phương thức thanh toán
                                 </label>
+
                                 <select
                                     className="price-input"
                                     value={phuongThuc}
-                                    onChange={(e) => setPhuongThuc(e.target.value)}
+                                    onChange={(e) =>
+                                        setPhuongThuc(
+                                            e.target.value
+                                        )
+                                    }
                                 >
-                                    <option value="TIEN_MAT">Tiền mặt khi nhận hàng</option>
-                                    <option value="CHUYEN_KHOAN">Chuyển khoản</option>
+
+                                    <option value="TIEN_MAT">
+                                        Tiền mặt khi nhận hàng
+                                    </option>
+
+                                    <option value="CHUYEN_KHOAN">
+                                        Chuyển khoản
+                                    </option>
+
                                 </select>
+
+                                {/* =================================================
+                                    THÔNG TIN CHUYỂN KHOẢN
+                                ================================================= */}
+
+                                {phuongThuc ===
+                                    "CHUYEN_KHOAN" && (
+
+                                        <div
+                                            style={{
+                                                marginTop:
+                                                    "15px",
+                                                padding:
+                                                    "20px",
+                                                border:
+                                                    "1px solid #e3e3e3",
+                                                borderRadius:
+                                                    "12px",
+                                                background:
+                                                    "#fffaf5",
+                                            }}
+                                        >
+
+                                            <div
+                                                style={{
+                                                    display:
+                                                        "flex",
+                                                    justifyContent:
+                                                        "space-between",
+                                                    alignItems:
+                                                        "center",
+                                                    gap:
+                                                        "12px",
+                                                    flexWrap:
+                                                        "wrap",
+                                                    marginBottom:
+                                                        "16px",
+                                                }}
+                                            >
+
+                                                <div>
+
+                                                    <h3
+                                                        style={{
+                                                            margin:
+                                                                0,
+                                                            fontSize:
+                                                                "18px",
+                                                        }}
+                                                    >
+                                                        🏦 Chuyển khoản ngân hàng
+                                                    </h3>
+
+                                                    <p
+                                                        style={{
+                                                            margin:
+                                                                "5px 0 0",
+                                                            color:
+                                                                "#777",
+                                                            fontSize:
+                                                                "12px",
+                                                        }}
+                                                    >
+                                                        Chuyển khoản
+                                                        đúng số tiền
+                                                        và nội dung.
+                                                    </p>
+
+                                                </div>
+
+                                                <span
+                                                    style={{
+                                                        padding:
+                                                            "6px 10px",
+                                                        background:
+                                                            "#fff",
+                                                        border:
+                                                            "1px solid #eee",
+                                                        borderRadius:
+                                                            "999px",
+                                                        fontSize:
+                                                            "11px",
+                                                        fontWeight:
+                                                            700,
+                                                    }}
+                                                >
+                                                QR BANKING
+                                            </span>
+
+                                            </div>
+
+                                            <div
+                                                style={{
+                                                    display:
+                                                        "grid",
+                                                    gridTemplateColumns:
+                                                        "minmax(0, 1fr) 190px",
+                                                    gap:
+                                                        "20px",
+                                                    alignItems:
+                                                        "center",
+                                                }}
+                                            >
+
+                                                <div
+                                                    style={{
+                                                        display:
+                                                            "grid",
+                                                        gap:
+                                                            "10px",
+                                                    }}
+                                                >
+
+                                                    {/* NGÂN HÀNG */}
+
+                                                    <div
+                                                        style={{
+                                                            padding:
+                                                                "10px 0",
+                                                            borderBottom:
+                                                                "1px solid #eee",
+                                                        }}
+                                                    >
+
+                                                        <div
+                                                            style={{
+                                                                fontSize:
+                                                                    "12px",
+                                                                color:
+                                                                    "#777",
+                                                            }}
+                                                        >
+                                                            Ngân hàng
+                                                        </div>
+
+                                                        <strong>
+                                                            {NGAN_HANG_QR}
+                                                        </strong>
+
+                                                    </div>
+
+                                                    {/* SỐ TÀI KHOẢN */}
+
+                                                    <div
+                                                        style={{
+                                                            padding:
+                                                                "10px 0",
+                                                            borderBottom:
+                                                                "1px solid #eee",
+                                                        }}
+                                                    >
+
+                                                        <div
+                                                            style={{
+                                                                fontSize:
+                                                                    "12px",
+                                                                color:
+                                                                    "#777",
+                                                                marginBottom:
+                                                                    "4px",
+                                                            }}
+                                                        >
+                                                            Số tài khoản
+                                                        </div>
+
+                                                        <div
+                                                            style={{
+                                                                display:
+                                                                    "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                gap:
+                                                                    "8px",
+                                                            }}
+                                                        >
+
+                                                            <strong>
+                                                                {SO_TAI_KHOAN}
+                                                            </strong>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    saoChep(
+                                                                        SO_TAI_KHOAN,
+                                                                        "Đã sao chép số tài khoản"
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    border:
+                                                                        "1px solid #ddd",
+                                                                    background:
+                                                                        "#fff",
+                                                                    borderRadius:
+                                                                        "6px",
+                                                                    padding:
+                                                                        "5px 8px",
+                                                                    cursor:
+                                                                        "pointer",
+                                                                }}
+                                                            >
+                                                                📋
+                                                            </button>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                    {/* CHỦ TÀI KHOẢN */}
+
+                                                    <div
+                                                        style={{
+                                                            padding:
+                                                                "10px 0",
+                                                            borderBottom:
+                                                                "1px solid #eee",
+                                                        }}
+                                                    >
+
+                                                        <div
+                                                            style={{
+                                                                fontSize:
+                                                                    "12px",
+                                                                color:
+                                                                    "#777",
+                                                            }}
+                                                        >
+                                                            Chủ tài khoản
+                                                        </div>
+
+                                                        <strong>
+                                                            {CHU_TAI_KHOAN}
+                                                        </strong>
+
+                                                    </div>
+
+                                                    {/* SỐ TIỀN */}
+
+                                                    <div
+                                                        style={{
+                                                            padding:
+                                                                "10px 0",
+                                                            borderBottom:
+                                                                "1px solid #eee",
+                                                        }}
+                                                    >
+
+                                                        <div
+                                                            style={{
+                                                                fontSize:
+                                                                    "12px",
+                                                                color:
+                                                                    "#777",
+                                                            }}
+                                                        >
+                                                            Số tiền cần chuyển
+                                                        </div>
+
+                                                        <strong
+                                                            style={{
+                                                                color:
+                                                                    "#e53935",
+                                                                fontSize:
+                                                                    "20px",
+                                                            }}
+                                                        >
+                                                            {formatGia(
+                                                                tongTien
+                                                            )}
+                                                        </strong>
+
+                                                    </div>
+
+                                                    {/* NỘI DUNG */}
+
+                                                    <div
+                                                        style={{
+                                                            padding:
+                                                                "12px",
+                                                            background:
+                                                                "#fff",
+                                                            border:
+                                                                "1px solid #eee",
+                                                            borderRadius:
+                                                                "8px",
+                                                        }}
+                                                    >
+
+                                                        <div
+                                                            style={{
+                                                                fontSize:
+                                                                    "12px",
+                                                                color:
+                                                                    "#777",
+                                                                marginBottom:
+                                                                    "5px",
+                                                            }}
+                                                        >
+                                                            Nội dung chuyển khoản
+                                                        </div>
+
+                                                        <strong>
+                                                            {taoNoiDungChuyenKhoan()}
+                                                        </strong>
+
+                                                    </div>
+
+                                                </div>
+
+                                                {/* QR */}
+
+                                                <div
+                                                    style={{
+                                                        textAlign:
+                                                            "center",
+                                                    }}
+                                                >
+
+                                                    <div
+                                                        style={{
+                                                            background:
+                                                                "#fff",
+                                                            padding:
+                                                                "8px",
+                                                            border:
+                                                                "1px solid #eee",
+                                                            borderRadius:
+                                                                "10px",
+                                                            display:
+                                                                "inline-block",
+                                                        }}
+                                                    >
+
+                                                        <img
+                                                            src={taoQrUrl(
+                                                                tongTien
+                                                            )}
+                                                            alt="QR chuyển khoản"
+                                                            style={{
+                                                                width:
+                                                                    "170px",
+                                                                height:
+                                                                    "170px",
+                                                                display:
+                                                                    "block",
+                                                                objectFit:
+                                                                    "contain",
+                                                            }}
+                                                        />
+
+                                                    </div>
+
+                                                    <div
+                                                        style={{
+                                                            marginTop:
+                                                                "8px",
+                                                            fontSize:
+                                                                "11px",
+                                                            color:
+                                                                "#777",
+                                                        }}
+                                                    >
+                                                        Quét QR bằng
+                                                        ứng dụng ngân hàng
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                            <div
+                                                style={{
+                                                    marginTop:
+                                                        "15px",
+                                                    padding:
+                                                        "11px 13px",
+                                                    background:
+                                                        "#fff",
+                                                    borderRadius:
+                                                        "8px",
+                                                    fontSize:
+                                                        "12px",
+                                                    color:
+                                                        "#666",
+                                                }}
+                                            >
+                                                ⚠️ Sau khi chuyển khoản,
+                                                FShop sẽ kiểm tra giao dịch
+                                                và xác nhận thanh toán.
+                                            </div>
+
+                                        </div>
+                                    )}
+
                             </div>
 
+                            {/* GHI CHÚ */}
+
                             <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
+
+                                <label
+                                    style={{
+                                        display:
+                                            "block",
+                                        fontSize:
+                                            "12px",
+                                        fontWeight:
+                                            700,
+                                        marginBottom:
+                                            "8px",
+                                    }}
+                                >
                                     Ghi chú
                                 </label>
+
                                 <textarea
                                     className="price-input"
                                     value={ghiChu}
-                                    onChange={(e) => setGhiChu(e.target.value)}
+                                    onChange={(e) =>
+                                        setGhiChu(
+                                            e.target.value
+                                        )
+                                    }
                                     placeholder="Ví dụ: Giao giờ hành chính..."
-                                    style={{ minHeight: "90px", paddingTop: "10px", resize: "vertical" }}
+                                    style={{
+                                        minHeight:
+                                            "90px",
+                                        paddingTop:
+                                            "10px",
+                                        resize:
+                                            "vertical",
+                                    }}
                                 />
+
                             </div>
+
                         </div>
+
                     </div>
 
+                    {/* =================================================
+                        TÓM TẮT ĐƠN HÀNG
+                    ================================================= */}
+
                     <aside className="cart-summary">
-                        <h2>Tóm tắt đơn hàng</h2>
+
+                        <h2>
+                            Tóm tắt đơn hàng
+                        </h2>
+
                         <div className="summary-line">
-                            <span>Số sản phẩm</span>
-                            <strong>{gioHang.reduce((total, item) => total + item.soLuong, 0)}</strong>
+
+                            <span>
+                                Số sản phẩm
+                            </span>
+
+                            <strong>
+                                {gioHang.reduce(
+                                    (total, item) =>
+                                        total +
+                                        item.soLuong,
+                                    0
+                                )}
+                            </strong>
+
                         </div>
+
                         <div className="summary-line">
-                            <span>Tạm tính</span>
-                            <strong>{formatGia(tongTien)}</strong>
+
+                            <span>
+                                Tạm tính
+                            </span>
+
+                            <strong>
+                                {formatGia(
+                                    tongTien
+                                )}
+                            </strong>
+
                         </div>
+
                         <div className="summary-line">
-                            <span>Phí vận chuyển</span>
-                            <strong>Miễn phí</strong>
+
+                            <span>
+                                Phí vận chuyển
+                            </span>
+
+                            <strong>
+                                Miễn phí
+                            </strong>
+
                         </div>
+
                         <div className="summary-divider" />
+
                         <div className="summary-total">
-                            <span>Tổng thanh toán</span>
-                            <strong>{formatGia(tongTien)}</strong>
+
+                            <span>
+                                Tổng thanh toán
+                            </span>
+
+                            <strong>
+                                {formatGia(
+                                    tongTien
+                                )}
+                            </strong>
+
                         </div>
+
+                        {phuongThuc ===
+                            "CHUYEN_KHOAN" && (
+
+                                <div
+                                    style={{
+                                        marginTop:
+                                            "15px",
+                                        padding:
+                                            "12px",
+                                        background:
+                                            "#fffaf5",
+                                        border:
+                                            "1px solid #eee",
+                                        borderRadius:
+                                            "8px",
+                                        fontSize:
+                                            "12px",
+                                    }}
+                                >
+
+                                    <div
+                                        style={{
+                                            color:
+                                                "#777",
+                                            marginBottom:
+                                                "4px",
+                                        }}
+                                    >
+                                        Phương thức
+                                    </div>
+
+                                    <strong>
+                                        🏦 Chuyển khoản
+                                    </strong>
+
+                                </div>
+                            )}
 
                         <button
                             className="checkout-button"
                             onClick={datHang}
                             disabled={dangDatHang}
-                            style={{ opacity: dangDatHang ? 0.6 : 1, cursor: dangDatHang ? "not-allowed" : "pointer" }}
+                            style={{
+                                opacity:
+                                    dangDatHang
+                                        ? 0.6
+                                        : 1,
+
+                                cursor:
+                                    dangDatHang
+                                        ? "not-allowed"
+                                        : "pointer",
+                            }}
                         >
-                            {dangDatHang ? "Đang xử lý..." : "Xác nhận đặt hàng →"}
+
+                            {dangDatHang
+                                ? "Đang xử lý..."
+                                : "Xác nhận đặt hàng →"}
+
                         </button>
 
                         <button
                             className="continue-shopping"
-                            onClick={() => setPage("cart")}
+                            onClick={() =>
+                                setPage("cart")
+                            }
                             disabled={dangDatHang}
-                            style={{ marginTop: "15px" }}
+                            style={{
+                                marginTop:
+                                    "15px",
+                            }}
                         >
                             ← Quay lại giỏ hàng
                         </button>
 
-                        <div className="payment-note">🔒 Thanh toán an toàn và bảo mật</div>
+                        <div
+                            className="payment-note"
+                        >
+                            🔒 Thanh toán an toàn và bảo mật
+                        </div>
+
                     </aside>
+
                 </div>
+
             </div>
+
         </main>
     );
 }
@@ -2694,3 +4716,4 @@ function Footer() {
 }
 
 export default App;
+

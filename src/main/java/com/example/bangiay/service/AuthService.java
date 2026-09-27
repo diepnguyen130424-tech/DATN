@@ -6,7 +6,7 @@ import com.example.bangiay.entity.KhachHang;
 import com.example.bangiay.repository.KhachHangRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
+import com.example.bangiay.dto.LoginResponse;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,13 +24,16 @@ public class AuthService {
     public TaiKhoan getById(Long id) {
         return taiKhoanRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Không tìm thấy tài khoản"));
+                        new RuntimeException("Không tìm thấy tài khoản")
+                );
     }
 
     public TaiKhoan getByTenDangNhap(String tenDangNhap) {
-        return taiKhoanRepository.findByTenDangNhap(tenDangNhap)
+        return taiKhoanRepository
+                .findByTenDangNhap(tenDangNhap)
                 .orElseThrow(() ->
-                        new RuntimeException("Không tìm thấy tài khoản"));
+                        new RuntimeException("Không tìm thấy tài khoản")
+                );
     }
 
     public TaiKhoan save(TaiKhoan taiKhoan) {
@@ -45,80 +48,112 @@ public class AuthService {
         return taiKhoanRepository.existsByTenDangNhap(tenDangNhap);
     }
 
-    public TaiKhoan login(String tenDangNhap, String matKhau) {
+    public LoginResponse login(
+            String tenDangNhap,
+            String matKhau
+    ) {
 
+        // =========================
+        // 1. Tìm tài khoản
+        // =========================
         TaiKhoan taiKhoan = taiKhoanRepository
                 .findByTenDangNhap(tenDangNhap)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Sai tên đăng nhập hoặc mật khẩu"
-                        ));
+                        )
+                );
 
+        // =========================
+        // 2. Kiểm tra mật khẩu
+        // =========================
         if (!taiKhoan.getMatKhau().equals(matKhau)) {
             throw new RuntimeException(
                     "Sai tên đăng nhập hoặc mật khẩu"
             );
         }
 
-        if (!"HOAT_DONG".equalsIgnoreCase(taiKhoan.getTrangThai())) {
+        // =========================
+        // 3. Kiểm tra trạng thái
+        // =========================
+        if (!"HOAT_DONG".equalsIgnoreCase(
+                taiKhoan.getTrangThai()
+        )) {
             throw new RuntimeException(
                     "Tài khoản không hoạt động"
             );
         }
 
-        String vaiTro = taiKhoan.getVaiTro();
+        // =========================
+        // 4. Lấy KhachHang
+        // =========================
+        Long khachHangId = null;
 
-        if (vaiTro == null ||
-                (!"QUAN_TRI".equalsIgnoreCase(vaiTro)
-                        && !"NHAN_VIEN".equalsIgnoreCase(vaiTro)
-                        && !"KHACH_HANG".equalsIgnoreCase(vaiTro))) {
+        if ("KHACH_HANG".equalsIgnoreCase(
+                taiKhoan.getVaiTro()
+        )) {
 
-            throw new RuntimeException(
-                    "Vai trò tài khoản không hợp lệ"
-            );
+            KhachHang khachHang = khachHangRepository
+                    .findByTaiKhoan_Id(taiKhoan.getId())
+                    .orElse(null);
+
+            // Nếu tài khoản chưa có KhachHang
+            // thì tự động tạo
+            if (khachHang == null) {
+
+                khachHang = new KhachHang();
+
+                khachHang.setTaiKhoan(taiKhoan);
+                khachHang.setHoTen("Khách hàng mới");
+
+                khachHang = khachHangRepository.save(khachHang);
+            }
+
+            // Lấy ID khách hàng
+            khachHangId = khachHang.getId();
         }
 
-        return taiKhoan;
+        // =========================
+        // 5. Trả thông tin đăng nhập
+        // =========================
+        return new LoginResponse(
+                taiKhoan.getId(),
+                taiKhoan.getTenDangNhap(),
+                taiKhoan.getVaiTro(),
+                taiKhoan.getTrangThai(),
+                khachHangId
+        );
     }
-
 
     public TaiKhoan register(TaiKhoan taiKhoan) {
 
-        if (taiKhoan.getTenDangNhap() == null
-                || taiKhoan.getTenDangNhap().trim().isEmpty()) {
-
-            throw new RuntimeException(
-                    "Tên đăng nhập không được để trống"
-            );
-        }
-
-        if (taiKhoan.getMatKhau() == null
-                || taiKhoan.getMatKhau().isEmpty()) {
-
-            throw new RuntimeException(
-                    "Mật khẩu không được để trống"
-            );
-        }
-
-        String tenDangNhap = taiKhoan
-                .getTenDangNhap()
-                .trim();
-
-        if (taiKhoanRepository.existsByTenDangNhap(tenDangNhap)) {
+        // =========================
+        // 1. Kiểm tra username
+        // =========================
+        if (taiKhoanRepository.existsByTenDangNhap(
+                taiKhoan.getTenDangNhap()
+        )) {
             throw new RuntimeException(
                     "Tên đăng nhập đã tồn tại"
             );
         }
 
-
-        taiKhoan.setTenDangNhap(tenDangNhap);
+        // =========================
+        // 2. Thiết lập tài khoản
+        // =========================
         taiKhoan.setVaiTro("KHACH_HANG");
         taiKhoan.setTrangThai("HOAT_DONG");
         taiKhoan.setNgayTao(LocalDateTime.now());
 
+        // =========================
+        // 3. Lưu tài khoản
+        // =========================
         TaiKhoan savedTaiKhoan =
                 taiKhoanRepository.save(taiKhoan);
 
+        // =========================
+        // 4. Tạo khách hàng
+        // =========================
         KhachHang khachHang = new KhachHang();
 
         khachHang.setTaiKhoan(savedTaiKhoan);

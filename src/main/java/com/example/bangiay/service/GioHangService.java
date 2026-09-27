@@ -29,7 +29,37 @@ public class GioHangService {
                         new RuntimeException("Không tìm thấy giỏ hàng"));
     }
 
+    /*
+     * Lấy giỏ hàng của khách hàng.
+     * Nếu khách chưa có giỏ hàng thì tự động tạo mới.
+     */
+    public GioHang getOrCreateByKhachHangId(Long khachHangId) {
+
+        return gioHangRepository.findByKhachHang_Id(khachHangId)
+                .orElseGet(() -> {
+
+                    GioHang gioHang = new GioHang();
+
+                    // Chỉ cần gắn ID khách hàng.
+                    // Hibernate sẽ dùng ID này để tạo quan hệ.
+                    com.example.bangiay.entity.KhachHang khachHang =
+                            new com.example.bangiay.entity.KhachHang();
+
+                    khachHang.setId(khachHangId);
+
+                    gioHang.setKhachHang(khachHang);
+                    gioHang.setNgayTao(LocalDateTime.now());
+                    gioHang.setNgayCapNhat(LocalDateTime.now());
+
+                    return gioHangRepository.save(gioHang);
+                });
+    }
+
+    /*
+     * Giữ lại method cũ nếu các API khác đang sử dụng.
+     */
     public GioHang getByKhachHangId(Long khachHangId) {
+
         return gioHangRepository.findByKhachHang_Id(khachHangId)
                 .orElseThrow(() ->
                         new RuntimeException("Không tìm thấy giỏ hàng"));
@@ -38,6 +68,7 @@ public class GioHangService {
     public GioHang save(GioHang gioHang) {
 
         if (gioHang.getId() == null) {
+
             if (gioHang.getNgayTao() == null) {
                 gioHang.setNgayTao(LocalDateTime.now());
             }
@@ -51,6 +82,7 @@ public class GioHangService {
             GioHang gioHangCu = gioHangRepository.findById(gioHang.getId())
                     .orElseThrow(() ->
                             new RuntimeException("Không tìm thấy giỏ hàng"));
+
             gioHang.setNgayTao(gioHangCu.getNgayTao());
             gioHang.setNgayCapNhat(LocalDateTime.now());
         }
@@ -63,10 +95,12 @@ public class GioHangService {
     }
 
     public List<ChiTietGioHang> getChiTietByGioHangId(Long gioHangId) {
+
         return chiTietGioHangRepository.findByGioHang_Id(gioHangId);
     }
 
     public ChiTietGioHang getChiTietById(Long id) {
+
         return chiTietGioHangRepository.findById(id)
                 .orElseThrow(() ->
                         new RuntimeException(
@@ -132,6 +166,10 @@ public class GioHangService {
             );
         }
 
+        /*
+         * Không cho cùng một sản phẩm chi tiết
+         * xuất hiện 2 lần trong cùng một giỏ hàng.
+         */
         if (chiTietGioHang.getId() == null) {
 
             chiTietGioHangRepository
@@ -148,10 +186,43 @@ public class GioHangService {
 
         chiTietGioHang.setSanPhamChiTiet(spct);
 
-        return chiTietGioHangRepository.save(chiTietGioHang);
+        ChiTietGioHang saved =
+                chiTietGioHangRepository.save(chiTietGioHang);
+
+        /*
+         * Cập nhật thời gian giỏ hàng.
+         */
+        GioHang gioHang = gioHangRepository.findById(gioHangId)
+                .orElse(null);
+
+        if (gioHang != null) {
+            gioHang.setNgayCapNhat(LocalDateTime.now());
+            gioHangRepository.save(gioHang);
+        }
+
+        return saved;
     }
 
     public void deleteChiTiet(Long id) {
+
+        ChiTietGioHang chiTiet = chiTietGioHangRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Không tìm thấy chi tiết giỏ hàng"));
+
+        Long gioHangId = chiTiet.getGioHang().getId();
+
         chiTietGioHangRepository.deleteById(id);
+
+        /*
+         * Cập nhật thời gian giỏ hàng sau khi xóa.
+         */
+        GioHang gioHang = gioHangRepository.findById(gioHangId)
+                .orElse(null);
+
+        if (gioHang != null) {
+            gioHang.setNgayCapNhat(LocalDateTime.now());
+            gioHangRepository.save(gioHang);
+        }
     }
 }

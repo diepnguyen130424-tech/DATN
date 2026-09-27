@@ -60,8 +60,10 @@ function Login({ setPage, onLoginSuccess }) {
                 vaiTro: data?.vaiTro,
                 trangThai: data?.trangThai,
                 ngayTao: data?.ngayTao,
+                khachHangId: data?.khachHangId ?? null,
             };
-
+            console.log("LOGIN RESPONSE:", data);
+            console.log("TAI KHOAN LUU:", taiKhoan);
             localStorage.setItem("taiKhoan", JSON.stringify(taiKhoan));
 
             if (onLoginSuccess) {
