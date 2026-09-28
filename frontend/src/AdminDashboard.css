@@ -704,3 +704,360 @@
         transform: translateX(2px);
     }
 }
+/* ============================================================
+   ADMIN VOUCHER + KHUYEN MAI
+   ============================================================ */
+
+.admin-voucher {
+    padding: 0;
+    background: transparent;
+}
+
+/* ===== HEADING ===== */
+.admin-voucher .admin-page-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 0 0 24px;
+    margin-bottom: 0;
+}
+
+.admin-voucher .admin-eyebrow {
+    font-size: 13px;
+    color: #9ca3af;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.admin-voucher .admin-page-heading h1 {
+    font-size: 30px;
+    font-weight: 800;
+    color: #111;
+    margin: 0 0 8px;
+    letter-spacing: -0.6px;
+}
+
+.admin-voucher .admin-page-heading p {
+    font-size: 14px;
+    color: #9ca3af;
+    margin: 0;
+    font-weight: 400;
+}
+
+.admin-voucher .admin-date-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 13px 22px;
+    border: none;
+    border-radius: 8px;
+    background: #111;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    letter-spacing: 0.2px;
+}
+
+.admin-voucher .admin-date-button:hover {
+    background: #1a1a1a;
+}
+
+/* ===== FILTER BAR ===== */
+.admin-voucher .admin-filters {
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.admin-voucher .admin-filters input,
+.admin-voucher .admin-filters select {
+    padding: 11px 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s;
+    background: #fff;
+    color: #111;
+    font-family: inherit;
+    font-weight: 500;
+}
+
+.admin-voucher .admin-filters input:focus,
+.admin-voucher .admin-filters select:focus {
+    border-color: #111;
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.06);
+}
+
+.admin-voucher .admin-filters input {
+    flex: 1;
+    min-width: 240px;
+}
+
+.admin-voucher .admin-filters input::placeholder {
+    color: #9ca3af;
+    font-weight: 400;
+}
+
+.admin-voucher .admin-filters select {
+    min-width: 200px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
+}
+
+/* ===== TABLE WRAPPER ===== */
+.admin-voucher .admin-table-scroll {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 0;
+}
+
+.admin-voucher .admin-table-head {
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.admin-voucher .admin-table-head h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #111;
+    letter-spacing: -0.2px;
+}
+
+.admin-voucher .admin-table-head span {
+    color: #9ca3af;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+/* ===== TABLE ===== */
+.admin-voucher .admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    min-width: 900px;
+}
+
+.admin-voucher .admin-table thead {
+    background: #fff;
+}
+
+.admin-voucher .admin-table th {
+    padding: 14px 20px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: #374151;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+    background: #fff;
+}
+
+.admin-voucher .admin-table td {
+    padding: 18px 20px;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+    vertical-align: middle;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.admin-voucher .admin-table tbody tr {
+    transition: background 0.15s;
+}
+
+.admin-voucher .admin-table tbody tr:hover {
+    background: #fafafa;
+}
+
+.admin-voucher .admin-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.admin-voucher .admin-table td strong {
+    color: #111;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+/* ===== BADGE TRẠNG THÁI ===== */
+.admin-voucher .order-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #f3f4f6;
+    color: #6b7280;
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+}
+
+.admin-voucher .order-status.active {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.admin-voucher .order-status.inactive {
+    background: #fde8e8;
+    color: #c62828;
+}
+
+.admin-voucher .order-status.paused {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.admin-voucher .order-status.ended {
+    background: #e5e7eb;
+    color: #4b5563;
+}
+
+/* ===== NÚT SỬA / XÓA (có viền giống ảnh) ===== */
+.admin-voucher .btn-edit,
+.admin-voucher .btn-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    white-space: nowrap;
+    background: #fff;
+    border: 1px solid transparent;
+}
+
+.admin-voucher .btn-edit {
+    color: #111;
+    border-color: #e5e7eb;
+    margin-right: 8px;
+}
+
+.admin-voucher .btn-edit:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+}
+
+.admin-voucher .btn-delete {
+    color: #dc2626;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.admin-voucher .btn-delete:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+}
+
+/* ===== SKELETON ===== */
+.admin-voucher .skeleton-row td {
+    padding: 18px 20px;
+}
+
+.admin-voucher .skeleton-bar {
+    height: 14px;
+    background: linear-gradient(
+        90deg,
+        #f3f4f6 25%,
+        #e5e7eb 50%,
+        #f3f4f6 75%
+    );
+    background-size: 200% 100%;
+    animation: voucherShimmer 1.4s infinite;
+    border-radius: 6px;
+}
+
+@keyframes voucherShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ===== ERROR BOX ===== */
+.admin-voucher .admin-error-box {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 70px 30px;
+    text-align: center;
+    max-width: 500px;
+    margin: 30px auto;
+}
+
+.admin-voucher .admin-error-box .icon {
+    font-size: 52px;
+    margin-bottom: 18px;
+}
+
+.admin-voucher .admin-error-box h3 {
+    color: #dc2626;
+    margin: 0 0 10px;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.admin-voucher .admin-error-box p {
+    color: #9ca3af;
+    margin: 0;
+    font-size: 14px;
+}
+
+/* ===== EMPTY STATE ===== */
+.admin-voucher .admin-empty {
+    padding: 70px 30px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+    .admin-voucher .admin-page-heading {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-voucher .admin-date-button {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .admin-voucher .admin-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-voucher .admin-filters input,
+    .admin-voucher .admin-filters select {
+        width: 100%;
+        min-width: 0;
+    }
+}

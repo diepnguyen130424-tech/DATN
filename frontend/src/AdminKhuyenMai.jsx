@@ -27,6 +27,22 @@ function formatDate(str) {
     }
 }
 
+function getTrangThaiClass(trangThai) {
+    if (trangThai === "HOAT_DONG") return "active";
+    if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
+    if (trangThai === "TAM_DUNG") return "paused";
+    if (trangThai === "KET_THUC") return "ended";
+    return "";
+}
+
+function getTrangThaiLabel(trangThai) {
+    if (trangThai === "HOAT_DONG") return "Hoạt động";
+    if (trangThai === "NGUNG_HOAT_DONG") return "Ngừng hoạt động";
+    if (trangThai === "TAM_DUNG") return "Tạm dừng";
+    if (trangThai === "KET_THUC") return "Kết thúc";
+    return trangThai;
+}
+
 function readCache() {
     try {
         const raw = sessionStorage.getItem(CACHE_KEY);
@@ -75,35 +91,30 @@ export default function AdminKhuyenMai() {
 
     const loadDanhSach = async (background = false) => {
         if (abortRef.current) abortRef.current.abort();
-
         const controller = new AbortController();
         abortRef.current = controller;
 
         try {
             if (!background) {
                 const cached = readCache();
-                if (!cached || cached.length === 0) {
-                    setLoading(true);
-                }
+                if (!cached || cached.length === 0) setLoading(true);
                 setError("");
             }
 
             const timeoutId = setTimeout(() => controller.abort(), 12000);
-
             const res = await fetch(`${API}/chuong-trinh-giam-gia`, {
                 signal: controller.signal,
             });
-
             clearTimeout(timeoutId);
 
             if (!isMountedRef.current) return;
-
             if (!res.ok) {
-                throw new Error(`Lỗi ${res.status}: Không tải được chương trình`);
+                throw new Error(
+                    `Lỗi ${res.status}: Không tải được chương trình`
+                );
             }
 
             const data = await res.json();
-
             if (!isMountedRef.current) return;
 
             const list = Array.isArray(data) ? data : [];
@@ -170,7 +181,8 @@ export default function AdminKhuyenMai() {
     };
 
     const validate = () => {
-        if (!form.tenChuongTrinh.trim()) return "Vui lòng nhập tên chương trình";
+        if (!form.tenChuongTrinh.trim())
+            return "Vui lòng nhập tên chương trình";
         if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0)
             return "Giá trị giảm phải lớn hơn 0";
         if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 100)
@@ -205,7 +217,6 @@ export default function AdminKhuyenMai() {
             const url = editing
                 ? `${API}/chuong-trinh-giam-gia/${editing.id}`
                 : `${API}/chuong-trinh-giam-gia`;
-
             const method = editing ? "PUT" : "POST";
 
             const res = await fetch(url, {
@@ -239,9 +250,7 @@ export default function AdminKhuyenMai() {
 
             setDanhSach(newList);
             writeCache(newList);
-
             closeModal();
-
             setTimeout(() => loadDanhSach(true), 500);
         } catch (err) {
             setFormError(err.message);
@@ -262,9 +271,7 @@ export default function AdminKhuyenMai() {
             const res = await fetch(`${API}/chuong-trinh-giam-gia/${v.id}`, {
                 method: "DELETE",
             });
-
             if (!res.ok) throw new Error("Xóa thất bại");
-
             setTimeout(() => loadDanhSach(true), 400);
         } catch (err) {
             setDanhSach(oldList);
@@ -287,42 +294,28 @@ export default function AdminKhuyenMai() {
         <div className="admin-voucher">
             <div className="admin-page-heading">
                 <div>
-                    <div className="admin-eyebrow">FSHOP ADMIN</div>
+                    <div className="admin-eyebrow">Quản lý / Khuyến mãi</div>
                     <h1>Quản lý Khuyến mãi</h1>
-                    <p>Thêm, sửa, xóa chương trình giảm giá.</p>
+                    <p>Quản lý các chương trình giảm giá của cửa hàng.</p>
                 </div>
-                <button
-                    className="admin-date-button"
-                    onClick={openCreate}
-                    style={{ background: "#111", color: "#fff" }}
-                >
+                <button className="admin-date-button" onClick={openCreate}>
                     + Thêm chương trình
                 </button>
             </div>
 
-            <div
-                style={{
-                    display: "flex",
-                    gap: 12,
-                    marginBottom: 18,
-                    flexWrap: "wrap",
-                }}
-            >
+            <div className="admin-filters">
                 <input
-                    className="price-input"
                     placeholder="Tìm theo tên chương trình..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    style={{ flex: 1, minWidth: 220 }}
                 />
                 <select
-                    className="price-input"
                     value={filterTrangThai}
                     onChange={(e) => setFilterTrangThai(e.target.value)}
-                    style={{ width: 200 }}
                 >
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="HOAT_DONG">Hoạt động</option>
+                    <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
                     <option value="TAM_DUNG">Tạm dừng</option>
                     <option value="KET_THUC">Kết thúc</option>
                 </select>
@@ -344,58 +337,33 @@ export default function AdminKhuyenMai() {
                         </thead>
                         <tbody>
                             {[1, 2, 3, 4, 5].map((i) => (
-                                <tr key={i}>
+                                <tr key={i} className="skeleton-row">
                                     {Array.from({ length: 7 }).map((_, j) => (
                                         <td key={j}>
-                                            <div
-                                                style={{
-                                                    height: 14,
-                                                    background:
-                                                        "linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)",
-                                                    backgroundSize: "200% 100%",
-                                                    animation:
-                                                        "shimmer 1.4s infinite",
-                                                    borderRadius: 4,
-                                                }}
-                                            />
+                                            <div className="skeleton-bar" />
                                         </td>
                                     ))}
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                    <style>{`
-                        @keyframes shimmer {
-                            0% { background-position: 200% 0; }
-                            100% { background-position: -200% 0; }
-                        }
-                    `}</style>
                 </div>
             )}
 
             {!showSkeleton && error && danhSach.length === 0 && (
-                <div
-                    style={{
-                        textAlign: "center",
-                        padding: "40px 20px",
-                        background: "#fdecea",
-                        borderRadius: 12,
-                        maxWidth: 500,
-                        margin: "20px auto",
-                    }}
-                >
-                    <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
-                    <h3 style={{ margin: "0 0 8px", color: "#c0392b" }}>
-                        Không tải được dữ liệu
-                    </h3>
-                    <p style={{ color: "#666", margin: 0, fontSize: 14 }}>
-                        {error}
-                    </p>
+                <div className="admin-error-box">
+                    <div className="icon">⚠️</div>
+                    <h3>Không tải được dữ liệu</h3>
+                    <p>{error}</p>
                 </div>
             )}
 
             {!showSkeleton && danhSach.length > 0 && (
                 <div className="admin-table-scroll">
+                    <div className="admin-table-head">
+                        <h2>Danh sách chương trình</h2>
+                        <span>{filtered.length} chương trình</span>
+                    </div>
                     <table className="admin-table">
                         <thead>
                             <tr>
@@ -428,41 +396,25 @@ export default function AdminKhuyenMai() {
                                     <td>{formatDate(v.ngayKetThuc)}</td>
                                     <td>
                                         <span
-                                            className={`order-status ${
-                                                v.trangThai === "HOAT_DONG"
-                                                    ? "Đã-giao"
-                                                    : ""
-                                            }`}
+                                            className={`order-status ${getTrangThaiClass(
+                                                v.trangThai
+                                            )}`}
                                         >
-                                            {v.trangThai}
+                                            {getTrangThaiLabel(v.trangThai)}
                                         </span>
                                     </td>
                                     <td style={{ whiteSpace: "nowrap" }}>
                                         <button
                                             type="button"
+                                            className="btn-edit"
                                             onClick={() => openEdit(v)}
-                                            style={{
-                                                marginRight: 6,
-                                                padding: "6px 10px",
-                                                border: "1px solid #ddd",
-                                                borderRadius: 6,
-                                                cursor: "pointer",
-                                                background: "#fff",
-                                            }}
                                         >
                                             Sửa
                                         </button>
                                         <button
                                             type="button"
+                                            className="btn-delete"
                                             onClick={() => handleDelete(v)}
-                                            style={{
-                                                padding: "6px 10px",
-                                                border: "1px solid #fdd",
-                                                borderRadius: 6,
-                                                cursor: "pointer",
-                                                background: "#fdecea",
-                                                color: "#c0392b",
-                                            }}
                                         >
                                             Xóa
                                         </button>
@@ -471,14 +423,7 @@ export default function AdminKhuyenMai() {
                             ))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td
-                                        colSpan={7}
-                                        style={{
-                                            textAlign: "center",
-                                            padding: 30,
-                                            color: "#888",
-                                        }}
-                                    >
+                                    <td colSpan={7} className="admin-empty">
                                         Không có chương trình nào
                                     </td>
                                 </tr>
@@ -582,7 +527,9 @@ export default function AdminKhuyenMai() {
                                         handleChange("loaiGiam", e.target.value)
                                     }
                                 >
-                                    <option value="PHAN_TRAM">Phần trăm (%)</option>
+                                    <option value="PHAN_TRAM">
+                                        Phần trăm (%)
+                                    </option>
                                     <option value="SO_TIEN">Số tiền (đ)</option>
                                 </select>
                             </div>
@@ -603,7 +550,10 @@ export default function AdminKhuyenMai() {
                                     type="number"
                                     value={form.giaTriGiam}
                                     onChange={(e) =>
-                                        handleChange("giaTriGiam", e.target.value)
+                                        handleChange(
+                                            "giaTriGiam",
+                                            e.target.value
+                                        )
                                     }
                                     placeholder={
                                         form.loaiGiam === "PHAN_TRAM"
@@ -629,7 +579,10 @@ export default function AdminKhuyenMai() {
                                     type="datetime-local"
                                     value={form.ngayBatDau}
                                     onChange={(e) =>
-                                        handleChange("ngayBatDau", e.target.value)
+                                        handleChange(
+                                            "ngayBatDau",
+                                            e.target.value
+                                        )
                                     }
                                 />
                             </div>
@@ -650,7 +603,10 @@ export default function AdminKhuyenMai() {
                                     type="datetime-local"
                                     value={form.ngayKetThuc}
                                     onChange={(e) =>
-                                        handleChange("ngayKetThuc", e.target.value)
+                                        handleChange(
+                                            "ngayKetThuc",
+                                            e.target.value
+                                        )
                                     }
                                 />
                             </div>
@@ -670,12 +626,24 @@ export default function AdminKhuyenMai() {
                                     className="price-input"
                                     value={form.trangThai}
                                     onChange={(e) =>
-                                        handleChange("trangThai", e.target.value)
+                                        handleChange(
+                                            "trangThai",
+                                            e.target.value
+                                        )
                                     }
                                 >
-                                    <option value="HOAT_DONG">Hoạt động</option>
-                                    <option value="TAM_DUNG">Tạm dừng</option>
-                                    <option value="KET_THUC">Kết thúc</option>
+                                    <option value="HOAT_DONG">
+                                        Hoạt động
+                                    </option>
+                                    <option value="NGUNG_HOAT_DONG">
+                                        Ngừng hoạt động
+                                    </option>
+                                    <option value="TAM_DUNG">
+                                        Tạm dừng
+                                    </option>
+                                    <option value="KET_THUC">
+                                        Kết thúc
+                                    </option>
                                 </select>
                             </div>
                         </div>

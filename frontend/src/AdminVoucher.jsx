@@ -32,6 +32,22 @@ function formatDate(str) {
     }
 }
 
+function getTrangThaiClass(trangThai) {
+    if (trangThai === "HOAT_DONG") return "active";
+    if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
+    if (trangThai === "TAM_DUNG") return "paused";
+    if (trangThai === "KET_THUC") return "ended";
+    return "";
+}
+
+function getTrangThaiLabel(trangThai) {
+    if (trangThai === "HOAT_DONG") return "Hoạt động";
+    if (trangThai === "NGUNG_HOAT_DONG") return "Ngừng hoạt động";
+    if (trangThai === "TAM_DUNG") return "Tạm dừng";
+    if (trangThai === "KET_THUC") return "Kết thúc";
+    return trangThai;
+}
+
 function readCache() {
     try {
         const raw = sessionStorage.getItem(CACHE_KEY);
@@ -50,12 +66,6 @@ function writeCache(data) {
             CACHE_KEY,
             JSON.stringify({ data, time: Date.now() })
         );
-    } catch {}
-}
-
-function clearCache() {
-    try {
-        sessionStorage.removeItem(CACHE_KEY);
     } catch {}
 }
 
@@ -86,35 +96,28 @@ export default function AdminVoucher() {
 
     const loadDanhSach = async (background = false) => {
         if (abortRef.current) abortRef.current.abort();
-
         const controller = new AbortController();
         abortRef.current = controller;
 
         try {
             if (!background) {
                 const cached = readCache();
-                if (!cached || cached.length === 0) {
-                    setLoading(true);
-                }
+                if (!cached || cached.length === 0) setLoading(true);
                 setError("");
             }
 
             const timeoutId = setTimeout(() => controller.abort(), 12000);
-
             const res = await fetch(`${API}/ma-giam-gia`, {
                 signal: controller.signal,
             });
-
             clearTimeout(timeoutId);
 
             if (!isMountedRef.current) return;
-
             if (!res.ok) {
                 throw new Error(`Lỗi ${res.status}: Không tải được danh sách`);
             }
 
             const data = await res.json();
-
             if (!isMountedRef.current) return;
 
             const list = Array.isArray(data) ? data : [];
@@ -227,7 +230,6 @@ export default function AdminVoucher() {
             const url = editing
                 ? `${API}/ma-giam-gia/${editing.id}`
                 : `${API}/ma-giam-gia`;
-
             const method = editing ? "PUT" : "POST";
 
             const res = await fetch(url, {
@@ -261,9 +263,7 @@ export default function AdminVoucher() {
 
             setDanhSach(newList);
             writeCache(newList);
-
             closeModal();
-
             setTimeout(() => loadDanhSach(true), 500);
         } catch (err) {
             setFormError(err.message);
@@ -284,9 +284,7 @@ export default function AdminVoucher() {
             const res = await fetch(`${API}/ma-giam-gia/${v.id}`, {
                 method: "DELETE",
             });
-
             if (!res.ok) throw new Error("Xóa thất bại");
-
             setTimeout(() => loadDanhSach(true), 400);
         } catch (err) {
             setDanhSach(oldList);
@@ -301,10 +299,8 @@ export default function AdminVoucher() {
             !kw ||
             v.maVoucher?.toLowerCase().includes(kw) ||
             v.tenVoucher?.toLowerCase().includes(kw);
-
         const matchTT =
             filterTrangThai === "TAT_CA" || v.trangThai === filterTrangThai;
-
         return matchKw && matchTT;
     });
 
@@ -314,42 +310,28 @@ export default function AdminVoucher() {
         <div className="admin-voucher">
             <div className="admin-page-heading">
                 <div>
-                    <div className="admin-eyebrow">FSHOP ADMIN</div>
+                    <div className="admin-eyebrow">Quản lý / Voucher</div>
                     <h1>Quản lý Voucher</h1>
-                    <p>Thêm, sửa, xóa mã giảm giá của cửa hàng.</p>
+                    <p>Quản lý các mã giảm giá của cửa hàng.</p>
                 </div>
-                <button
-                    className="admin-date-button"
-                    onClick={openCreate}
-                    style={{ background: "#111", color: "#fff" }}
-                >
+                <button className="admin-date-button" onClick={openCreate}>
                     + Thêm voucher
                 </button>
             </div>
 
-            <div
-                style={{
-                    display: "flex",
-                    gap: 12,
-                    marginBottom: 18,
-                    flexWrap: "wrap",
-                }}
-            >
+            <div className="admin-filters">
                 <input
-                    className="price-input"
-                    placeholder="Tìm theo mã hoặc tên..."
+                    placeholder="Tìm theo mã hoặc tên voucher..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    style={{ flex: 1, minWidth: 220 }}
                 />
                 <select
-                    className="price-input"
                     value={filterTrangThai}
                     onChange={(e) => setFilterTrangThai(e.target.value)}
-                    style={{ width: 200 }}
                 >
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="HOAT_DONG">Hoạt động</option>
+                    <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
                     <option value="TAM_DUNG">Tạm dừng</option>
                     <option value="KET_THUC">Kết thúc</option>
                 </select>
@@ -374,76 +356,33 @@ export default function AdminVoucher() {
                         </thead>
                         <tbody>
                             {[1, 2, 3, 4, 5].map((i) => (
-                                <tr key={i}>
+                                <tr key={i} className="skeleton-row">
                                     {Array.from({ length: 10 }).map((_, j) => (
                                         <td key={j}>
-                                            <div
-                                                style={{
-                                                    height: 14,
-                                                    background:
-                                                        "linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)",
-                                                    backgroundSize: "200% 100%",
-                                                    animation:
-                                                        "shimmer 1.4s infinite",
-                                                    borderRadius: 4,
-                                                }}
-                                            />
+                                            <div className="skeleton-bar" />
                                         </td>
                                     ))}
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                    <style>{`
-                        @keyframes shimmer {
-                            0% { background-position: 200% 0; }
-                            100% { background-position: -200% 0; }
-                        }
-                    `}</style>
                 </div>
             )}
 
             {!showSkeleton && error && danhSach.length === 0 && (
-                <div
-                    style={{
-                        textAlign: "center",
-                        padding: "40px 20px",
-                        background: "#fdecea",
-                        borderRadius: 12,
-                        maxWidth: 500,
-                        margin: "20px auto",
-                    }}
-                >
-                    <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
-                    <h3 style={{ margin: "0 0 8px", color: "#c0392b" }}>
-                        Không tải được dữ liệu
-                    </h3>
-                    <p style={{ color: "#666", margin: "0 0 20px", fontSize: 14 }}>
-                        {error}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            clearCache();
-                            loadDanhSach();
-                        }}
-                        style={{
-                            padding: "10px 24px",
-                            border: "none",
-                            borderRadius: 8,
-                            background: "#e53935",
-                            color: "#fff",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                        }}
-                    >
-                        Thử lại
-                    </button>
+                <div className="admin-error-box">
+                    <div className="icon">⚠️</div>
+                    <h3>Không tải được dữ liệu</h3>
+                    <p>{error}</p>
                 </div>
             )}
 
             {!showSkeleton && danhSach.length > 0 && (
                 <div className="admin-table-scroll">
+                    <div className="admin-table-head">
+                        <h2>Danh sách voucher</h2>
+                        <span>{filtered.length} voucher</span>
+                    </div>
                     <table className="admin-table">
                         <thead>
                             <tr>
@@ -482,41 +421,25 @@ export default function AdminVoucher() {
                                     <td>{formatDate(v.ngayKetThuc)}</td>
                                     <td>
                                         <span
-                                            className={`order-status ${
-                                                v.trangThai === "HOAT_DONG"
-                                                    ? "Đã-giao"
-                                                    : ""
-                                            }`}
+                                            className={`order-status ${getTrangThaiClass(
+                                                v.trangThai
+                                            )}`}
                                         >
-                                            {v.trangThai}
+                                            {getTrangThaiLabel(v.trangThai)}
                                         </span>
                                     </td>
                                     <td style={{ whiteSpace: "nowrap" }}>
                                         <button
                                             type="button"
+                                            className="btn-edit"
                                             onClick={() => openEdit(v)}
-                                            style={{
-                                                marginRight: 6,
-                                                padding: "6px 10px",
-                                                border: "1px solid #ddd",
-                                                borderRadius: 6,
-                                                cursor: "pointer",
-                                                background: "#fff",
-                                            }}
                                         >
                                             Sửa
                                         </button>
                                         <button
                                             type="button"
+                                            className="btn-delete"
                                             onClick={() => handleDelete(v)}
-                                            style={{
-                                                padding: "6px 10px",
-                                                border: "1px solid #fdd",
-                                                borderRadius: 6,
-                                                cursor: "pointer",
-                                                background: "#fdecea",
-                                                color: "#c0392b",
-                                            }}
                                         >
                                             Xóa
                                         </button>
@@ -525,14 +448,7 @@ export default function AdminVoucher() {
                             ))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td
-                                        colSpan={10}
-                                        style={{
-                                            textAlign: "center",
-                                            padding: 30,
-                                            color: "#888",
-                                        }}
-                                    >
+                                    <td colSpan={10} className="admin-empty">
                                         Không có voucher nào
                                     </td>
                                 </tr>
@@ -729,6 +645,9 @@ export default function AdminVoucher() {
                                     }
                                 >
                                     <option value="HOAT_DONG">Hoạt động</option>
+                                    <option value="NGUNG_HOAT_DONG">
+                                        Ngừng hoạt động
+                                    </option>
                                     <option value="TAM_DUNG">Tạm dừng</option>
                                     <option value="KET_THUC">Kết thúc</option>
                                 </select>
