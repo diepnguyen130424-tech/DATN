@@ -2677,6 +2677,20 @@ function ThanhToanContent() {
 }
 
 
+const searchInputStyle = {
+    width: "400px",
+    maxWidth: "100%",
+    height: "58px",
+    boxSizing: "border-box",
+    padding: "0 18px",
+    border: "1px solid #d9d9d9",
+    borderRadius: "10px",
+    fontSize: "18px",
+    color: "#222",
+    outline: "none",
+    background: "#fff"
+};
+
 function CustomerContent() {
     const [customers, setCustomers] = useState([]);
     const [search, setSearch] = useState("");
@@ -2746,12 +2760,15 @@ function CustomerContent() {
                 <div className="customer-toolbar">
                     <input
                         className="customer-search-input"
+                        style={searchInputStyle}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Tìm tên, tên đăng nhập hoặc số điện thoại..."
                     />
                 </div>
+            </section>
 
+            <section className="admin-card">
                 <div className="admin-table-scroll">
                     <table className="admin-table">
                         <thead>
@@ -3131,10 +3148,10 @@ function EmployeeContent() {
                         border: "none",
                         background: "#111",
                         color: "#fff",
-                        padding: "8px 18px",
+                        padding: "16px 24px",
                         borderRadius: "14px",
                         cursor: "pointer",
-                        fontSize: "15px",
+                        fontSize: "18px",
                         fontWeight: 500,
                         minWidth: "174px"
                     }}
@@ -3147,12 +3164,15 @@ function EmployeeContent() {
                 <div className="customer-toolbar">
                     <input
                         className="customer-search-input"
+                        style={searchInputStyle}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Tìm tên, tên đăng nhập, số điện thoại hoặc chức vụ..."
                     />
                 </div>
+            </section>
 
+            <section className="admin-card">
                 <div className="admin-table-scroll">
                     <table className="admin-table">
                         <thead>
