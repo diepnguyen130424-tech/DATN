@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/danh-muc")
@@ -21,6 +22,12 @@ public class DanhMucController {
         return ResponseEntity.ok(danhMucService.getAll());
     }
 
+    /** {danhMucId: soSanPham} - dùng cho cột "Số sản phẩm" */
+    @GetMapping("/thong-ke")
+    public ResponseEntity<Map<Long, Long>> thongKe() {
+        return ResponseEntity.ok(danhMucService.thongKeSoSanPham());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<DanhMuc> getById(@PathVariable Long id) {
         return ResponseEntity.ok(danhMucService.getById(id));
@@ -28,21 +35,27 @@ public class DanhMucController {
 
     @PostMapping
     public ResponseEntity<DanhMuc> create(@RequestBody DanhMuc danhMuc) {
-        return ResponseEntity.ok(danhMucService.save(danhMuc));
+        return ResponseEntity.ok(danhMucService.create(danhMuc));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<DanhMuc> update(
             @PathVariable Long id,
             @RequestBody DanhMuc danhMuc) {
-
-        danhMuc.setId(id);
-        return ResponseEntity.ok(danhMucService.save(danhMuc));
+        return ResponseEntity.ok(danhMucService.update(id, danhMuc));
     }
 
+    /** Xóa mềm -> NGUNG_HOAT_DONG */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         danhMucService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Xóa hẳn khỏi database (chỉ khi chưa có sản phẩm dùng) */
+    @DeleteMapping("/{id}/vinh-vien")
+    public ResponseEntity<Void> xoaVinhVien(@PathVariable Long id) {
+        danhMucService.xoaVinhVien(id);
         return ResponseEntity.noContent().build();
     }
 }

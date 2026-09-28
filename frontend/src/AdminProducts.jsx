@@ -576,7 +576,12 @@ function AdminProducts() {
                                             Chọn danh mục
                                         </option>
 
-                                        {categories.map((category) => (
+                                        {categories
+                                            .filter((category) =>
+                                                ["HOAT_DONG", "ACTIVE"].includes(category.trangThai) ||
+                                                String(category.id) === String(form.danhMucId)
+                                            )
+                                            .map((category) => (
                                             <option
                                                 key={category.id}
                                                 value={category.id}
@@ -601,7 +606,12 @@ function AdminProducts() {
                                             Chọn thương hiệu
                                         </option>
 
-                                        {brands.map((brand) => (
+                                        {brands
+                                            .filter((brand) =>
+                                                ["HOAT_DONG", "ACTIVE"].includes(brand.trangThai) ||
+                                                String(brand.id) === String(form.thuongHieuId)
+                                            )
+                                            .map((brand) => (
                                             <option
                                                 key={brand.id}
                                                 value={brand.id}

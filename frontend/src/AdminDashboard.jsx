@@ -6,6 +6,8 @@ import AdminProducts from "./AdminProducts";
 import EmployeeDashboard from "./EmployeeDashboard";
 import AdminVoucher from "./AdminVoucher";
 import AdminKhuyenMai from "./AdminKhuyenMai";
+import AdminDanhMuc from "./AdminDanhMuc";
+import AdminThuongHieu from "./AdminThuongHieu";
 const API = "http://localhost:8080/api";
 
 
@@ -3109,6 +3111,10 @@ export default function AdminDashboard({
                         <ThanhToanContent />
                     ) : activeMenu === "san-pham" ? (
                         <AdminProducts />
+                    ) : activeMenu === "danh-muc" ? (
+                        <AdminDanhMuc />
+                    ) : activeMenu === "thuong-hieu" ? (
+                        <AdminThuongHieu />
                     ) : activeMenu === "kho" ? (
                         <AdminKho />
                     ) : activeMenu === "voucher" ? (
