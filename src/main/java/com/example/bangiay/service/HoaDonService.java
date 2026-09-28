@@ -29,6 +29,10 @@ public class HoaDonService {
     private final DiaChiRepository diaChiRepository;
 
 
+    // =========================================================
+    // HÓA ĐƠN
+    // =========================================================
+
     public List<HoaDon> getAll() {
         return hoaDonRepository.findAll();
     }
@@ -37,49 +41,74 @@ public class HoaDonService {
     public HoaDon getById(Long id) {
         return hoaDonRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Không tìm thấy hóa đơn"));
+                        new RuntimeException(
+                                "Không tìm thấy hóa đơn"
+                        )
+                );
     }
 
 
     public HoaDon getByMaHoaDon(String maHoaDon) {
         return hoaDonRepository.findByMaHoaDon(maHoaDon)
                 .orElseThrow(() ->
-                        new RuntimeException("Không tìm thấy hóa đơn"));
+                        new RuntimeException(
+                                "Không tìm thấy hóa đơn"
+                        )
+                );
     }
 
 
     public HoaDon save(HoaDon hoaDon) {
 
         if (hoaDon.getNgayLap() == null) {
-            hoaDon.setNgayLap(LocalDateTime.now());
+            hoaDon.setNgayLap(
+                    LocalDateTime.now()
+            );
         }
 
         if (hoaDon.getNgayCapNhat() == null) {
-            hoaDon.setNgayCapNhat(LocalDateTime.now());
+            hoaDon.setNgayCapNhat(
+                    LocalDateTime.now()
+            );
         } else {
-            hoaDon.setNgayCapNhat(LocalDateTime.now());
+            hoaDon.setNgayCapNhat(
+                    LocalDateTime.now()
+            );
         }
 
         if (hoaDon.getTienGiam() == null) {
-            hoaDon.setTienGiam(BigDecimal.ZERO);
+            hoaDon.setTienGiam(
+                    BigDecimal.ZERO
+            );
         }
 
         if (hoaDon.getPhiVanChuyen() == null) {
-            hoaDon.setPhiVanChuyen(BigDecimal.ZERO);
+            hoaDon.setPhiVanChuyen(
+                    BigDecimal.ZERO
+            );
         }
 
         if (hoaDon.getTrangThai() == null) {
-            hoaDon.setTrangThai("CHO_XAC_NHAN");
+            hoaDon.setTrangThai(
+                    "CHO_XAC_NHAN"
+            );
         }
 
-        return hoaDonRepository.save(hoaDon);
+        return hoaDonRepository.save(
+                hoaDon
+        );
     }
 
 
     public void delete(Long id) {
+
         hoaDonRepository.deleteById(id);
     }
 
+
+    // =========================================================
+    // ĐẶT HÀNG
+    // =========================================================
 
     @Transactional
     public HoaDon datHang(
@@ -88,12 +117,17 @@ public class HoaDonService {
             DatHangRequest request
     ) {
 
+        // -----------------------------------------------------
+        // 1. KIỂM TRA THÔNG TIN KHÁCH HÀNG
+        // -----------------------------------------------------
 
         if (request == null) {
+
             throw new RuntimeException(
                     "Thông tin đặt hàng không được để trống"
             );
         }
+
 
         if (request.getHoTen() == null
                 || request.getHoTen().trim().isEmpty()) {
@@ -103,6 +137,7 @@ public class HoaDonService {
             );
         }
 
+
         if (request.getSoDienThoai() == null
                 || request.getSoDienThoai().trim().isEmpty()) {
 
@@ -110,6 +145,7 @@ public class HoaDonService {
                     "Số điện thoại không được để trống"
             );
         }
+
 
         if (request.getDiaChi() == null
                 || request.getDiaChi().trim().isEmpty()) {
@@ -120,24 +156,70 @@ public class HoaDonService {
         }
 
 
-        GioHang gioHang = gioHangRepository.findById(gioHangId)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Không tìm thấy giỏ hàng"
-                        )
-                );
+        // -----------------------------------------------------
+        // 2. LẤY GIỎ HÀNG
+        // -----------------------------------------------------
 
+        GioHang gioHang =
+                gioHangRepository.findById(
+                                gioHangId
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Không tìm thấy giỏ hàng"
+                                )
+                        );
+
+
+        // -----------------------------------------------------
+        // 3. KIỂM TRA KHÁCH HÀNG TRONG GIỎ
+        // -----------------------------------------------------
 
         if (gioHang.getKhachHang() == null) {
+
             throw new RuntimeException(
                     "Giỏ hàng chưa có khách hàng"
             );
         }
 
 
+        // -----------------------------------------------------
+        // 4. CẬP NHẬT THÔNG TIN KHÁCH HÀNG
+        // -----------------------------------------------------
+        /*
+         * Khi khách đặt hàng:
+         *
+         * Họ tên
+         * Số điện thoại
+         *
+         * sẽ được cập nhật vào bảng khach_hang.
+         *
+         * Nhờ vậy Admin -> Khách hàng
+         * sẽ hiển thị đúng tên khách thay vì
+         * "Khách hàng mới".
+         */
+
+        KhachHang khachHang =
+                gioHang.getKhachHang();
+
+        khachHang.setHoTen(
+                request.getHoTen().trim()
+        );
+
+        khachHang.setSoDienThoai(
+                request.getSoDienThoai().trim()
+        );
+
+
+        // -----------------------------------------------------
+        // 5. LẤY CHI TIẾT GIỎ HÀNG
+        // -----------------------------------------------------
+
         List<ChiTietGioHang> danhSachGioHang =
                 chiTietGioHangRepository
-                        .findByGioHang_Id(gioHangId);
+                        .findByGioHang_Id(
+                                gioHangId
+                        );
 
 
         if (danhSachGioHang == null
@@ -149,13 +231,19 @@ public class HoaDonService {
         }
 
 
+        // -----------------------------------------------------
+        // 6. TÍNH TỔNG TIỀN HÀNG
+        // -----------------------------------------------------
+
         BigDecimal tongTienHang =
                 BigDecimal.ZERO;
 
 
-        for (ChiTietGioHang chiTiet : danhSachGioHang) {
+        for (ChiTietGioHang chiTiet :
+                danhSachGioHang) {
 
             if (chiTiet.getSanPhamChiTiet() == null) {
+
                 throw new RuntimeException(
                         "Chi tiết giỏ hàng không có sản phẩm"
                 );
@@ -163,11 +251,14 @@ public class HoaDonService {
 
 
             Long spctId =
-                    chiTiet.getSanPhamChiTiet().getId();
+                    chiTiet
+                            .getSanPhamChiTiet()
+                            .getId();
 
 
             SanPhamChiTiet spct =
-                    sanPhamChiTietRepository.findById(spctId)
+                    sanPhamChiTietRepository
+                            .findById(spctId)
                             .orElseThrow(() ->
                                     new RuntimeException(
                                             "Không tìm thấy sản phẩm chi tiết"
@@ -179,27 +270,41 @@ public class HoaDonService {
                     chiTiet.getSoLuong();
 
 
-            if (soLuong == null || soLuong <= 0) {
+            if (soLuong == null
+                    || soLuong <= 0) {
+
                 throw new RuntimeException(
                         "Số lượng sản phẩm không hợp lệ"
                 );
             }
 
+
+            // -------------------------------------------------
+            // KIỂM TRA TRẠNG THÁI SẢN PHẨM
+            // -------------------------------------------------
+
             if (spct.getTrangThai() == null
-                    || (
-                    !"HOAT_DONG".equalsIgnoreCase(
-                            spct.getTrangThai()
-                    )
-                            &&
-                            !"ACTIVE".equalsIgnoreCase(
+                    ||
+                    (
+                            !"HOAT_DONG".equalsIgnoreCase(
                                     spct.getTrangThai()
                             )
-            )) {
+                                    &&
+                                    !"ACTIVE".equalsIgnoreCase(
+                                            spct.getTrangThai()
+                                    )
+                    )
+            ) {
 
                 throw new RuntimeException(
                         "Sản phẩm đang không hoạt động"
                 );
             }
+
+
+            // -------------------------------------------------
+            // KIỂM TRA TỒN KHO
+            // -------------------------------------------------
 
             if (spct.getSoLuongTon() == null
                     || spct.getSoLuongTon() < soLuong) {
@@ -210,11 +315,16 @@ public class HoaDonService {
             }
 
 
+            // -------------------------------------------------
+            // LẤY GIÁ
+            // -------------------------------------------------
+
             BigDecimal donGia =
                     spct.getGiaBan();
 
 
             if (donGia == null) {
+
                 throw new RuntimeException(
                         "Sản phẩm chưa có giá bán"
                 );
@@ -223,13 +333,22 @@ public class HoaDonService {
 
             BigDecimal thanhTien =
                     donGia.multiply(
-                            BigDecimal.valueOf(soLuong)
+                            BigDecimal.valueOf(
+                                    soLuong
+                            )
                     );
 
 
             tongTienHang =
-                    tongTienHang.add(thanhTien);
+                    tongTienHang.add(
+                            thanhTien
+                    );
         }
+
+
+        // -----------------------------------------------------
+        // 7. XỬ LÝ VOUCHER
+        // -----------------------------------------------------
 
         MaGiamGia voucher = null;
 
@@ -240,21 +359,37 @@ public class HoaDonService {
         if (voucherId != null) {
 
             voucher =
-                    maGiamGiaRepository.findById(voucherId)
+                    maGiamGiaRepository
+                            .findById(voucherId)
                             .orElseThrow(() ->
                                     new RuntimeException(
                                             "Không tìm thấy voucher"
                                     )
-                            );}
+                            );
+        }
+
+
+        // -----------------------------------------------------
+        // 8. PHÍ VẬN CHUYỂN
+        // -----------------------------------------------------
 
         BigDecimal phiVanChuyen =
                 BigDecimal.ZERO;
 
 
+        // -----------------------------------------------------
+        // 9. TỔNG THANH TOÁN
+        // -----------------------------------------------------
+
         BigDecimal tongThanhToan =
                 tongTienHang
                         .subtract(tienGiam)
                         .add(phiVanChuyen);
+
+
+        // -----------------------------------------------------
+        // 10. TẠO ĐỊA CHỈ NHẬN HÀNG
+        // -----------------------------------------------------
 
         DiaChi diaChi =
                 DiaChi.builder()
@@ -262,20 +397,33 @@ public class HoaDonService {
                                 gioHang.getKhachHang()
                         )
                         .tenNguoiNhan(
-                                request.getHoTen().trim()
+                                request
+                                        .getHoTen()
+                                        .trim()
                         )
                         .soDienThoai(
-                                request.getSoDienThoai().trim()
+                                request
+                                        .getSoDienThoai()
+                                        .trim()
                         )
                         .diaChi(
-                                request.getDiaChi().trim()
+                                request
+                                        .getDiaChi()
+                                        .trim()
                         )
                         .macDinh(false)
                         .build();
 
 
         DiaChi diaChiDaLuu =
-                diaChiRepository.save(diaChi);
+                diaChiRepository.save(
+                        diaChi
+                );
+
+
+        // -----------------------------------------------------
+        // 11. TẠO HÓA ĐƠN
+        // -----------------------------------------------------
 
         HoaDon hoaDon =
                 new HoaDon();
@@ -347,16 +495,27 @@ public class HoaDonService {
 
 
         HoaDon hoaDonDaLuu =
-                hoaDonRepository.save(hoaDon);
+                hoaDonRepository.save(
+                        hoaDon
+                );
 
-        for (ChiTietGioHang chiTiet : danhSachGioHang) {
+
+        // -----------------------------------------------------
+        // 12. TẠO CHI TIẾT HÓA ĐƠN
+        // -----------------------------------------------------
+
+        for (ChiTietGioHang chiTiet :
+                danhSachGioHang) {
 
             Long spctId =
-                    chiTiet.getSanPhamChiTiet().getId();
+                    chiTiet
+                            .getSanPhamChiTiet()
+                            .getId();
 
 
             SanPhamChiTiet spct =
-                    sanPhamChiTietRepository.findById(spctId)
+                    sanPhamChiTietRepository
+                            .findById(spctId)
                             .orElseThrow(() ->
                                     new RuntimeException(
                                             "Không tìm thấy sản phẩm chi tiết"
@@ -374,7 +533,9 @@ public class HoaDonService {
 
             BigDecimal thanhTien =
                     donGia.multiply(
-                            BigDecimal.valueOf(soLuong)
+                            BigDecimal.valueOf(
+                                    soLuong
+                            )
                     );
 
 
@@ -405,10 +566,17 @@ public class HoaDonService {
             chiTietHoaDon.setThanhTien(
                     thanhTien
             );
+
+
             chiTietHoaDonRepository.save(
                     chiTietHoaDon
             );
         }
+
+
+        // -----------------------------------------------------
+        // 13. LƯU LỊCH SỬ HÓA ĐƠN
+        // -----------------------------------------------------
 
         LichSuHoaDon lichSu =
                 new LichSuHoaDon();
@@ -438,10 +606,17 @@ public class HoaDonService {
                 lichSu
         );
 
+
+        // -----------------------------------------------------
+        // 14. TẠO THANH TOÁN
+        // -----------------------------------------------------
+
         if (request.getPhuongThuc() != null
-                && !request.getPhuongThuc()
-                .trim()
-                .isEmpty()) {
+                &&
+                !request
+                        .getPhuongThuc()
+                        .trim()
+                        .isEmpty()) {
 
             ThanhToan thanhToan =
                     new ThanhToan();
@@ -477,16 +652,32 @@ public class HoaDonService {
             );
         }
 
-        List<ChiTietHoaDon> chiTietDaLuu =
-                chiTietHoaDonRepository.findByHoaDon_Id(
-                        hoaDonDaLuu.getId()
-                );
 
+        // -----------------------------------------------------
+        // 15. LẤY CHI TIẾT HÓA ĐƠN ĐÃ LƯU
+        // -----------------------------------------------------
+
+        List<ChiTietHoaDon> chiTietDaLuu =
+                chiTietHoaDonRepository
+                        .findByHoaDon_Id(
+                                hoaDonDaLuu.getId()
+                        );
+
+
+        // -----------------------------------------------------
+        // 16. XUẤT KHO
+        // -----------------------------------------------------
 
         khoService.xuatKhoTuHoaDon(
                 hoaDonDaLuu.getMaHoaDon(),
                 chiTietDaLuu
         );
+
+
+        // -----------------------------------------------------
+        // 17. XÓA GIỎ HÀNG
+        // -----------------------------------------------------
+
         chiTietGioHangRepository.deleteAll(
                 danhSachGioHang
         );
@@ -494,12 +685,20 @@ public class HoaDonService {
 
         return hoaDonDaLuu;
     }
+
+
+    // =========================================================
+    // CHI TIẾT HÓA ĐƠN
+    // =========================================================
+
     public List<ChiTietHoaDon> getChiTietByHoaDonId(
             Long hoaDonId
     ) {
 
         return chiTietHoaDonRepository
-                .findByHoaDon_Id(hoaDonId);
+                .findByHoaDon_Id(
+                        hoaDonId
+                );
     }
 
 
@@ -518,12 +717,19 @@ public class HoaDonService {
         chiTietHoaDonRepository.deleteById(id);
     }
 
+
+    // =========================================================
+    // THANH TOÁN
+    // =========================================================
+
     public ThanhToan getThanhToanByHoaDonId(
             Long hoaDonId
     ) {
 
         return thanhToanRepository
-                .findByHoaDon_Id(hoaDonId)
+                .findByHoaDon_Id(
+                        hoaDonId
+                )
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Không tìm thấy thanh toán"
@@ -583,6 +789,11 @@ public class HoaDonService {
         );
     }
 
+
+    // =========================================================
+    // LỊCH SỬ HÓA ĐƠN
+    // =========================================================
+
     public List<LichSuHoaDon> getLichSuByHoaDonId(
             Long hoaDonId
     ) {
@@ -611,40 +822,70 @@ public class HoaDonService {
         );
     }
 
+
+    // =========================================================
+    // TÌM HÓA ĐƠN THEO KHÁCH HÀNG
+    // =========================================================
+
     public List<HoaDon> getByKhachHangId(
             Long khachHangId
     ) {
 
         return hoaDonRepository
-                .findByKhachHang_Id(khachHangId);
+                .findByKhachHang_Id(
+                        khachHangId
+                );
     }
 
+
+    // =========================================================
+    // TÌM HÓA ĐƠN THEO NHÂN VIÊN
+    // =========================================================
 
     public List<HoaDon> getByNhanVienId(
             Long nhanVienId
     ) {
 
         return hoaDonRepository
-                .findByNhanVien_Id(nhanVienId);
+                .findByNhanVien_Id(
+                        nhanVienId
+                );
     }
 
+
+    // =========================================================
+    // TÌM HÓA ĐƠN THEO TRẠNG THÁI
+    // =========================================================
 
     public List<HoaDon> getByTrangThai(
             String trangThai
     ) {
 
         return hoaDonRepository
-                .findByTrangThai(trangThai);
+                .findByTrangThai(
+                        trangThai
+                );
     }
 
+
+    // =========================================================
+    // TÌM HÓA ĐƠN THEO LOẠI
+    // =========================================================
 
     public List<HoaDon> getByLoaiHoaDon(
             String loaiHoaDon
     ) {
 
         return hoaDonRepository
-                .findByLoaiHoaDon(loaiHoaDon);
+                .findByLoaiHoaDon(
+                        loaiHoaDon
+                );
     }
+
+
+    // =========================================================
+    // CẬP NHẬT TRẠNG THÁI HÓA ĐƠN
+    // =========================================================
 
     @Transactional
     public HoaDon capNhatTrangThai(
@@ -685,6 +926,7 @@ public class HoaDonService {
                 hoaDonRepository.save(
                         hoaDon
                 );
+
 
         LichSuHoaDon lichSu =
                 new LichSuHoaDon();

@@ -333,7 +333,6 @@ function AdminProducts() {
                 </button>
             </div>
 
-            {/* CONTENT */}
 
             <div className="products-card">
 
@@ -488,8 +487,6 @@ function AdminProducts() {
                     </div>
                 )}
             </div>
-
-            {/* MODAL */}
 
             {showModal && (
                 <div

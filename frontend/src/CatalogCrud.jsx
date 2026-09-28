@@ -4,7 +4,6 @@ const API = "http://localhost:8080/api";
 const CACHE_TTL = 60 * 1000;
 const PAGE_SIZE = 10;
 
-/** Dữ liệu cũ trong DB có thể là ACTIVE -> coi như đang hoạt động */
 export function isActive(trangThai) {
     const v = String(trangThai || "").toUpperCase();
     return v === "HOAT_DONG" || v === "ACTIVE";
@@ -58,17 +57,7 @@ async function docLoi(res, macDinh) {
     }
 }
 
-/**
- * Trang CRUD dùng chung cho Danh mục & Thương hiệu.
- *
- * config = {
- *   endpoint: "danh-muc",            // /api/<endpoint>
- *   nameField: "tenDanhMuc",
- *   title, subtitle, singular,        // "Danh mục sản phẩm", "danh mục"
- *   icon, namePlaceholder, descPlaceholder,
- *   extraField?: { key, label, placeholder, column, statLabel }
- * }
- */
+
 export default function CatalogCrud({ config }) {
     const {
         endpoint,
