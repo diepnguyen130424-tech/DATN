@@ -96,46 +96,130 @@ export default function KhuyenMai({ setPage }) {
     }, []);
 
     const copyMa = async (ma) => {
-        // Nếu đã sao chép rồi thì không cho bấm lại
         if (copiedList.includes(ma)) {
-            alert("Bạn đã sao chép mã này rồi!");
             return;
         }
 
         try {
-            // ⭐ Gọi API trừ 1 lượt
-            const res = await fetch(`${API}/ma-giam-gia/sao-chep/${ma}`, {
-                method: "POST",
-            });
+            let copied = false;
 
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || "Không thể sao chép mã");
+            // Copy bằng Clipboard API
+            if (
+                navigator.clipboard &&
+                window.isSecureContext
+            ) {
+                try {
+                    await navigator.clipboard.writeText(ma);
+                    copied = true;
+                } catch (error) {
+                    console.warn(
+                        "Clipboard API lỗi:",
+                        error
+                    );
+                }
             }
 
-            // ⭐ Copy vào clipboard
-            await navigator.clipboard.writeText(ma);
+            // Fallback
+            if (!copied) {
+                const textArea =
+                    document.createElement("textarea");
 
-            // ⭐ Lưu vào danh sách đã sao chép
-            const newList = [...copiedList, ma];
+                textArea.value = ma;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                textArea.style.top = "-9999px";
+
+                document.body.appendChild(textArea);
+
+                textArea.focus();
+                textArea.select();
+                textArea.setSelectionRange(
+                    0,
+                    textArea.value.length
+                );
+
+                try {
+                    copied = document.execCommand("copy");
+                } catch (error) {
+                    console.warn(
+                        "Fallback copy lỗi:",
+                        error
+                    );
+                }
+
+                document.body.removeChild(textArea);
+            }
+
+            if (!copied) {
+                setThongBao("Không thể sao chép mã!");
+                setTimeout(() => {
+                    setThongBao("");
+                }, 1800);
+
+                return;
+            }
+
+            // ==========================================
+            // LƯU MÃ ĐÃ SAO CHÉP
+            // ==========================================
+
+            const newList = [
+                ...copiedList,
+                ma,
+            ];
+
             setCopiedList(newList);
-            try {
-                localStorage.setItem(getCacheKey(), JSON.stringify(newList));
-            } catch {}
 
-            // ⭐ Cập nhật lại số lượt hiển thị (giảm 1)
+            try {
+                localStorage.setItem(
+                    getCacheKey(),
+                    JSON.stringify(newList)
+                );
+            } catch (error) {
+                console.warn(
+                    "Không lưu được localStorage:",
+                    error
+                );
+            }
+
+            // ==========================================
+            // THÔNG BÁO
+            // ==========================================
+
+            setThongBao(`✓ Đã sao chép mã ${ma}`);
+
+            // Tự biến mất sau 1.8 giây
+            setTimeout(() => {
+                setThongBao("");
+            }, 1800);
+
+            // ==========================================
+            // CẬP NHẬT SỐ LƯỢT
+            // ==========================================
+
             setVouchers((old) =>
                 old.map((v) =>
                     v.maVoucher === ma
                         ? {
                             ...v,
-                            soLuongDaDung: (v.soLuongDaDung || 0) + 1,
+                            soLuongDaDung:
+                                (v.soLuongDaDung || 0) + 1,
                         }
                         : v
                 )
             );
-        } catch (err) {
-            alert(err.message);
+
+        } catch (error) {
+            console.error(
+                "Lỗi sao chép mã:",
+                error
+            );
+
+            setThongBao("Không thể sao chép mã!");
+
+            setTimeout(() => {
+                setThongBao("");
+            }, 1800);
         }
     };
 
