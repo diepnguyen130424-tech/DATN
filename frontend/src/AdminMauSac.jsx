@@ -70,12 +70,15 @@ useEffect(() => {
     taiDuLieu();
 }, []);
 
-const danhSach = items.filter((item) =>
-    `${item.tenMau} ${item.maMau || ""} ${item.trangThai}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
-);
+    const danhSach = items.filter((item) => {
+        if (item.trangThai === "NGUNG_HOAT_DONG") {
+            return false;
+        }
 
+        return `${item.tenMau} ${item.maMau || ""} ${item.trangThai}`
+            .toLowerCase()
+            .includes(search.toLowerCase());
+    });
 const moThem = () => {
     setEditing(null);
     setForm({
