@@ -2504,12 +2504,21 @@ function Checkout({
         setVoucherError("");
 
         try {
+            const khachHangId = (() => {
+                        try {
+                            const raw = localStorage.getItem("taiKhoan");
+                            return raw ? JSON.parse(raw).khachHangId : null;
+                        } catch {
+                            return null;
+                        }
+                    })();
             const res = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     ma: maVoucher,
                     tongTien: tongTien,
+                    khachHangId : khachHangId,
                 }),
             });
 
@@ -2785,8 +2794,10 @@ function Checkout({
 
                             phuongThuc,
 
-                            voucherId:
-                                null,
+                            voucherId:voucherInfo?.id || null,
+                            maVoucher :voucherInfo?.maVoucher || null,
+                            tienGiam:tienGiam,
+
                         }),
                     }
                 );
@@ -2826,20 +2837,7 @@ function Checkout({
                 data?.hoaDon?.id ||
                 `FS-${Date.now()}`;
 
-            const tongThanhToanBackend =
-                data?.tongThanhToan ??
-                data?.tongTienThanhToan ??
-                data?.tongTien ??
-                data?.hoaDon?.tongThanhToan ??
-                data?.hoaDon?.tongTienThanhToan ??
-                data?.hoaDon?.tongTien;
 
-            const tongThanhToan =
-                Number.isFinite(
-                    Number(tongThanhToanBackend)
-                )
-                    ? Number(tongThanhToanBackend)
-                    : Number(tongTien);
 
             setBill({
 
@@ -2869,7 +2867,8 @@ function Checkout({
 
                 tamTinh:
                     Number(tongTien),
-
+                tienGiam:tienGiam,
+                maVoucher: voucherInfo?.maVoucher || null,
                 tongThanhToan,
 
                 noiDungChuyenKhoan:
@@ -3773,6 +3772,13 @@ function Checkout({
                                 </strong>
 
                             </div>
+                             {/* ⭐ MỚI — DÒNG GIẢM GIÁ TRONG BILL */}
+                             {bill.tienGiam > 0 && (
+                               <div className="summary-line" style={{ color: "#24833b" }}>
+                                <span>Giảm giá ({bill.maVoucher})</span>
+                                <strong>-{formatGia(bill.tienGiam)}</strong>
+                                </div>
+                                 )}
 
                             <div className="summary-divider" />
 
@@ -4036,7 +4042,72 @@ function Checkout({
                                 />
 
                             </div>
+                           {/* ⭐ Ô NHẬP VOUCHER — ĐẶT SAU ĐỊA CHỈ */}
+                           <div>
+                               <label
+                                   style={{
+                                       display: "block",
+                                       fontSize: "12px",
+                                       fontWeight: 700,
+                                       marginBottom: "8px",
+                                   }}
+                               >
+                                   🎫 Mã giảm giá
+                               </label>
 
+                               <div className="voucher-input-row">
+                                   <input
+                                       className="price-input"
+                                       type="text"
+                                       placeholder="Nhập mã (VD: SALE10)"
+                                       value={maVoucher}
+                                       onChange={(e) =>
+                                           setMaVoucher(e.target.value.toUpperCase())
+                                       }
+                                       disabled={!!voucherInfo}
+                                   />
+
+                                   {voucherInfo ? (
+                                       <button
+                                           type="button"
+                                           className="voucher-remove-btn"
+                                           onClick={xoaVoucher}
+                                       >
+                                           Xóa
+                                       </button>
+                                   ) : (
+                                       <button
+                                           type="button"
+                                           className="voucher-apply-btn"
+                                           onClick={apDungVoucher}
+                                           disabled={checkingVoucher}
+                                       >
+                                           {checkingVoucher ? "..." : "Áp dụng"}
+                                       </button>
+                                   )}
+                               </div>
+
+                               {voucherError && (
+                                   <span
+                                       style={{
+                                           color: "#e53935",
+                                           fontSize: 12,
+                                           marginTop: 6,
+                                           display: "block",
+                                       }}
+                                   >
+                                       {voucherError}
+                                   </span>
+                               )}
+
+                               {voucherInfo && (
+                                   <div className="voucher-success">
+                                       ✓ Đã áp dụng <strong>{voucherInfo.maVoucher}</strong>
+                                       {" — "}
+                                       giảm <strong>{formatGia(voucherInfo.tienGiam)}</strong>
+                                   </div>
+                               )}
+                           </div>
                             {/* ĐỊA CHỈ */}
 
                             <div>
@@ -4392,7 +4463,7 @@ function Checkout({
                                                             }}
                                                         >
                                                             {formatGia(
-                                                                tongTien
+                                                                tongThanhToan
                                                             )}
                                                         </strong>
 
@@ -4561,6 +4632,7 @@ function Checkout({
 
                             </div>
 
+
                         </div>
 
                     </div>
@@ -4617,6 +4689,14 @@ function Checkout({
                             </strong>
 
                         </div>
+                             {/* ⭐ MỚI — DÒNG GIẢM GIÁ TRONG TÓM TẮT */}
+                             {tienGiam > 0 && (
+                                                       <div className="summary-line" style={{ color: "#24833b" }}>
+                                                           <span>Giảm giá ({voucherInfo?.maVoucher})</span>
+                                                           <strong>-{formatGia(tienGiam)}</strong>
+                                                       </div>
+                                                   )}
+
 
                         <div className="summary-divider" />
 
@@ -4628,7 +4708,7 @@ function Checkout({
 
                             <strong>
                                 {formatGia(
-                                    tongTien
+                                    tongThanhToan
                                 )}
                             </strong>
 

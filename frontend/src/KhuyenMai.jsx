@@ -19,14 +19,41 @@ function formatDate(str) {
 export default function KhuyenMai({ setPage }) {
     const [activeTab, setActiveTab] = useState("voucher");
 
-    // ===== TAB 1: VOUCHER =====
     const [vouchers, setVouchers] = useState([]);
     const [loadingVoucher, setLoadingVoucher] = useState(true);
-    const [copied, setCopied] = useState("");
 
-    // ===== TAB 2: CHƯƠNG TRÌNH =====
     const [chuongTrinhs, setChuongTrinhs] = useState([]);
     const [loadingCT, setLoadingCT] = useState(true);
+
+    // Mã đã sao chép của tài khoản hiện tại
+    const [copiedList, setCopiedList] = useState([]);
+
+    // Lấy tên tài khoản đang đăng nhập
+    const getTenDangNhap = () => {
+        try {
+            const raw = localStorage.getItem("taiKhoan");
+            if (!raw) return "guest";
+            const tk = JSON.parse(raw);
+            return tk?.tenDangNhap || "guest";
+        } catch {
+            return "guest";
+        }
+    };
+
+    const getCacheKey = () => `voucher_copied_${getTenDangNhap()}`;
+
+    // Load danh sách mã đã sao chép
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(getCacheKey());
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                setCopiedList(Array.isArray(parsed) ? parsed : []);
+            }
+        } catch {
+            setCopiedList([]);
+        }
+    }, []);
 
     // Load voucher
     useEffect(() => {
@@ -52,7 +79,9 @@ export default function KhuyenMai({ setPage }) {
         const load = async () => {
             try {
                 setLoadingCT(true);
-                const res = await fetch(`${API}/chuong-trinh-giam-gia/trang-thai/HOAT_DONG`);
+                const res = await fetch(
+                    `${API}/chuong-trinh-giam-gia/trang-thai/HOAT_DONG`
+                );
                 if (!res.ok) throw new Error("Không tải được chương trình");
                 const data = await res.json();
                 setChuongTrinhs(Array.isArray(data) ? data : []);
@@ -66,11 +95,48 @@ export default function KhuyenMai({ setPage }) {
         load();
     }, []);
 
-    const copyMa = (ma) => {
-        navigator.clipboard.writeText(ma).then(() => {
-            setCopied(ma);
-            setTimeout(() => setCopied(""), 2000);
-        });
+    const copyMa = async (ma) => {
+        // Nếu đã sao chép rồi thì không cho bấm lại
+        if (copiedList.includes(ma)) {
+            alert("Bạn đã sao chép mã này rồi!");
+            return;
+        }
+
+        try {
+            // ⭐ Gọi API trừ 1 lượt
+            const res = await fetch(`${API}/ma-giam-gia/sao-chep/${ma}`, {
+                method: "POST",
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || "Không thể sao chép mã");
+            }
+
+            // ⭐ Copy vào clipboard
+            await navigator.clipboard.writeText(ma);
+
+            // ⭐ Lưu vào danh sách đã sao chép
+            const newList = [...copiedList, ma];
+            setCopiedList(newList);
+            try {
+                localStorage.setItem(getCacheKey(), JSON.stringify(newList));
+            } catch {}
+
+            // ⭐ Cập nhật lại số lượt hiển thị (giảm 1)
+            setVouchers((old) =>
+                old.map((v) =>
+                    v.maVoucher === ma
+                        ? {
+                            ...v,
+                            soLuongDaDung: (v.soLuongDaDung || 0) + 1,
+                        }
+                        : v
+                )
+            );
+        } catch (err) {
+            alert(err.message);
+        }
     };
 
     return (
@@ -126,69 +192,92 @@ export default function KhuyenMai({ setPage }) {
 
                         {!loadingVoucher && vouchers.length > 0 && (
                             <div className="khuyen-mai-grid">
-                                {vouchers.map((v) => (
-                                    <div className="khuyen-mai-card" key={v.id}>
-                                        <div className="khuyen-mai-badge">
-                                            {v.loaiGiam === "PHAN_TRAM"
-                                                ? `-${v.giaTriGiam}%`
-                                                : `-${formatGia(v.giaTriGiam)}`}
-                                        </div>
+                                {vouchers.map((v) => {
+                                    const daSaoChep = copiedList.includes(
+                                        v.maVoucher
+                                    );
 
-                                        <div className="khuyen-mai-body">
-                                            <div className="khuyen-mai-code">
-                                                {v.maVoucher}
+                                    return (
+                                        <div
+                                            className="khuyen-mai-card"
+                                            key={v.id}
+                                        >
+                                            <div className="khuyen-mai-badge">
+                                                {v.loaiGiam === "PHAN_TRAM"
+                                                    ? `-${v.giaTriGiam}%`
+                                                    : `-${formatGia(
+                                                          v.giaTriGiam
+                                                      )}`}
                                             </div>
-                                            <h3>{v.tenVoucher}</h3>
 
-                                            <ul className="khuyen-mai-info">
-                                                {v.donToiThieu && (
-                                                    <li>
-                                                        Đơn tối thiểu:{" "}
-                                                        <strong>
-                                                            {formatGia(v.donToiThieu)}
-                                                        </strong>
-                                                    </li>
-                                                )}
-                                                {v.loaiGiam === "PHAN_TRAM" &&
-                                                    v.giamToiDa && (
+                                            <div className="khuyen-mai-body">
+                                                <div className="khuyen-mai-code">
+                                                    {v.maVoucher}
+                                                </div>
+                                                <h3>{v.tenVoucher}</h3>
+
+                                                <ul className="khuyen-mai-info">
+                                                    {v.donToiThieu && (
                                                         <li>
-                                                            Giảm tối đa:{" "}
+                                                            Đơn tối thiểu:{" "}
                                                             <strong>
-                                                                {formatGia(v.giamToiDa)}
+                                                                {formatGia(
+                                                                    v.donToiThieu
+                                                                )}
                                                             </strong>
                                                         </li>
                                                     )}
-                                                <li>
-                                                    Hạn dùng:{" "}
-                                                    <strong>
-                                                        {formatDate(v.ngayKetThuc)}
-                                                    </strong>
-                                                </li>
-                                                <li>
-                                                    Còn lại:{" "}
-                                                    <strong>
-                                                        {Math.max(
-                                                            0,
-                                                            (v.soLuong ?? 0) -
-                                                                (v.soLuongDaDung ?? 0)
-                                                        )}{" "}
-                                                        lượt
-                                                    </strong>
-                                                </li>
-                                            </ul>
+                                                    {v.loaiGiam ===
+                                                        "PHAN_TRAM" &&
+                                                        v.giamToiDa && (
+                                                            <li>
+                                                                Giảm tối đa:{" "}
+                                                                <strong>
+                                                                    {formatGia(
+                                                                        v.giamToiDa
+                                                                    )}
+                                                                </strong>
+                                                            </li>
+                                                        )}
+                                                    <li>
+                                                        Hạn dùng:{" "}
+                                                        <strong>
+                                                            {formatDate(
+                                                                v.ngayKetThuc
+                                                            )}
+                                                        </strong>
+                                                    </li>
+                                                    <li>
+                                                        Còn lại:{" "}
+                                                        <strong>
+                                                            {Math.max(
+                                                                0,
+                                                                (v.soLuong ??
+                                                                    0) -
+                                                                    (v.soLuongDaDung ??
+                                                                        0)
+                                                            )}{" "}
+                                                            lượt
+                                                        </strong>
+                                                    </li>
+                                                </ul>
 
-                                            <button
-                                                type="button"
-                                                className="khuyen-mai-copy"
-                                                onClick={() => copyMa(v.maVoucher)}
-                                            >
-                                                {copied === v.maVoucher
-                                                    ? "✓ Đã sao chép"
-                                                    : "📋 Sao chép mã"}
-                                            </button>
+                                                <button
+                                                    type="button"
+                                                    className="khuyen-mai-copy"
+                                                    onClick={() =>
+                                                        copyMa(v.maVoucher)
+                                                    }
+                                                    disabled={daSaoChep}
+                                                >
+                                                    {daSaoChep
+                                                        ? "✓ Đã sao chép"
+                                                        : "📋 Sao chép mã"}
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </>
@@ -217,11 +306,16 @@ export default function KhuyenMai({ setPage }) {
                         {!loadingCT && chuongTrinhs.length > 0 && (
                             <div className="khuyen-mai-grid">
                                 {chuongTrinhs.map((ct) => (
-                                    <div className="khuyen-mai-card ct-card" key={ct.id}>
+                                    <div
+                                        className="khuyen-mai-card ct-card"
+                                        key={ct.id}
+                                    >
                                         <div className="khuyen-mai-badge ct-badge">
                                             {ct.loaiGiam === "PHAN_TRAM"
                                                 ? `-${ct.giaTriGiam}%`
-                                                : `-${formatGia(ct.giaTriGiam)}`}
+                                                : `-${formatGia(
+                                                      ct.giaTriGiam
+                                                  )}`}
                                         </div>
 
                                         <div className="khuyen-mai-body">
@@ -234,7 +328,8 @@ export default function KhuyenMai({ setPage }) {
                                                 <li>
                                                     Loại giảm:{" "}
                                                     <strong>
-                                                        {ct.loaiGiam === "PHAN_TRAM"
+                                                        {ct.loaiGiam ===
+                                                        "PHAN_TRAM"
                                                             ? "Phần trăm"
                                                             : "Số tiền"}
                                                     </strong>
@@ -242,21 +337,28 @@ export default function KhuyenMai({ setPage }) {
                                                 <li>
                                                     Giá trị:{" "}
                                                     <strong>
-                                                        {ct.loaiGiam === "PHAN_TRAM"
+                                                        {ct.loaiGiam ===
+                                                        "PHAN_TRAM"
                                                             ? `${ct.giaTriGiam}%`
-                                                            : formatGia(ct.giaTriGiam)}
+                                                            : formatGia(
+                                                                  ct.giaTriGiam
+                                                              )}
                                                     </strong>
                                                 </li>
                                                 <li>
                                                     Bắt đầu:{" "}
                                                     <strong>
-                                                        {formatDate(ct.ngayBatDau)}
+                                                        {formatDate(
+                                                            ct.ngayBatDau
+                                                        )}
                                                     </strong>
                                                 </li>
                                                 <li>
                                                     Kết thúc:{" "}
                                                     <strong>
-                                                        {formatDate(ct.ngayKetThuc)}
+                                                        {formatDate(
+                                                            ct.ngayKetThuc
+                                                        )}
                                                     </strong>
                                                 </li>
                                             </ul>
@@ -264,7 +366,9 @@ export default function KhuyenMai({ setPage }) {
                                             <button
                                                 type="button"
                                                 className="khuyen-mai-copy ct-view-btn"
-                                                onClick={() => setPage("products")}
+                                                onClick={() =>
+                                                    setPage("products")
+                                                }
                                             >
                                                 🛍️ Xem sản phẩm →
                                             </button>
@@ -276,10 +380,10 @@ export default function KhuyenMai({ setPage }) {
                     </>
                 )}
 
-{/*                 <div className="khuyen-mai-note"> */}
-{/*                     💡 Sau khi sao chép mã, vào <strong>Giỏ hàng</strong> →{" "} */}
-{/*                     <strong>Đặt hàng</strong> → dán mã vào ô "Mã giảm giá". */}
-{/*                 </div> */}
+                <div className="khuyen-mai-note">
+                    💡 Sau khi sao chép mã, vào <strong>Giỏ hàng</strong> →{" "}
+                    <strong>Đặt hàng</strong> → dán mã vào ô "Mã giảm giá".
+                </div>
             </div>
         </main>
     );
