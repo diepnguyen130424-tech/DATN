@@ -349,6 +349,7 @@ export default function AdminVoucher() {
                                 <th>Đơn tối thiểu</th>
                                 <th>SL</th>
                                 <th>Đã dùng</th>
+                                <th>Còn lại</th>
                                 <th>Hạn</th>
                                 <th>Trạng thái</th>
                                 <th></th>
@@ -393,6 +394,7 @@ export default function AdminVoucher() {
                                 <th>Đơn tối thiểu</th>
                                 <th>SL</th>
                                 <th>Đã dùng</th>
+                                <th>Còn lại</th>
                                 <th>Hạn</th>
                                 <th>Trạng thái</th>
                                 <th></th>
@@ -418,6 +420,12 @@ export default function AdminVoucher() {
                                     <td>{formatGia(v.donToiThieu)}</td>
                                     <td>{v.soLuong}</td>
                                     <td>{v.soLuongDaDung ?? 0}</td>
+                                    {/* ⭐ MỚI — Cột "Còn lại" */}
+                                    <td>
+                                        <strong style={{ color: "#059669" }}>
+                                            {Math.max(0, (v.soLuong ?? 0) - (v.soLuongDaDung ?? 0))}
+                                        </strong>
+                                    </td>
                                     <td>{formatDate(v.ngayKetThuc)}</td>
                                     <td>
                                         <span
@@ -448,7 +456,7 @@ export default function AdminVoucher() {
                             ))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={10} className="admin-empty">
+                                    <td colSpan={11} className="admin-empty">
                                         Không có voucher nào
                                     </td>
                                 </tr>
