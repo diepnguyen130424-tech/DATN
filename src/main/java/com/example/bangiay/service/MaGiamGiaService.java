@@ -22,7 +22,9 @@ public class MaGiamGiaService {
     private final HoaDonRepository hoaDonRepository;
 
     public List<MaGiamGia> getAll() {
+        tuDongCapNhatTrangThai();
         return maGiamGiaRepository.findAll();
+
     }
 
     public MaGiamGia getById(Long id) {
@@ -62,7 +64,7 @@ public class MaGiamGiaService {
     }
     // ========== DANH SÁCH VOUCHER ĐANG HOẠT ĐỘNG ==========
     public List<MaGiamGia> getDangHoatDong() {
-
+        tuDongCapNhatTrangThai();
         LocalDateTime now = LocalDateTime.now();
 
         return maGiamGiaRepository.findAll().stream()
@@ -211,5 +213,22 @@ public class MaGiamGiaService {
 
         voucher.setSoLuongDaDung(daDung + 1);
         maGiamGiaRepository.save(voucher);
+    }
+    // ⭐ Tự động chuyển trạng thái voucher hết hạn
+    public void tuDongCapNhatTrangThai() {
+        LocalDateTime now = LocalDateTime.now();
+
+        List<MaGiamGia> all = maGiamGiaRepository.findAll();
+
+        for (MaGiamGia v : all) {
+            // Nếu đang HOAT_DONG và đã hết hạn → KET_THUC
+            if ("HOAT_DONG".equalsIgnoreCase(v.getTrangThai())
+                    && v.getNgayKetThuc() != null
+                    && now.isAfter(v.getNgayKetThuc())) {
+
+                v.setTrangThai("KET_THUC");
+                maGiamGiaRepository.save(v);
+            }
+        }
     }
 }

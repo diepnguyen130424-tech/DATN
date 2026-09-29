@@ -30,16 +30,12 @@ function formatDate(str) {
 function getTrangThaiClass(trangThai) {
     if (trangThai === "HOAT_DONG") return "active";
     if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
-    if (trangThai === "TAM_DUNG") return "paused";
-    if (trangThai === "KET_THUC") return "ended";
     return "";
 }
 
 function getTrangThaiLabel(trangThai) {
     if (trangThai === "HOAT_DONG") return "Hoạt động";
     if (trangThai === "NGUNG_HOAT_DONG") return "Ngừng hoạt động";
-    if (trangThai === "TAM_DUNG") return "Tạm dừng";
-    if (trangThai === "KET_THUC") return "Kết thúc";
     return trangThai;
 }
 
@@ -316,8 +312,6 @@ export default function AdminKhuyenMai() {
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="HOAT_DONG">Hoạt động</option>
                     <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
-                    <option value="TAM_DUNG">Tạm dừng</option>
-                    <option value="KET_THUC">Kết thúc</option>
                 </select>
             </div>
 
@@ -332,7 +326,7 @@ export default function AdminKhuyenMai() {
                                 <th>Bắt đầu</th>
                                 <th>Kết thúc</th>
                                 <th>Trạng thái</th>
-                                <th></th>
+                                <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -373,7 +367,7 @@ export default function AdminKhuyenMai() {
                                 <th>Bắt đầu</th>
                                 <th>Kết thúc</th>
                                 <th>Trạng thái</th>
-                                <th></th>
+                                <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -638,12 +632,7 @@ export default function AdminKhuyenMai() {
                                     <option value="NGUNG_HOAT_DONG">
                                         Ngừng hoạt động
                                     </option>
-                                    <option value="TAM_DUNG">
-                                        Tạm dừng
-                                    </option>
-                                    <option value="KET_THUC">
-                                        Kết thúc
-                                    </option>
+
                                 </select>
                             </div>
                         </div>

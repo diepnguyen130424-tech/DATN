@@ -34,17 +34,15 @@ function formatDate(str) {
 
 function getTrangThaiClass(trangThai) {
     if (trangThai === "HOAT_DONG") return "active";
-    if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
     if (trangThai === "TAM_DUNG") return "paused";
-    if (trangThai === "KET_THUC") return "ended";
+    if (trangThai === "KET_THUC") return "inactive";
     return "";
 }
 
 function getTrangThaiLabel(trangThai) {
     if (trangThai === "HOAT_DONG") return "Hoạt động";
-    if (trangThai === "NGUNG_HOAT_DONG") return "Ngừng hoạt động";
+    if (trangThai === "KET_THUC") return "Ngừng hoạt động";
     if (trangThai === "TAM_DUNG") return "Tạm dừng";
-    if (trangThai === "KET_THUC") return "Kết thúc";
     return trangThai;
 }
 
@@ -332,8 +330,7 @@ export default function AdminVoucher() {
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="HOAT_DONG">Hoạt động</option>
                     <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
-                    <option value="TAM_DUNG">Tạm dừng</option>
-                    <option value="KET_THUC">Kết thúc</option>
+
                 </select>
             </div>
 
@@ -341,19 +338,18 @@ export default function AdminVoucher() {
                 <div className="admin-table-scroll">
                     <table className="admin-table">
                         <thead>
-                            <tr>
-                                <th>Mã</th>
-                                <th>Tên</th>
-                                <th>Loại</th>
-                                <th>Giá trị</th>
-                                <th>Đơn tối thiểu</th>
-                                <th>SL</th>
-                                <th>Đã dùng</th>
-                                <th>Còn lại</th>
-                                <th>Hạn</th>
-                                <th>Trạng thái</th>
-                                <th></th>
-                            </tr>
+                           <tr>
+                               <th>Mã</th>
+                               <th>Tên</th>
+                               <th>Loại</th>
+                               <th>Giá trị</th>
+                               <th>Đơn tối thiểu</th>
+                               <th>SL/ đã dùng</th>
+                               <th>Bắt đầu</th>
+                               <th>Hết hạn</th>
+                               <th>Trạng thái</th>
+                               <th>Thao tác</th>
+                           </tr>
                         </thead>
                         <tbody>
                             {[1, 2, 3, 4, 5].map((i) => (
@@ -392,12 +388,11 @@ export default function AdminVoucher() {
                                 <th>Loại</th>
                                 <th>Giá trị</th>
                                 <th>Đơn tối thiểu</th>
-                                <th>SL</th>
-                                <th>Đã dùng</th>
-                                <th>Còn lại</th>
-                                <th>Hạn</th>
+                                <th>SL/ đã dùng</th>
+                                <th>Bắt đầu</th>
+                                <th>Hết hạn</th>
                                 <th>Trạng thái</th>
-                                <th></th>
+                                <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -418,14 +413,15 @@ export default function AdminVoucher() {
                                             : formatGia(v.giaTriGiam)}
                                     </td>
                                     <td>{formatGia(v.donToiThieu)}</td>
-                                    <td>{v.soLuong}</td>
-                                    <td>{v.soLuongDaDung ?? 0}</td>
-                                    {/* ⭐ MỚI — Cột "Còn lại" */}
-                                    <td>
-                                        <strong style={{ color: "#059669" }}>
-                                            {Math.max(0, (v.soLuong ?? 0) - (v.soLuongDaDung ?? 0))}
-                                        </strong>
-                                    </td>
+                                   {/* ⭐ GỘP — SL / Đã dùng */}
+                                   <td>
+                                       <strong>
+                                           {v.soLuong ?? 0}/{v.soLuongDaDung ?? 0}
+                                       </strong>
+                                   </td>
+
+                                   {/* ⭐ MỚI — Ngày bắt đầu */}
+                                   <td>{formatDate(v.ngayBatDau)}</td>
                                     <td>{formatDate(v.ngayKetThuc)}</td>
                                     <td>
                                         <span
@@ -456,7 +452,7 @@ export default function AdminVoucher() {
                             ))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={11} className="admin-empty">
+                                    <td colSpan={10} className="admin-empty">
                                         Không có voucher nào
                                     </td>
                                 </tr>
@@ -607,22 +603,7 @@ export default function AdminVoucher() {
                                     placeholder="VD: 100"
                                 />
                             </Field>
-
-                            <Field label="Đã dùng">
-                                <input
-                                    className="price-input"
-                                    type="number"
-                                    value={form.soLuongDaDung}
-                                    onChange={(e) =>
-                                        handleChange(
-                                            "soLuongDaDung",
-                                            e.target.value
-                                        )
-                                    }
-                                />
-                            </Field>
-
-                            <Field label="Ngày bắt đầu">
+                           <Field label="Ngày bắt đầu">
                                 <input
                                     className="price-input"
                                     type="datetime-local"
