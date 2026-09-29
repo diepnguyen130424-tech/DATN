@@ -1315,7 +1315,38 @@ function ProductCard({
                          index,
                          xemSanPham,
                          themVaoGio,
+                         selectedColor = "",
+                         selectedSize = "",
                      }) {
+    const chiTiets = Array.isArray(sanPham?.chiTiets)
+        ? sanPham.chiTiets
+        : [];
+
+    const normalize = (value) =>
+        String(value || "").trim().toLowerCase();
+
+    // Khi đang lọc màu/size, card phải lấy đúng biến thể
+    // tương ứng thay vì luôn lấy chiTiet đầu tiên.
+    const variant =
+        chiTiets.find((item) => {
+            const mau = normalize(item?.mauSac?.tenMau);
+            const size = String(item?.kichCo?.tenKichCo || "");
+
+            return (
+                (!selectedColor || mau === normalize(selectedColor)) &&
+                (!selectedSize || size === String(selectedSize))
+            );
+        }) || chiTiets[0] || null;
+
+    const mauHienThi =
+        selectedColor ||
+        variant?.mauSac?.tenMau ||
+        "";
+
+    const anhHienThi = mauHienThi
+        ? layAnhTheoMau(sanPham, mauHienThi)
+        : layAnhSanPham(sanPham);
+
     return (
         <div className="product-card">
 
@@ -1325,9 +1356,7 @@ function ProductCard({
             >
 
                 <img
-                    src={
-                        layAnhSanPham(sanPham)
-                    }
+                    src={anhHienThi}
                     alt={sanPham.tenSanPham}
                 />
 
@@ -1366,7 +1395,7 @@ function ProductCard({
                 <div className="price-row">
 
                     <strong>
-                        {formatGia(sanPham.chiTiets?.[0]?.giaBan)}
+                        {formatGia(variant?.giaBan ?? sanPham.giaBan ?? 0)}
                     </strong>
 
                 </div>
@@ -1378,7 +1407,7 @@ function ProductCard({
                         onClick={() =>
                             themVaoGio(
                                 sanPham,
-                                sanPham.chiTiets?.[0]
+                                variant
                             )
                         }
                     >
@@ -1415,140 +1444,337 @@ function ProductList({
     const [sort, setSort] = useState("default");
     const [minPrice, setMinPrice] = useState("");
     const [maxPrice, setMaxPrice] = useState("");
+    const [selectedColor, setSelectedColor] = useState("");
+    const [selectedSize, setSelectedSize] = useState("");
+
+    const normalizeText = (value) =>
+        String(value || "")
+            .trim()
+            .toLowerCase();
+
+    const colors = [
+        ...new Set(
+            sanPhams.flatMap((sp) =>
+                Array.isArray(sp?.chiTiets)
+                    ? sp.chiTiets
+                        .map((item) => item?.mauSac?.tenMau)
+                        .filter(Boolean)
+                    : []
+            )
+        ),
+    ];
+
+    const sizes = [
+        ...new Set(
+            sanPhams.flatMap((sp) =>
+                Array.isArray(sp?.chiTiets)
+                    ? sp.chiTiets
+                        .map((item) => item?.kichCo?.tenKichCo)
+                        .filter(Boolean)
+                    : []
+            )
+        ),
+    ].sort((a, b) => {
+        const numberA = Number(String(a).replace(",", "."));
+        const numberB = Number(String(b).replace(",", "."));
+
+        if (!Number.isNaN(numberA) && !Number.isNaN(numberB)) {
+            return numberA - numberB;
+        }
+
+        return String(a).localeCompare(String(b), "vi");
+    });
+
+    const getColorStyle = (color) => {
+        const mau = normalizeText(color);
+
+        if (mau.includes("đen") || mau.includes("den") || mau.includes("black")) {
+            return { backgroundColor: "#000", border: "1px solid #000" };
+        }
+        if (mau.includes("trắng") || mau.includes("trang") || mau.includes("white")) {
+            return { backgroundColor: "#fff", border: "1px solid #cfcfcf" };
+        }
+        if (mau.includes("đỏ") || mau.includes("do") || mau.includes("red")) {
+            return { backgroundColor: "#d62828", border: "1px solid #b71c1c" };
+        }
+        if (mau.includes("xanh dương") || mau.includes("xanh lam") || mau.includes("blue")) {
+            return { backgroundColor: "#2563eb", border: "1px solid #1d4ed8" };
+        }
+        if (mau.includes("xanh lá") || mau.includes("xanh la") || mau.includes("green")) {
+            return { backgroundColor: "#4caf50", border: "1px solid #388e3c" };
+        }
+        if (mau.includes("vàng") || mau.includes("vang") || mau.includes("yellow")) {
+            return { backgroundColor: "#facc15", border: "1px solid #eab308" };
+        }
+        if (mau.includes("hồng") || mau.includes("hong") || mau.includes("pink")) {
+            return { backgroundColor: "#ec4899", border: "1px solid #db2777" };
+        }
+        if (mau.includes("tím") || mau.includes("tim") || mau.includes("purple")) {
+            return { backgroundColor: "#a855f7", border: "1px solid #9333ea" };
+        }
+        if (mau.includes("xám") || mau.includes("xam") || mau.includes("gray") || mau.includes("grey")) {
+            return { backgroundColor: "#808080", border: "1px solid #666" };
+        }
+        if (mau.includes("nâu") || mau.includes("nau") || mau.includes("brown")) {
+            return { backgroundColor: "#795548", border: "1px solid #5d4037" };
+        }
+
+        return { backgroundColor: "#eee", border: "1px solid #ccc" };
+    };
+
+    const productHasVariant = (sanPham) => {
+        const chiTiets = Array.isArray(sanPham?.chiTiets)
+            ? sanPham.chiTiets
+            : [];
+
+        return chiTiets.some((chiTiet) => {
+            const mau = chiTiet?.mauSac?.tenMau || "";
+            const size = chiTiet?.kichCo?.tenKichCo || "";
+
+            const matchColor =
+                !selectedColor ||
+                normalizeText(mau) === normalizeText(selectedColor);
+
+            const matchSize =
+                !selectedSize ||
+                String(size) === String(selectedSize);
+
+            return matchColor && matchSize;
+        });
+    };
 
     let products = sanPhams.filter((sp) => {
+        const keyword = normalizeText(search);
+        const tenSanPham = normalizeText(sp?.tenSanPham);
 
-        const keyword =
-            sp.tenSanPham
-                ?.toLowerCase()
-                .includes(search.toLowerCase());
+        const keywordMatch =
+            !keyword || tenSanPham.includes(keyword);
 
-        const productBrand =
-            sp.thuongHieu?.tenThuongHieu ||
-            "";
+        const productBrand = sp?.thuongHieu?.tenThuongHieu || "";
 
         const brandMatch =
             brand === "Tất cả" ||
-            productBrand === brand;
+            normalizeText(productBrand) === normalizeText(brand);
 
-        const price =
-            Number(sp.giaBan || 0);
+        const price = Number(
+            sp?.giaBan ?? sp?.chiTiets?.[0]?.giaBan ?? 0
+        );
 
         const minMatch =
-            !minPrice ||
-            price >= Number(minPrice);
+            !minPrice || price >= Number(minPrice);
 
         const maxMatch =
-            !maxPrice ||
-            price <= Number(maxPrice);
+            !maxPrice || price <= Number(maxPrice);
 
         return (
-            keyword &&
+            keywordMatch &&
             brandMatch &&
             minMatch &&
-            maxMatch
+            maxMatch &&
+            productHasVariant(sp)
         );
     });
 
     if (sort === "priceAsc") {
         products = [...products].sort(
             (a, b) =>
-                Number(a.giaBan || 0) -
-                Number(b.giaBan || 0)
+                Number(a?.giaBan ?? a?.chiTiets?.[0]?.giaBan ?? 0) -
+                Number(b?.giaBan ?? b?.chiTiets?.[0]?.giaBan ?? 0)
         );
     }
 
     if (sort === "priceDesc") {
         products = [...products].sort(
             (a, b) =>
-                Number(b.giaBan || 0) -
-                Number(a.giaBan || 0)
+                Number(b?.giaBan ?? b?.chiTiets?.[0]?.giaBan ?? 0) -
+                Number(a?.giaBan ?? a?.chiTiets?.[0]?.giaBan ?? 0)
         );
     }
 
+    const clearFilters = () => {
+        setBrand("Tất cả");
+        setMinPrice("");
+        setMaxPrice("");
+        setSelectedColor("");
+        setSelectedSize("");
+        setSearch("");
+        setSort("default");
+    };
+
+    const sizeAvailableWithColor = (size) => {
+        if (!selectedColor) return true;
+
+        return sanPhams.some((sp) => {
+            const chiTiets = Array.isArray(sp?.chiTiets)
+                ? sp.chiTiets
+                : [];
+
+            return chiTiets.some((chiTiet) => {
+                const mau = chiTiet?.mauSac?.tenMau || "";
+                const sizeValue = chiTiet?.kichCo?.tenKichCo || "";
+
+                return (
+                    normalizeText(mau) === normalizeText(selectedColor) &&
+                    String(sizeValue) === String(size)
+                );
+            });
+        });
+    };
+
     return (
         <main className="product-list-page">
-
             <div className="container">
-
                 <div className="breadcrumb">
                     Trang chủ / Sản phẩm
                 </div>
 
                 <div className="product-list-heading">
-
                     <div>
-            <span className="section-label">
-              FSHOP
-            </span>
-
-                        <h1>
-                            Giày nam
-                        </h1>
-
-                        <p>
-                            {products.length} sản phẩm
-                        </p>
+                        <span className="section-label">FSHOP</span>
+                        <h1>Giày nam</h1>
+                        <p>{products.length} sản phẩm</p>
                     </div>
-
                 </div>
 
                 <div className="product-layout">
-
-                    {/* FILTER */}
-
                     <aside className="filter-sidebar">
+                        <div className="filter-header">
+                            <h3>Bộ lọc</h3>
 
-                        <h3>
-                            Bộ lọc
-                        </h3>
+                            {(brand !== "Tất cả" ||
+                                minPrice ||
+                                maxPrice ||
+                                selectedColor ||
+                                selectedSize ||
+                                search) && (
+                                <button
+                                    type="button"
+                                    className="clear-filter-button"
+                                    onClick={clearFilters}
+                                >
+                                    Xóa lọc
+                                </button>
+                            )}
+                        </div>
 
                         <div className="filter-group">
-
-                            <h4>
-                                Thương hiệu
-                            </h4>
+                            <h4>Thương hiệu</h4>
 
                             <label>
                                 <input
                                     type="radio"
                                     checked={brand === "Tất cả"}
-                                    onChange={() =>
-                                        setBrand("Tất cả")
-                                    }
+                                    onChange={() => setBrand("Tất cả")}
                                 />
-                                Tất cả
+                                <span>Tất cả</span>
                             </label>
 
                             {thuongHieu.map((item) => (
-
                                 <label key={item}>
-
                                     <input
                                         type="radio"
                                         checked={brand === item}
-                                        onChange={() =>
-                                            setBrand(item)
-                                        }
+                                        onChange={() => setBrand(item)}
                                     />
-
-                                    {item}
-
+                                    <span>{item}</span>
                                 </label>
-
                             ))}
+                        </div>
 
+                        <div className="filter-group color-filter-group">
+                            <h4>
+                                Màu sắc
+                                {selectedColor && (
+                                    <span className="selected-filter-text">
+                                        {selectedColor}
+                                    </span>
+                                )}
+                            </h4>
+
+                            <div className="filter-color-grid">
+                                {colors.map((color) => {
+                                    const active =
+                                        normalizeText(selectedColor) ===
+                                        normalizeText(color);
+
+                                    return (
+                                        <button
+                                            key={color}
+                                            type="button"
+                                            className={
+                                                active
+                                                    ? "filter-color-button active"
+                                                    : "filter-color-button"
+                                            }
+                                            onClick={() =>
+                                                setSelectedColor(
+                                                    active ? "" : color
+                                                )
+                                            }
+                                            title={color}
+                                        >
+                                            <span
+                                                className="filter-color-dot"
+                                                style={getColorStyle(color)}
+                                            />
+                                            <span className="filter-color-name">
+                                                {color}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         <div className="filter-group">
-
                             <h4>
-                                Khoảng giá
+                                Kích thước
+                                {selectedSize && (
+                                    <span className="selected-filter-text">
+                                        {selectedSize}
+                                    </span>
+                                )}
                             </h4>
+
+                            <div className="filter-size-grid">
+                                {sizes.map((size) => {
+                                    const active =
+                                        String(selectedSize) === String(size);
+
+                                    const available =
+                                        sizeAvailableWithColor(size);
+
+                                    return (
+                                        <button
+                                            key={size}
+                                            type="button"
+                                            disabled={!available}
+                                            className={`filter-size-button ${
+                                                active ? "active" : ""
+                                            } ${
+                                                !available ? "disabled" : ""
+                                            }`}
+                                            onClick={() => {
+                                                if (!available) return;
+                                                setSelectedSize(
+                                                    active ? "" : size
+                                                );
+                                            }}
+                                        >
+                                            {size}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="filter-group">
+                            <h4>Khoảng giá</h4>
 
                             <input
                                 className="price-input"
                                 type="number"
+                                min="0"
                                 placeholder="Giá từ"
                                 value={minPrice}
                                 onChange={(e) =>
@@ -1559,25 +1785,19 @@ function ProductList({
                             <input
                                 className="price-input"
                                 type="number"
+                                min="0"
                                 placeholder="Giá đến"
                                 value={maxPrice}
                                 onChange={(e) =>
                                     setMaxPrice(e.target.value)
                                 }
                             />
-
                         </div>
-
                     </aside>
 
-                    {/* PRODUCT */}
-
                     <section className="product-result">
-
                         <div className="product-toolbar">
-
                             <div className="search-result-box">
-
                                 <input
                                     value={search}
                                     onChange={(e) =>
@@ -1586,77 +1806,117 @@ function ProductList({
                                     placeholder="Tìm kiếm sản phẩm..."
                                 />
 
-                                <span>
-                  🔍
-                </span>
-
+                                <span>🔍</span>
                             </div>
 
                             <select
                                 value={sort}
-                                onChange={(e) =>
-                                    setSort(e.target.value)
-                                }
+                                onChange={(e) => setSort(e.target.value)}
                             >
-                                <option value="default">
-                                    Sắp xếp
-                                </option>
-
+                                <option value="default">Sắp xếp</option>
                                 <option value="priceAsc">
                                     Giá thấp → cao
                                 </option>
-
                                 <option value="priceDesc">
                                     Giá cao → thấp
                                 </option>
                             </select>
-
                         </div>
+
+                        {(selectedColor ||
+                            selectedSize ||
+                            brand !== "Tất cả" ||
+                            minPrice ||
+                            maxPrice) && (
+                            <div className="active-filter-bar">
+                                <span className="active-filter-title">
+                                    Đang lọc:
+                                </span>
+
+                                {selectedColor && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setSelectedColor("")
+                                        }
+                                    >
+                                        Màu: <strong>{selectedColor}</strong>
+                                        <span>×</span>
+                                    </button>
+                                )}
+
+                                {selectedSize && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedSize("")}
+                                    >
+                                        Size: <strong>{selectedSize}</strong>
+                                        <span>×</span>
+                                    </button>
+                                )}
+
+                                {brand !== "Tất cả" && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setBrand("Tất cả")}
+                                    >
+                                        Hãng: <strong>{brand}</strong>
+                                        <span>×</span>
+                                    </button>
+                                )}
+
+                                {(minPrice || maxPrice) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setMinPrice("");
+                                            setMaxPrice("");
+                                        }}
+                                    >
+                                        Giá <span>×</span>
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         {loading ? (
                             <Loading />
                         ) : products.length === 0 ? (
-
                             <div className="no-result">
                                 <div>🔍</div>
-                                <h3>
-                                    Không tìm thấy sản phẩm
-                                </h3>
+                                <h3>Không tìm thấy sản phẩm</h3>
                                 <p>
-                                    Hãy thử từ khóa hoặc bộ lọc khác.
+                                    Không có sản phẩm phù hợp với bộ lọc hiện tại.
                                 </p>
+                                <button
+                                    type="button"
+                                    className="reset-result-button"
+                                    onClick={clearFilters}
+                                >
+                                    Xóa bộ lọc
+                                </button>
                             </div>
-
                         ) : (
-
                             <div className="product-grid list-grid">
-
                                 {products.map((sp, index) => (
-
                                     <ProductCard
                                         key={sp.id}
                                         sanPham={sp}
                                         index={index}
                                         xemSanPham={xemSanPham}
                                         themVaoGio={themVaoGio}
+                                        selectedColor={selectedColor}
+                                        selectedSize={selectedSize}
                                     />
-
                                 ))}
-
                             </div>
-
                         )}
-
                     </section>
-
                 </div>
-
             </div>
-
         </main>
     );
 }
-
 
 function ProductDetail({
                            sanPham,
@@ -1992,7 +2252,6 @@ function ProductDetail({
                             </div>
                         )}
 
-                        {/* ================= STOCK ================= */}
                         <div className="stock">
                             {selectedVariant
                                 ? stock > 0
@@ -2001,7 +2260,6 @@ function ProductDetail({
                                 : "Vui lòng chọn size và màu"}
                         </div>
 
-                        {/* ================= QUANTITY ================= */}
                         <div className="quantity-row">
 
                             <div className="quantity-control">
@@ -2505,13 +2763,13 @@ function Checkout({
 
         try {
             const khachHangId = (() => {
-                        try {
-                            const raw = localStorage.getItem("taiKhoan");
-                            return raw ? JSON.parse(raw).khachHangId : null;
-                        } catch {
-                            return null;
-                        }
-                    })();
+                try {
+                    const raw = localStorage.getItem("taiKhoan");
+                    return raw ? JSON.parse(raw).khachHangId : null;
+                } catch {
+                    return null;
+                }
+            })();
             const res = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -3521,9 +3779,6 @@ function Checkout({
 
                         </div>
 
-                        {/* =========================
-                            CHI TIẾT HÓA ĐƠN
-                        ========================= */}
 
                         <h2
                             style={{
@@ -3735,9 +3990,6 @@ function Checkout({
 
                         </div>
 
-                        {/* =========================
-                            TỔNG TIỀN
-                        ========================= */}
 
                         <div
                             style={{
@@ -3772,13 +4024,13 @@ function Checkout({
                                 </strong>
 
                             </div>
-                             {/* ⭐ MỚI — DÒNG GIẢM GIÁ TRONG BILL */}
-                             {bill.tienGiam > 0 && (
-                               <div className="summary-line" style={{ color: "#24833b" }}>
-                                <span>Giảm giá ({bill.maVoucher})</span>
-                                <strong>-{formatGia(bill.tienGiam)}</strong>
+                            {/* ⭐ MỚI — DÒNG GIẢM GIÁ TRONG BILL */}
+                            {bill.tienGiam > 0 && (
+                                <div className="summary-line" style={{ color: "#24833b" }}>
+                                    <span>Giảm giá ({bill.maVoucher})</span>
+                                    <strong>-{formatGia(bill.tienGiam)}</strong>
                                 </div>
-                                 )}
+                            )}
 
                             <div className="summary-divider" />
 
@@ -3797,10 +4049,6 @@ function Checkout({
                             </div>
 
                         </div>
-
-                        {/* =========================
-                            NÚT
-                        ========================= */}
 
                         <div
                             className="bill-actions"
@@ -3862,11 +4110,6 @@ function Checkout({
         );
     }
 
-    /*
-     * =========================================================
-     * GIỎ HÀNG TRỐNG
-     * =========================================================
-     */
 
     if (!gioHang || gioHang.length === 0) {
 
@@ -3905,12 +4148,6 @@ function Checkout({
         );
     }
 
-    /*
-     * =========================================================
-     * TRANG CHECKOUT
-     * =========================================================
-     */
-
     return (
 
         <main className="cart-page">
@@ -3938,10 +4175,6 @@ function Checkout({
                 </div>
 
                 <div className="cart-layout">
-
-                    {/* =================================================
-                        FORM NHẬN HÀNG
-                    ================================================= */}
 
                     <div className="cart-items">
 
@@ -4042,72 +4275,72 @@ function Checkout({
                                 />
 
                             </div>
-                           {/* ⭐ Ô NHẬP VOUCHER — ĐẶT SAU ĐỊA CHỈ */}
-                           <div>
-                               <label
-                                   style={{
-                                       display: "block",
-                                       fontSize: "12px",
-                                       fontWeight: 700,
-                                       marginBottom: "8px",
-                                   }}
-                               >
-                                   🎫 Mã giảm giá
-                               </label>
+                            {/* ⭐ Ô NHẬP VOUCHER — ĐẶT SAU ĐỊA CHỈ */}
+                            <div>
+                                <label
+                                    style={{
+                                        display: "block",
+                                        fontSize: "12px",
+                                        fontWeight: 700,
+                                        marginBottom: "8px",
+                                    }}
+                                >
+                                    🎫 Mã giảm giá
+                                </label>
 
-                               <div className="voucher-input-row">
-                                   <input
-                                       className="price-input"
-                                       type="text"
-                                       placeholder="Nhập mã (VD: SALE10)"
-                                       value={maVoucher}
-                                       onChange={(e) =>
-                                           setMaVoucher(e.target.value.toUpperCase())
-                                       }
-                                       disabled={!!voucherInfo}
-                                   />
+                                <div className="voucher-input-row">
+                                    <input
+                                        className="price-input"
+                                        type="text"
+                                        placeholder="Nhập mã (VD: SALE10)"
+                                        value={maVoucher}
+                                        onChange={(e) =>
+                                            setMaVoucher(e.target.value.toUpperCase())
+                                        }
+                                        disabled={!!voucherInfo}
+                                    />
 
-                                   {voucherInfo ? (
-                                       <button
-                                           type="button"
-                                           className="voucher-remove-btn"
-                                           onClick={xoaVoucher}
-                                       >
-                                           Xóa
-                                       </button>
-                                   ) : (
-                                       <button
-                                           type="button"
-                                           className="voucher-apply-btn"
-                                           onClick={apDungVoucher}
-                                           disabled={checkingVoucher}
-                                       >
-                                           {checkingVoucher ? "..." : "Áp dụng"}
-                                       </button>
-                                   )}
-                               </div>
+                                    {voucherInfo ? (
+                                        <button
+                                            type="button"
+                                            className="voucher-remove-btn"
+                                            onClick={xoaVoucher}
+                                        >
+                                            Xóa
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="voucher-apply-btn"
+                                            onClick={apDungVoucher}
+                                            disabled={checkingVoucher}
+                                        >
+                                            {checkingVoucher ? "..." : "Áp dụng"}
+                                        </button>
+                                    )}
+                                </div>
 
-                               {voucherError && (
-                                   <span
-                                       style={{
-                                           color: "#e53935",
-                                           fontSize: 12,
-                                           marginTop: 6,
-                                           display: "block",
-                                       }}
-                                   >
+                                {voucherError && (
+                                    <span
+                                        style={{
+                                            color: "#e53935",
+                                            fontSize: 12,
+                                            marginTop: 6,
+                                            display: "block",
+                                        }}
+                                    >
                                        {voucherError}
                                    </span>
-                               )}
+                                )}
 
-                               {voucherInfo && (
-                                   <div className="voucher-success">
-                                       ✓ Đã áp dụng <strong>{voucherInfo.maVoucher}</strong>
-                                       {" — "}
-                                       giảm <strong>{formatGia(voucherInfo.tienGiam)}</strong>
-                                   </div>
-                               )}
-                           </div>
+                                {voucherInfo && (
+                                    <div className="voucher-success">
+                                        ✓ Đã áp dụng <strong>{voucherInfo.maVoucher}</strong>
+                                        {" — "}
+                                        giảm <strong>{formatGia(voucherInfo.tienGiam)}</strong>
+                                    </div>
+                                )}
+                            </div>
                             {/* ĐỊA CHỈ */}
 
                             <div>
@@ -4156,10 +4389,6 @@ function Checkout({
 
                             </div>
 
-                            {/* =================================================
-                                PHƯƠNG THỨC THANH TOÁN
-                            ================================================= */}
-
                             <div>
 
                                 <label
@@ -4196,10 +4425,6 @@ function Checkout({
                                     </option>
 
                                 </select>
-
-                                {/* =================================================
-                                    THÔNG TIN CHUYỂN KHOẢN
-                                ================================================= */}
 
                                 {phuongThuc ===
                                     "CHUYEN_KHOAN" && (
@@ -4592,8 +4817,6 @@ function Checkout({
 
                             </div>
 
-                            {/* GHI CHÚ */}
-
                             <div>
 
                                 <label
@@ -4636,10 +4859,6 @@ function Checkout({
                         </div>
 
                     </div>
-
-                    {/* =================================================
-                        TÓM TẮT ĐƠN HÀNG
-                    ================================================= */}
 
                     <aside className="cart-summary">
 
@@ -4689,13 +4908,13 @@ function Checkout({
                             </strong>
 
                         </div>
-                             {/* ⭐ MỚI — DÒNG GIẢM GIÁ TRONG TÓM TẮT */}
-                             {tienGiam > 0 && (
-                                                       <div className="summary-line" style={{ color: "#24833b" }}>
-                                                           <span>Giảm giá ({voucherInfo?.maVoucher})</span>
-                                                           <strong>-{formatGia(tienGiam)}</strong>
-                                                       </div>
-                                                   )}
+                        {/* ⭐ MỚI — DÒNG GIẢM GIÁ TRONG TÓM TẮT */}
+                        {tienGiam > 0 && (
+                            <div className="summary-line" style={{ color: "#24833b" }}>
+                                <span>Giảm giá ({voucherInfo?.maVoucher})</span>
+                                <strong>-{formatGia(tienGiam)}</strong>
+                            </div>
+                        )}
 
 
                         <div className="summary-divider" />
@@ -4934,5 +5153,3 @@ function Footer() {
 }
 
 export default App;
-
-
