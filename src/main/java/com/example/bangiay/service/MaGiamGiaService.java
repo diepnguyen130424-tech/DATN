@@ -1,6 +1,7 @@
 package com.example.bangiay.service;
 
 import com.example.bangiay.entity.MaGiamGia;
+import com.example.bangiay.repository.HoaDonRepository;
 import com.example.bangiay.repository.MaGiamGiaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.Map;
 public class MaGiamGiaService {
 
     private final MaGiamGiaRepository maGiamGiaRepository;
+    private final HoaDonRepository hoaDonRepository;
 
     public List<MaGiamGia> getAll() {
         return maGiamGiaRepository.findAll();
@@ -88,7 +90,8 @@ public class MaGiamGiaService {
     // ========== KIỂM TRA VOUCHER ==========
     public Map<String, Object> kiemTraVoucher(
             String ma,
-            BigDecimal tongTien
+            BigDecimal tongTien,
+            Long khachHangId
     ) {
 
         if (ma == null || ma.trim().isEmpty()) {
@@ -101,6 +104,11 @@ public class MaGiamGiaService {
                 .findByMaVoucher(maChuan)
                 .orElseThrow(() ->
                         new RuntimeException("Mã giảm giá không tồn tại"));
+        if (khachHangId != null
+                && hoaDonRepository.existsByKhachHang_IdAndVoucher_Id(
+                khachHangId, voucher.getId())) {
+            throw new RuntimeException("Bạn đã sử dụng mã giảm giá này rồi");
+        }
 
         if (!"HOAT_DONG".equalsIgnoreCase(voucher.getTrangThai())) {
             throw new RuntimeException("Mã giảm giá đã hết hiệu lực");
@@ -185,5 +193,23 @@ public class MaGiamGiaService {
     private String formatTien(BigDecimal tien) {
         return String.format("%,.0fđ", tien.doubleValue())
                 .replace(",", ".");
+    }
+    // ⭐ MỚI — Tăng số lượng đã dùng
+    public void tangSoLuongDaDung(String ma) {
+        MaGiamGia voucher = maGiamGiaRepository
+                .findByMaVoucher(ma.toUpperCase().trim())
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy mã voucher"));
+
+        int daDung = voucher.getSoLuongDaDung() != null
+                ? voucher.getSoLuongDaDung()
+                : 0;
+
+        if (voucher.getSoLuong() != null && daDung >= voucher.getSoLuong()) {
+            throw new RuntimeException("Mã giảm giá đã hết lượt sử dụng");
+        }
+
+        voucher.setSoLuongDaDung(daDung + 1);
+        maGiamGiaRepository.save(voucher);
     }
 }

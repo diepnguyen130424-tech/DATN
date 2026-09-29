@@ -84,7 +84,9 @@ public class MaGiamGiaController {
 
         return ResponseEntity.noContent().build();
     }
-    // ⭐ MỚI — KIỂM TRA VOUCHER
+
+
+    // ⭐ KIỂM TRA VOUCHER
     @PostMapping("/kiem-tra")
     public ResponseEntity<?> kiemTra(
             @RequestBody Map<String, Object> body
@@ -94,9 +96,35 @@ public class MaGiamGiaController {
             BigDecimal tongTien = new BigDecimal(
                     body.get("tongTien").toString()
             );
+            // ⭐ Lấy khachHangId (có thể null)
+            Long khachHangId = null;
+            if (body.get("khachHangId") != null) {
+                khachHangId = Long.valueOf(
+                        body.get("khachHangId").toString()
+                );
+            }
 
             return ResponseEntity.ok(
-                    maGiamGiaService.kiemTraVoucher(ma, tongTien)
+                    maGiamGiaService.kiemTraVoucher(ma,
+                            tongTien,
+                            khachHangId)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
+
+
+    // ⭐ MỚI — SAO CHÉP: TRỪ 1 LƯỢT VOUCHER
+    @PostMapping("/sao-chep/{ma}")
+    public ResponseEntity<?> saoChep(
+            @PathVariable String ma
+    ) {
+        try {
+            maGiamGiaService.tangSoLuongDaDung(ma);
+            return ResponseEntity.ok(
+                    Map.of("message", "Đã cập nhật lượt sử dụng")
             );
         } catch (Exception e) {
             return ResponseEntity.badRequest()

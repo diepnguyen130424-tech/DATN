@@ -19,4 +19,6 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Long> {
     List<HoaDon> findByTrangThai(String trangThai);
 
     List<HoaDon> findByLoaiHoaDon(String loaiHoaDon);
+    // ⭐ Kiểm tra khách đã dùng voucher này chưa
+    boolean existsByKhachHang_IdAndVoucher_Id(Long khachHangId, Long voucherId);
 }

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -366,7 +367,32 @@ public class HoaDonService {
                                             "Không tìm thấy voucher"
                                     )
                             );
+            if ("PHAN_TRAM".equalsIgnoreCase(voucher.getLoaiGiam())) {
+
+                tienGiam = tongTienHang
+                        .multiply(voucher.getGiaTriGiam())
+                        .divide(
+                                BigDecimal.valueOf(100),
+                                0,
+                                RoundingMode.HALF_UP
+                        );
+
+                if (voucher.getGiamToiDa() != null
+                        && tienGiam.compareTo(voucher.getGiamToiDa()) > 0) {
+                    tienGiam = voucher.getGiamToiDa();
+                }
+
+            } else {
+                // SO_TIEN
+                tienGiam = voucher.getGiaTriGiam();
+            }
+
+            // Không giảm quá tổng tiền
+            if (tienGiam.compareTo(tongTienHang) > 0) {
+                tienGiam = tongTienHang;
+            }
         }
+
 
 
         // -----------------------------------------------------
@@ -500,6 +526,26 @@ public class HoaDonService {
                 );
 
 
+        // ⭐ 11.5 TRỪ LƯỢT VOUCHER — MỚI
+        // -----------------------------------------------------
+
+        if (voucher != null) {
+            try {
+                int daDung = voucher.getSoLuongDaDung() != null
+                        ? voucher.getSoLuongDaDung()
+                        : 0;
+
+                voucher.setSoLuongDaDung(daDung + 1);
+                maGiamGiaRepository.save(voucher);
+
+                System.out.println("✅ Đã trừ 1 lượt voucher: "
+                        + voucher.getMaVoucher()
+                        + " (" + (daDung + 1) + "/" + voucher.getSoLuong() + ")");
+
+            } catch (Exception e) {
+                System.err.println("❌ Lỗi trừ lượt voucher: " + e.getMessage());
+            }
+        }
         // -----------------------------------------------------
         // 12. TẠO CHI TIẾT HÓA ĐƠN
         // -----------------------------------------------------
