@@ -1,11 +1,16 @@
+
+
 import { useEffect, useState } from "react";
 import "./AdminDashboard.css";
 import AdminProducts from "./AdminProducts";
+import AdminKho from "./AdminKho";
 import EmployeeDashboard from "./EmployeeDashboard";
 import AdminVoucher from "./AdminVoucher";
 import AdminKhuyenMai from "./AdminKhuyenMai";
 import AdminDanhMuc from "./AdminDanhMuc";
 import AdminThuongHieu from "./AdminThuongHieu";
+import AdminKichCo from "./AdminKichCo";
+import AdminMauSac from "./AdminMauSac";
 const API = "http://localhost:8080/api";
 
 
@@ -126,6 +131,29 @@ function tenPhuongThuc(phuongThuc) {
     );
 }
 
+function hienThiChucVu(chucVu) {
+    if (chucVu === "NHAN_VIEN_BAN_HANG") {
+        return "Nhân viên bán hàng";
+    }
+
+    return chucVu || "-";
+}
+
+function hienThiTrangThaiNhanVien(trangThai) {
+    if (
+        trangThai === "HOAT_DONG" ||
+        trangThai === "ACTIVE"
+    ) {
+        return "Hoạt động";
+    }
+
+    if (trangThai === "NGUNG_HOAT_DONG") {
+        return "Ngừng hoạt động";
+    }
+
+    return trangThai || "-";
+}
+
 function layTenSanPham(chiTiet) {
     return (
         chiTiet?.sanPhamChiTiet?.sanPham
@@ -164,63 +192,34 @@ const stats = [
     },
 ];
 
-function DashboardContent({ onOpenHoaDon }) {
+const orders = [
+    [
+        "HD001",
+        "Nguyễn Văn A",
+        "4.800.000đ",
+        "Chờ xác nhận",
+    ],
+    [
+        "HD002",
+        "Trần Văn B",
+        "2.350.000đ",
+        "Đang giao",
+    ],
+    [
+        "HD003",
+        "Lê Văn C",
+        "1.500.000đ",
+        "Đã giao",
+    ],
+    [
+        "HD004",
+        "Phạm Văn D",
+        "3.200.000đ",
+        "Đã thanh toán",
+    ],
+];
 
-    const [recentOrders, setRecentOrders] = useState([]);
-    const [loadingRecentOrders, setLoadingRecentOrders] = useState(true);
-
-    const taiDonHangGanDay = async (showLoading = false) => {
-        try {
-            if (showLoading) {
-                setLoadingRecentOrders(true);
-            }
-
-            const response = await fetch(`${API}/hoa-don`);
-
-            if (!response.ok) {
-                throw new Error("Không thể tải danh sách đơn hàng");
-            }
-
-            const data = await response.json();
-            const danhSach = Array.isArray(data) ? data : [];
-
-            danhSach.sort((a, b) => {
-                const ngayA = new Date(
-                    a?.ngayLap || a?.ngayTao || 0
-                ).getTime();
-
-                const ngayB = new Date(
-                    b?.ngayLap || b?.ngayTao || 0
-                ).getTime();
-
-                if (ngayA !== ngayB) {
-                    return ngayB - ngayA;
-                }
-
-                return Number(b?.id || 0) - Number(a?.id || 0);
-            });
-
-            setRecentOrders(danhSach.slice(0, 4));
-        } catch (error) {
-            console.error("Lỗi tải đơn hàng gần đây:", error);
-            setRecentOrders([]);
-        } finally {
-            if (showLoading) {
-                setLoadingRecentOrders(false);
-            }
-        }
-    };
-
-    useEffect(() => {
-        taiDonHangGanDay(true);
-
-        const interval = setInterval(() => {
-            taiDonHangGanDay(false);
-        }, 5000);
-
-        return () => clearInterval(interval);
-    }, []);
-
+function DashboardContent() {
     return (
         <div className="admin-dashboard-content">
 
@@ -449,14 +448,13 @@ function DashboardContent({ onOpenHoaDon }) {
                         </h2>
 
                         <p>
-                            4 đơn hàng mới nhất
+                            Các đơn hàng mới nhất
                         </p>
                     </div>
 
                     <button
                         type="button"
                         className="admin-link-button"
-                        onClick={onOpenHoaDon}
                     >
                         Xem tất cả →
                     </button>
@@ -465,92 +463,68 @@ function DashboardContent({ onOpenHoaDon }) {
 
                 <div className="admin-table-scroll">
 
-                    {loadingRecentOrders ? (
+                    <table className="admin-table">
 
-                        <div
-                            style={{
-                                padding: "40px",
-                                textAlign: "center",
-                                color: "#777",
-                            }}
-                        >
-                            Đang tải đơn hàng...
-                        </div>
+                        <thead>
+                        <tr>
+                            <th>
+                                Mã hóa đơn
+                            </th>
 
-                    ) : recentOrders.length === 0 ? (
+                            <th>
+                                Khách hàng
+                            </th>
 
-                        <div
-                            style={{
-                                padding: "40px",
-                                textAlign: "center",
-                                color: "#777",
-                            }}
-                        >
-                            Chưa có đơn hàng.
-                        </div>
+                            <th>
+                                Tổng tiền
+                            </th>
 
-                    ) : (
+                            <th>
+                                Trạng thái
+                            </th>
+                        </tr>
+                        </thead>
 
-                        <table className="admin-table">
+                        <tbody>
 
-                            <thead>
-                            <tr>
-                                <th>
-                                    Mã hóa đơn
-                                </th>
-
-                                <th>
-                                    Khách hàng
-                                </th>
-
-                                <th>
-                                    Tổng tiền
-                                </th>
-
-                                <th>
-                                    Trạng thái
-                                </th>
-                            </tr>
-                            </thead>
-
-                            <tbody>
-
-                            {recentOrders.map((hoaDon) => (
-
-                                <tr key={hoaDon.id}>
+                        {orders.map(
+                            (
+                                [
+                                    code,
+                                    customer,
+                                    total,
+                                    status,
+                                ]
+                            ) => (
+                                <tr key={code}>
 
                                     <td>
                                         <strong>
-                                            {hoaDon.maHoaDon || `HD${hoaDon.id}`}
+                                            {code}
                                         </strong>
                                     </td>
 
                                     <td>
-                                        {hoaDon?.khachHang?.hoTen ||
-                                            hoaDon?.diaChi?.tenNguoiNhan ||
-                                            "Khách lẻ"}
+                                        {customer}
                                     </td>
 
                                     <td>
-                                        <strong>
-                                            {formatTien(hoaDon.tongThanhToan)}
-                                        </strong>
+                                        {total}
                                     </td>
 
                                     <td>
                                         <span className="order-status">
-                                            {tenTrangThaiHoaDon(hoaDon.trangThai)}
+                                            {status}
                                         </span>
                                     </td>
 
                                 </tr>
+                            )
+                        )}
 
-                            ))}
+                        </tbody>
 
-                            </tbody>
-
-                        </table>
-                    )}
+                    </table>
 
                 </div>
 
@@ -635,34 +609,11 @@ function HoaDonContent() {
                 );
             }
 
-            const danhSach = Array.isArray(data)
-                ? data
-                : [];
-
-            danhSach.sort((a, b) => {
-                const ngayA = new Date(
-                    a?.ngayLap ||
-                    a?.ngayTao ||
-                    0
-                ).getTime();
-
-                const ngayB = new Date(
-                    b?.ngayLap ||
-                    b?.ngayTao ||
-                    0
-                ).getTime();
-
-                if (ngayA !== ngayB) {
-                    return ngayB - ngayA;
-                }
-
-                return (
-                    Number(b?.id || 0) -
-                    Number(a?.id || 0)
-                );
-            });
-
-            setHoaDons(danhSach);
+            setHoaDons(
+                Array.isArray(data)
+                    ? data
+                    : []
+            );
 
         } catch (err) {
 
@@ -1359,12 +1310,18 @@ function HoaDonContent() {
                                                         "1px solid #ddd",
                                                     background:
                                                         "#fff",
+                                                    color:
+                                                        "#222",
                                                     padding:
-                                                        "7px 12px",
+                                                        "8px 16px",
                                                     borderRadius:
-                                                        "7px",
+                                                        "9px",
                                                     cursor:
                                                         "pointer",
+                                                    fontSize:
+                                                        "16px",
+                                                    fontWeight:
+                                                        400,
                                                 }}
                                             >
                                                 Xem
@@ -2006,19 +1963,10 @@ function ThanhToanContent() {
                     ? data
                     : [];
 
-            danhSach.sort((a, b) => {
-                const ngayA = new Date(
-                    a?.ngayLap || a?.ngayTao || 0
-                ).getTime();
+            setHoaDons(
+                danhSach
+            );
 
-                const ngayB = new Date(
-                    b?.ngayLap || b?.ngayTao || 0
-                ).getTime();
-
-                return ngayB - ngayA;
-            });
-
-            setHoaDons(danhSach);
             const result = {};
 
             await Promise.all(
@@ -2783,540 +2731,144 @@ function CustomerContent() {
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState(null);
     const [addresses, setAddresses] = useState([]);
-    const [refreshing, setRefreshing] = useState(false);
 
-
-    const taiKhachHang = async (isRefresh = false) => {
+    const taiKhachHang = async () => {
         try {
-            if (isRefresh) {
-                setRefreshing(true);
-            } else {
-                setLoading(true);
-            }
-
-            const [customerResponse, orderResponse] =
-                await Promise.all([
-                    fetch(`${API}/khach-hang`),
-                    fetch(`${API}/hoa-don`)
-                ]);
-
-            if (!customerResponse.ok) {
-                throw new Error(
-                    "Không thể tải danh sách khách hàng"
-                );
-            }
-
-            const customerData =
-                await customerResponse.json();
-
-            const danhSachKhachHang =
-                Array.isArray(customerData)
-                    ? customerData
-                    : [];
-
-            let danhSachHoaDon = [];
-
-            if (orderResponse.ok) {
-                const orderData =
-                    await orderResponse.json();
-
-                danhSachHoaDon =
-                    Array.isArray(orderData)
-                        ? orderData
-                        : [];
-            }
-
-
-            const donHangGanNhat =
-                new Map();
-
-            danhSachHoaDon.forEach((hoaDon) => {
-                const khachHangId =
-                    hoaDon?.khachHang?.id;
-
-                if (!khachHangId) {
-                    return;
-                }
-
-                const ngayLap =
-                    hoaDon?.ngayLap ||
-                    hoaDon?.ngayTao ||
-                    null;
-
-                if (!ngayLap) {
-                    return;
-                }
-
-                const thoiGian =
-                    new Date(ngayLap).getTime();
-
-                if (Number.isNaN(thoiGian)) {
-                    return;
-                }
-
-                const thoiGianCu =
-                    donHangGanNhat.get(
-                        Number(khachHangId)
-                    );
-
-                if (
-                    !thoiGianCu ||
-                    thoiGian > thoiGianCu
-                ) {
-                    donHangGanNhat.set(
-                        Number(khachHangId),
-                        thoiGian
-                    );
-                }
-            });
-
-            const danhSachDaSapXep =
-                [...danhSachKhachHang].sort(
-                    (a, b) => {
-
-                        const idA =
-                            Number(a?.id || 0);
-
-                        const idB =
-                            Number(b?.id || 0);
-
-                        const ngayA =
-                            donHangGanNhat.get(
-                                idA
-                            ) || 0;
-
-                        const ngayB =
-                            donHangGanNhat.get(
-                                idB
-                            ) || 0;
-
-                        if (
-                            ngayA !== ngayB
-                        ) {
-                            return (
-                                ngayB -
-                                ngayA
-                            );
-                        }
-
-                        return (
-                            idB -
-                            idA
-                        );
-                    }
-                );
-
-            setCustomers(
-                danhSachDaSapXep
-            );
-
+            const res = await fetch(`${API}/khach-hang`);
+            if (res.ok) setCustomers(await res.json());
         } catch (err) {
-
-            console.error(
-                "Lỗi tải khách hàng:",
-                err
-            );
-
+            console.error(err);
         } finally {
-
             setLoading(false);
-            setRefreshing(false);
         }
     };
 
     useEffect(() => {
-
         taiKhachHang();
-
     }, []);
 
-
-    useEffect(() => {
-
-        const interval =
-            setInterval(() => {
-
-                taiKhachHang(true);
-
-            }, 5000);
-
-        return () => {
-            clearInterval(interval);
-        };
-
-    }, []);
-
-    const filtered =
-        customers.filter((item) => {
-
-            const hoTen =
-                String(
-                    item?.hoTen ||
-                    item?.tenNguoiNhan ||
-                    item?.taiKhoan?.hoTen ||
-                    ""
-                )
-                    .trim()
-                    .toLowerCase();
-
-
-            const tenDangNhap =
-                String(
-                    item?.taiKhoan?.tenDangNhap ||
-                    item?.tenDangNhap ||
-                    ""
-                )
-                    .trim()
-                    .toLowerCase();
-
-
-            const soDienThoai =
-                String(
-                    item?.soDienThoai ||
-                    item?.taiKhoan?.soDienThoai ||
-                    ""
-                )
-                    .trim()
-                    .toLowerCase();
-
-
-            const keyword =
-                search
-                    .trim()
-                    .toLowerCase();
-
-
-            return (
-                !keyword ||
-                hoTen.includes(keyword) ||
-                tenDangNhap.includes(keyword) ||
-                soDienThoai.includes(keyword)
-            );
-        });
+    const filtered = customers.filter((item) =>
+        `${item.hoTen} ${item.taiKhoan?.tenDangNhap || ""} ${item.soDienThoai || ""}`
+            .toLowerCase()
+            .includes(search.toLowerCase())
+    );
 
     const formatGioiTinh = (value) => {
-
-        if (value === "NAM") {
-            return "Nam";
-        }
-
-        if (value === "NU") {
-            return "Nữ";
-        }
-
+        if (value === "NAM") return "Nam";
+        if (value === "NU") return "Nữ";
         return value || "-";
     };
 
-
     const formatNgaySinh = (value) => {
-
-        if (!value) {
-            return "-";
-        }
-
-        const parts =
-            String(value).split("-");
-
-        if (parts.length !== 3) {
-            return value;
-        }
-
-        const [
-            year,
-            month,
-            day
-        ] = parts;
-
+        if (!value) return "-";
+        const [year, month, day] = value.split("-");
         return `${day}/${month}/${year}`;
     };
 
     const xemChiTiet = async (customer) => {
-
         setSelected(customer);
         setAddresses([]);
 
         try {
-
-            const res =
-                await fetch(
-                    `${API}/dia-chi/khach-hang/${customer.id}`
-                );
-
+            const res = await fetch(`${API}/dia-chi/khach-hang/${customer.id}`);
             if (res.ok) {
-
-                const data =
-                    await res.json();
-
-                setAddresses(
-                    Array.isArray(data)
-                        ? data
-                        : []
-                );
+                const data = await res.json();
+                setAddresses(data);
             }
-
         } catch (err) {
-
-            console.error(
-                "Lỗi tải địa chỉ:",
-                err
-            );
-
+            console.error(err);
         }
     };
 
     return (
         <div className="admin-dashboard-content">
-
             <div className="admin-page-heading">
-
                 <div>
-
-                    <div className="admin-eyebrow">
-                        FSHOP ADMIN
-                    </div>
-
-                    <h1>
-                        Khách hàng
-                    </h1>
-
-                    <p>
-                        Quản lý thông tin khách hàng.
-                    </p>
-
+                    <div className="admin-eyebrow">FSHOP ADMIN</div>
+                    <h1>Khách hàng</h1>
+                    <p>Quản lý thông tin khách hàng.</p>
                 </div>
-
             </div>
 
             <section className="admin-card">
-
-                <div
-                    className="customer-toolbar"
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "15px",
-                        flexWrap: "wrap"
-                    }}
-                >
-
+                <div className="customer-toolbar">
                     <input
                         className="customer-search-input"
                         style={searchInputStyle}
                         value={search}
-                        onChange={(e) =>
-                            setSearch(
-                                e.target.value
-                            )
-                        }
+                        onChange={(e) => setSearch(e.target.value)}
                         placeholder="Tìm tên, tên đăng nhập hoặc số điện thoại..."
                     />
-
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            taiKhachHang(true)
-                        }
-                        disabled={refreshing}
-                        style={{
-                            height: "58px",
-                            padding: "0 20px",
-                            border: "1px solid #ddd",
-                            borderRadius: "10px",
-                            background: "#fff",
-                            cursor: refreshing
-                                ? "not-allowed"
-                                : "pointer",
-                            fontWeight: 600,
-                            whiteSpace: "nowrap",
-                            opacity: refreshing
-                                ? 0.6
-                                : 1
-                        }}
-                    >
-                        {refreshing
-                            ? "Đang cập nhật..."
-                            : "↻ Làm mới"}
-                    </button>
-
                 </div>
-
             </section>
 
             <section className="admin-card">
-
-                <div className="admin-card-heading">
-
-                    <div>
-
-                        <h2>
-                            Danh sách khách hàng
-                        </h2>
-
-                        <p>
-                            {filtered.length} khách hàng
-                        </p>
-
-                    </div>
-
-                </div>
-
-
                 <div className="admin-table-scroll">
-
                     <table className="admin-table">
-
                         <thead>
-
                         <tr>
-
-                            <th>
-                                ID
-                            </th>
-
-                            <th>
-                                Họ tên
-                            </th>
-
-                            <th>
-                                Tên đăng nhập
-                            </th>
-
-                            <th>
-                                Số điện thoại
-                            </th>
-
-                            <th>
-                                Giới tính
-                            </th>
-
-                            <th>
-                                Thao tác
-                            </th>
-
+                            <th>ID</th>
+                            <th>Họ tên</th>
+                            <th>Tên đăng nhập</th>
+                            <th>Số điện thoại</th>
+                            <th>Giới tính</th>
+                            <th>Thao tác</th>
                         </tr>
-
                         </thead>
 
-
                         <tbody>
-
                         {loading ? (
-
                             <tr>
-
-                                <td
-                                    colSpan="6"
-                                    className="customer-empty"
-                                >
+                                <td colSpan="6" className="customer-empty">
                                     Đang tải khách hàng...
                                 </td>
-
                             </tr>
-
-                        ) : filtered.length > 0 ? (
-
+                        ) : filtered.length ? (
                             filtered.map((item) => (
-
-                                <tr
-                                    key={item.id}
-                                >
-
+                                <tr key={item.id}>
+                                    <td>#{item.id}</td>
+                                    <td><strong>{item.hoTen}</strong></td>
+                                    <td>{item.taiKhoan?.tenDangNhap || "-"}</td>
+                                    <td>{item.soDienThoai || "-"}</td>
+                                    <td>{formatGioiTinh(item.gioiTinh)}</td>
                                     <td>
-                                        #{item.id}
-                                    </td>
-
-
-                                    <td>
-
-                                        <strong>
-                                            {item?.hoTen ||
-                                                item?.tenNguoiNhan ||
-                                                item?.taiKhoan?.hoTen ||
-                                                "Chưa có tên"}
-                                        </strong>
-
-                                    </td>
-
-
-                                    <td>
-                                        {item?.taiKhoan
-                                                ?.tenDangNhap ||
-                                            item?.tenDangNhap ||
-                                            "-"}
-                                    </td>
-
-
-                                    <td>
-                                        {item?.soDienThoai ||
-                                            item?.taiKhoan
-                                                ?.soDienThoai ||
-                                            "-"}
-                                    </td>
-
-
-                                    <td>
-                                        {formatGioiTinh(
-                                            item?.gioiTinh
-                                        )}
-                                    </td>
-
-
-                                    <td>
-
                                         <button
                                             type="button"
-                                            className="customer-action"
-                                            onClick={() =>
-                                                xemChiTiet(
-                                                    item
-                                                )
-                                            }
+                                            onClick={() => xemChiTiet(item)}
+                                            style={{
+                                                border: "1px solid #ddd",
+                                                background: "#fff",
+                                                color: "#222",
+                                                padding: "8px 16px",
+                                                borderRadius: "9px",
+                                                cursor: "pointer",
+                                                fontSize: "16px",
+                                                fontWeight: 400
+                                            }}
                                         >
-                                            👁 Xem
+                                            Xem
                                         </button>
-
                                     </td>
-
                                 </tr>
-
                             ))
-
                         ) : (
-
                             <tr>
-
-                                <td
-                                    colSpan="6"
-                                    className="customer-empty"
-                                >
+                                <td colSpan="6" className="customer-empty">
                                     Không có khách hàng.
                                 </td>
-
                             </tr>
-
                         )}
-
                         </tbody>
-
                     </table>
-
                 </div>
-
             </section>
-
             {selected && (
-
                 <div
-                    onClick={() =>
-                        setSelected(null)
-                    }
+                    onClick={() => setSelected(null)}
                     style={{
                         position: "fixed",
                         inset: 0,
-                        background:
-                            "rgba(0,0,0,.45)",
+                        background: "rgba(0,0,0,.45)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -3324,265 +2876,83 @@ function CustomerContent() {
                         padding: "20px"
                     }}
                 >
-
                     <div
-                        onClick={(e) =>
-                            e.stopPropagation()
-                        }
+                        onClick={(e) => e.stopPropagation()}
                         style={{
-                            width:
-                                "min(650px,100%)",
-                            maxHeight:
-                                "90vh",
-                            overflowY:
-                                "auto",
-                            background:
-                                "#fff",
-                            borderRadius:
-                                "14px",
-                            padding:
-                                "25px"
+                            width: "min(650px,100%)",
+                            maxHeight: "90vh",
+                            overflowY: "auto",
+                            background: "#fff",
+                            borderRadius: "14px",
+                            padding: "25px"
                         }}
                     >
-
-                        {/* HEADER */}
-
                         <div
                             style={{
                                 display: "flex",
-                                justifyContent:
-                                    "space-between",
-                                alignItems:
-                                    "center",
-                                marginBottom:
-                                    "20px"
+                                justifyContent: "space-between"
                             }}
                         >
-
-                            <h2
-                                style={{
-                                    margin: 0
-                                }}
-                            >
-                                Chi tiết khách hàng
-                            </h2>
-
-
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setSelected(
-                                        null
-                                    )
-                                }
-                                style={{
-                                    border: "none",
-                                    background:
-                                        "transparent",
-                                    fontSize:
-                                        "28px",
-                                    cursor:
-                                        "pointer",
-                                    lineHeight: 1
-                                }}
-                            >
-                                ×
-                            </button>
-
+                            <h2>Chi tiết khách hàng</h2>
+                            <button onClick={() => setSelected(null)}>×</button>
                         </div>
-
-
-                        {/* THÔNG TIN */}
 
                         <div
                             style={{
                                 display: "grid",
-                                gridTemplateColumns:
-                                    "1fr 1fr",
+                                gridTemplateColumns: "1fr 1fr",
                                 gap: "14px",
-                                marginBottom:
-                                    "25px"
+                                marginBottom: "25px"
                             }}
                         >
-
+                            <div><strong>ID</strong><p>#{selected.id}</p></div>
+                            <div><strong>Họ tên</strong><p>{selected.hoTen}</p></div>
                             <div>
-
-                                <strong>
-                                    ID
-                                </strong>
-
-                                <p>
-                                    #{selected.id}
-                                </p>
-
+                                <strong>Tên đăng nhập</strong>
+                                <p>{selected.taiKhoan?.tenDangNhap || "-"}</p>
                             </div>
-
-
                             <div>
-
-                                <strong>
-                                    Họ tên
-                                </strong>
-
-                                <p>
-                                    {selected?.hoTen ||
-                                        selected?.tenNguoiNhan ||
-                                        selected?.taiKhoan?.hoTen ||
-                                        "Chưa có tên"}
-                                </p>
-
+                                <strong>Số điện thoại</strong>
+                                <p>{selected.soDienThoai || "-"}</p>
                             </div>
-
-
                             <div>
-
-                                <strong>
-                                    Tên đăng nhập
-                                </strong>
-
-                                <p>
-                                    {selected
-                                            ?.taiKhoan
-                                            ?.tenDangNhap ||
-                                        selected
-                                            ?.tenDangNhap ||
-                                        "-"}
-                                </p>
-
+                                <strong>Ngày sinh</strong>
+                                <p>{formatNgaySinh(selected.ngaySinh)}</p>
                             </div>
-
-
                             <div>
-
-                                <strong>
-                                    Số điện thoại
-                                </strong>
-
-                                <p>
-                                    {selected
-                                            ?.soDienThoai ||
-                                        selected
-                                            ?.taiKhoan
-                                            ?.soDienThoai ||
-                                        "-"}
-                                </p>
-
+                                <strong>Giới tính</strong>
+                                <p>{formatGioiTinh(selected.gioiTinh)}</p>
                             </div>
-
-
-                            <div>
-
-                                <strong>
-                                    Ngày sinh
-                                </strong>
-
-                                <p>
-                                    {formatNgaySinh(
-                                        selected?.ngaySinh
-                                    )}
-                                </p>
-
-                            </div>
-
-
-                            <div>
-
-                                <strong>
-                                    Giới tính
-                                </strong>
-
-                                <p>
-                                    {formatGioiTinh(
-                                        selected?.gioiTinh
-                                    )}
-                                </p>
-
-                            </div>
-
                         </div>
 
+                        <h3>Địa chỉ mặc định</h3>
 
-                        {/* ĐỊA CHỈ */}
-
-                        <h3>
-                            Địa chỉ mặc định
-                        </h3>
-
-
-                        {addresses.find(
-                            (item) =>
-                                item?.macDinh
-                        ) ? (
-
+                        {addresses.find((item) => item.macDinh) ? (
                             (() => {
-
-                                const item =
-                                    addresses.find(
-                                        (item) =>
-                                            item?.macDinh
-                                    );
-
-                                return (
-
-                                    <div
-                                        style={{
-                                            padding:
-                                                "14px",
-                                            border:
-                                                "1px solid #eee",
-                                            borderRadius:
-                                                "8px",
-                                            background:
-                                                "#fafafa"
-                                        }}
-                                    >
-
-                                        <strong>
-                                            {item?.tenNguoiNhan ||
-                                                "Chưa có tên"}
-                                        </strong>
-
-                                        <div
-                                            style={{
-                                                marginTop:
-                                                    "6px"
-                                            }}
-                                        >
-                                            {item?.soDienThoai ||
-                                                "-"}
-                                        </div>
-
-                                        <div
-                                            style={{
-                                                marginTop:
-                                                    "6px"
-                                            }}
-                                        >
-                                            {item?.diaChi ||
-                                                "-"}
-                                        </div>
-
-                                    </div>
-
+                                const item = addresses.find(
+                                    (item) => item.macDinh
                                 );
 
+                                return (
+                                    <div
+                                        style={{
+                                            padding: "12px",
+                                            border: "1px solid #eee",
+                                            borderRadius: "8px"
+                                        }}
+                                    >
+                                        <strong>{item.tenNguoiNhan}</strong>
+                                        <div>{item.soDienThoai}</div>
+                                        <div>{item.diaChi}</div>
+                                    </div>
+                                );
                             })()
-
                         ) : (
-
-                            <p>
-                                Khách hàng chưa có
-                                địa chỉ mặc định.
-                            </p>
-
+                            <p>Khách hàng chưa có địa chỉ mặc định.</p>
                         )}
-
                     </div>
-
                 </div>
-
             )}
-
         </div>
     );
 }
@@ -3875,13 +3245,15 @@ function EmployeeContent() {
                                     <td><strong>{item.hoTen}</strong></td>
                                     <td>{item.taiKhoan?.tenDangNhap || "-"}</td>
                                     <td>{item.soDienThoai || "-"}</td>
-                                    <td>{item.chucVu || "-"}</td>
+                                    <td>
+                                        {hienThiChucVu(item.chucVu)}
+                                    </td>
                                     <td>{formatNgay(item.ngayVaoLam)}</td>
                                     <td>
                                         <div style={{ display: "flex", gap: "6px" }}>
                                             <button
                                                 type="button"
-                                                onClick={() => setSelected(item)}
+                                                onClick={() => xemChiTiet(item)}
                                                 style={{
                                                     border: "1px solid #ddd",
                                                     background: "#fff",
@@ -4289,12 +3661,12 @@ function EmployeeContent() {
 
                             <div>
                                 <strong>Chức vụ</strong>
-                                <p>{selected.chucVu || "-"}</p>
+                                <p>{hienThiChucVu(selected.chucVu)}</p>
                             </div>
 
                             <div>
                                 <strong>Trạng thái</strong>
-                                <p>{selected.trangThai || "-"}</p>
+                                <p>{hienThiTrangThaiNhanVien(selected.trangThai)}</p>
                             </div>
 
                             <div>
@@ -4509,11 +3881,7 @@ export default function AdminDashboard({
                     {activeMenu ===
                     "dashboard" ? (
 
-                        <DashboardContent
-                            onOpenHoaDon={() =>
-                                setActiveMenu("hoa-don")
-                            }
-                        />
+                        <DashboardContent />
 
                     ) : activeMenu ===
                     "hoa-don" ? (
@@ -4529,6 +3897,10 @@ export default function AdminDashboard({
                         <AdminDanhMuc />
                     ) : activeMenu === "thuong-hieu" ? (
                         <AdminThuongHieu />
+                    ) : activeMenu === "kich-co" ? (
+                        <AdminKichCo />
+                    ) : activeMenu === "mau-sac" ? (
+                        <AdminMauSac />
                     ) : activeMenu === "kho" ? (
                         <AdminKho />
                     ) : activeMenu === "voucher" ? (
@@ -4563,4 +3935,3 @@ export default function AdminDashboard({
         </div>
     );
 }
-
