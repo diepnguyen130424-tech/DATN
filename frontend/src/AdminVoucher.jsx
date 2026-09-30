@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect, no-empty */
 import { useEffect, useRef, useState } from "react";
 
 const API = "http://localhost:8080/api";
@@ -350,31 +351,31 @@ export default function AdminVoucher() {
                 <div className="admin-table-scroll">
                     <table className="admin-table">
                         <thead>
-                           <tr>
-                               <th>ID</th>
-                               <th>Mã</th>
-                               <th>Tên</th>
-                               <th>Loại</th>
-                               <th>Giá trị</th>
-                               <th>Giảm tối đa</th>
-                               <th>Đơn tối thiểu</th>
-                               <th>SL/ đã dùng</th>
-                               <th>Bắt đầu</th>
-                               <th>Hết hạn</th>
-                               <th>Trạng thái</th>
-                               <th>Thao tác</th>
-                           </tr>
+                        <tr>
+                            <th>ID</th>
+                            <th>Mã</th>
+                            <th>Tên</th>
+                            <th>Loại</th>
+                            <th>Giá trị</th>
+                            <th>Giảm tối đa</th>
+                            <th>Đơn tối thiểu</th>
+                            <th>SL/ đã dùng</th>
+                            <th>Bắt đầu</th>
+                            <th>Hết hạn</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
                         </thead>
                         <tbody>
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <tr key={i} className="skeleton-row">
-                                    {Array.from({ length: 10 }).map((_, j) => (
-                                        <td key={j}>
-                                            <div className="skeleton-bar" />
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
+                        {[1, 2, 3, 4, 5].map((i) => (
+                            <tr key={i} className="skeleton-row">
+                                {Array.from({ length: 10 }).map((_, j) => (
+                                    <td key={j}>
+                                        <div className="skeleton-bar" />
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
                         </tbody>
                     </table>
                 </div>
@@ -396,60 +397,60 @@ export default function AdminVoucher() {
                     </div>
                     <table className="admin-table">
                         <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Mã</th>
-                                <th>Tên</th>
-                                <th>Loại</th>
-                                <th>Giá trị</th>
-                                <th>Giảm tối đa</th>
-                                <th>Đơn tối thiểu</th>
-                                <th>SL/ đã dùng</th>
-                                <th>Bắt đầu</th>
-                                <th>Hết hạn</th>
-                                <th>Trạng thái</th>
-                                <th>Thao tác</th>
-                            </tr>
+                        <tr>
+                            <th>ID</th>
+                            <th>Mã</th>
+                            <th>Tên</th>
+                            <th>Loại</th>
+                            <th>Giá trị</th>
+                            <th>Giảm tối đa</th>
+                            <th>Đơn tối thiểu</th>
+                            <th>SL/ đã dùng</th>
+                            <th>Bắt đầu</th>
+                            <th>Hết hạn</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
                         </thead>
                         <tbody>
-                            {filtered.map((v) => (
-                                <tr key={v.id}>
-                                    <td>
-                                        <strong>#{v.id}</strong>
-                                    </td>
-                                    <td>
-                                        <strong>{v.maVoucher}</strong>
-                                    </td>
-                                    <td>{v.tenVoucher}</td>
-                                    <td>
-                                        {v.loaiGiam === "PHAN_TRAM"
-                                            ? "Phần trăm"
-                                            : "Số tiền"}
-                                    </td>
+                        {filtered.map((v) => (
+                            <tr key={v.id}>
+                                <td>
+                                    <strong>#{v.id}</strong>
+                                </td>
+                                <td>
+                                    <strong>{v.maVoucher}</strong>
+                                </td>
+                                <td>{v.tenVoucher}</td>
+                                <td>
+                                    {v.loaiGiam === "PHAN_TRAM"
+                                        ? "Phần trăm"
+                                        : "Số tiền"}
+                                </td>
 
-                                    <td>
-                                        {v.loaiGiam === "PHAN_TRAM"
-                                            ? `${v.giaTriGiam}%`
-                                            : formatGia(v.giaTriGiam)}
-                                    </td>
-                                    <td>
-                                        {v.giamToiDa
-                                            ? formatGia(v.giamToiDa)
-                                            : "—"}
-                                    </td>
+                                <td>
+                                    {v.loaiGiam === "PHAN_TRAM"
+                                        ? `${v.giaTriGiam}%`
+                                        : formatGia(v.giaTriGiam)}
+                                </td>
+                                <td>
+                                    {v.giamToiDa
+                                        ? formatGia(v.giamToiDa)
+                                        : "—"}
+                                </td>
 
-                                    <td>{formatGia(v.donToiThieu)}</td>
-                                   {/* ⭐ GỘP — SL / Đã dùng */}
-                                   <td>
-                                       <strong>
-                                           {v.soLuong ?? 0}/{v.soLuongDaDung ?? 0}
-                                       </strong>
-                                   </td>
+                                <td>{formatGia(v.donToiThieu)}</td>
+                                {/* ⭐ GỘP — SL / Đã dùng */}
+                                <td>
+                                    <strong>
+                                        {v.soLuong ?? 0}/{v.soLuongDaDung ?? 0}
+                                    </strong>
+                                </td>
 
-                                   {/* ⭐ MỚI — Ngày bắt đầu */}
-                                   <td>{formatDate(v.ngayBatDau)}</td>
-                                    <td>{formatDate(v.ngayKetThuc)}</td>
-                                    <td>
+                                {/* ⭐ MỚI — Ngày bắt đầu */}
+                                <td>{formatDate(v.ngayBatDau)}</td>
+                                <td>{formatDate(v.ngayKetThuc)}</td>
+                                <td>
                                         <span
                                             className={`order-status ${getTrangThaiClass(
                                                 v.trangThai
@@ -457,32 +458,32 @@ export default function AdminVoucher() {
                                         >
                                             {getTrangThaiLabel(v.trangThai)}
                                         </span>
-                                    </td>
-                                    <td style={{ whiteSpace: "nowrap" }}>
-                                        <button
-                                            type="button"
-                                            className="btn-edit"
-                                            onClick={() => openEdit(v)}
-                                        >
-                                            Sửa
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-delete"
-                                            onClick={() => handleDelete(v)}
-                                        >
-                                            Xóa
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {filtered.length === 0 && (
-                                <tr>
-                                    <td colSpan={12} className="admin-empty">
-                                        Không có voucher nào
-                                    </td>
-                                </tr>
-                            )}
+                                </td>
+                                <td style={{ whiteSpace: "nowrap" }}>
+                                    <button
+                                        type="button"
+                                        className="btn-edit"
+                                        onClick={() => openEdit(v)}
+                                    >
+                                        Sửa
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn-delete"
+                                        onClick={() => handleDelete(v)}
+                                    >
+                                        Xóa
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        {filtered.length === 0 && (
+                            <tr>
+                                <td colSpan={12} className="admin-empty">
+                                    Không có voucher nào
+                                </td>
+                            </tr>
+                        )}
                         </tbody>
                     </table>
                 </div>
@@ -540,22 +541,22 @@ export default function AdminVoucher() {
                                 gap: 14,
                             }}
                         >
-                        {/* ⭐ ID — chỉ hiển thị, không cho sửa */}
-                        {editing && (
-                            <Field label="ID">
-                                <input
-                                    className="price-input"
-                                    type="text"
-                                    value={editing.id || "tự động sinh "}
-                                    disabled
-                                    style={{
-                                        background: "#f5f5f5",
-                                        color: "#666",
-                                        cursor: "not-allowed",
-                                    }}
-                                />
-                            </Field>
-                        )}
+                            {/* ⭐ ID — chỉ hiển thị, không cho sửa */}
+                            {editing && (
+                                <Field label="ID">
+                                    <input
+                                        className="price-input"
+                                        type="text"
+                                        value={editing.id || "tự động sinh "}
+                                        disabled
+                                        style={{
+                                            background: "#f5f5f5",
+                                            color: "#666",
+                                            cursor: "not-allowed",
+                                        }}
+                                    />
+                                </Field>
+                            )}
                             <Field label="Mã voucher *">
                                 <input
                                     className="price-input"
@@ -610,29 +611,29 @@ export default function AdminVoucher() {
                                 />
                             </Field>
 
-                           <Field label="Giảm tối đa (đ)">
-                               <input
-                                   className="price-input"
-                                   type="text"
-                                   value={formatSoTienInput(form.giamToiDa)}
-                                   onChange={(e) =>
-                                       handleChange("giamToiDa", parseSoTienInput(e.target.value))
-                                   }
-                                   placeholder="VD: 200.000"
-                               />
-                           </Field>
+                            <Field label="Giảm tối đa (đ)">
+                                <input
+                                    className="price-input"
+                                    type="text"
+                                    value={formatSoTienInput(form.giamToiDa)}
+                                    onChange={(e) =>
+                                        handleChange("giamToiDa", parseSoTienInput(e.target.value))
+                                    }
+                                    placeholder="VD: 200.000"
+                                />
+                            </Field>
 
-                         <Field label="Đơn tối thiểu (đ)">
-                             <input
-                                 className="price-input"
-                                 type="text"
-                                 value={formatSoTienInput(form.donToiThieu)}
-                                 onChange={(e) =>
-                                     handleChange("donToiThieu", parseSoTienInput(e.target.value))
-                                 }
-                                 placeholder="VD: 500.000"
-                             />
-                         </Field>
+                            <Field label="Đơn tối thiểu (đ)">
+                                <input
+                                    className="price-input"
+                                    type="text"
+                                    value={formatSoTienInput(form.donToiThieu)}
+                                    onChange={(e) =>
+                                        handleChange("donToiThieu", parseSoTienInput(e.target.value))
+                                    }
+                                    placeholder="VD: 500.000"
+                                />
+                            </Field>
 
                             <Field label="Số lượng *">
                                 <input
@@ -645,7 +646,7 @@ export default function AdminVoucher() {
                                     placeholder="VD: 100"
                                 />
                             </Field>
-                           <Field label="Ngày bắt đầu">
+                            <Field label="Ngày bắt đầu">
                                 <input
                                     className="price-input"
                                     type="datetime-local"
@@ -722,8 +723,8 @@ export default function AdminVoucher() {
                                 {saving
                                     ? "Đang lưu..."
                                     : editing
-                                    ? "Cập nhật"
-                                    : "Tạo mới"}
+                                        ? "Cập nhật"
+                                        : "Tạo mới"}
                             </button>
                         </div>
                     </div>

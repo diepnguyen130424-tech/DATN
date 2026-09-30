@@ -1,3 +1,5 @@
+
+/* eslint-disable react-hooks/set-state-in-effect, no-empty */
 import { useEffect, useRef, useState } from "react";
 
 const API = "http://localhost:8080/api";
@@ -319,26 +321,26 @@ export default function AdminKhuyenMai() {
                 <div className="admin-table-scroll">
                     <table className="admin-table">
                         <thead>
-                            <tr>
-                                <th>Tên chương trình</th>
-                                <th>Loại giảm</th>
-                                <th>Giá trị</th>
-                                <th>Bắt đầu</th>
-                                <th>Kết thúc</th>
-                                <th>Trạng thái</th>
-                                <th>Thao tác</th>
-                            </tr>
+                        <tr>
+                            <th>Tên chương trình</th>
+                            <th>Loại giảm</th>
+                            <th>Giá trị</th>
+                            <th>Bắt đầu</th>
+                            <th>Kết thúc</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
                         </thead>
                         <tbody>
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <tr key={i} className="skeleton-row">
-                                    {Array.from({ length: 7 }).map((_, j) => (
-                                        <td key={j}>
-                                            <div className="skeleton-bar" />
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
+                        {[1, 2, 3, 4, 5].map((i) => (
+                            <tr key={i} className="skeleton-row">
+                                {Array.from({ length: 7 }).map((_, j) => (
+                                    <td key={j}>
+                                        <div className="skeleton-bar" />
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
                         </tbody>
                     </table>
                 </div>
@@ -360,35 +362,35 @@ export default function AdminKhuyenMai() {
                     </div>
                     <table className="admin-table">
                         <thead>
-                            <tr>
-                                <th>Tên chương trình</th>
-                                <th>Loại giảm</th>
-                                <th>Giá trị</th>
-                                <th>Bắt đầu</th>
-                                <th>Kết thúc</th>
-                                <th>Trạng thái</th>
-                                <th>Thao tác</th>
-                            </tr>
+                        <tr>
+                            <th>Tên chương trình</th>
+                            <th>Loại giảm</th>
+                            <th>Giá trị</th>
+                            <th>Bắt đầu</th>
+                            <th>Kết thúc</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
                         </thead>
                         <tbody>
-                            {filtered.map((v) => (
-                                <tr key={v.id}>
-                                    <td>
-                                        <strong>{v.tenChuongTrinh}</strong>
-                                    </td>
-                                    <td>
-                                        {v.loaiGiam === "PHAN_TRAM"
-                                            ? "Phần trăm"
-                                            : "Số tiền"}
-                                    </td>
-                                    <td>
-                                        {v.loaiGiam === "PHAN_TRAM"
-                                            ? `${v.giaTriGiam}%`
-                                            : formatGia(v.giaTriGiam)}
-                                    </td>
-                                    <td>{formatDate(v.ngayBatDau)}</td>
-                                    <td>{formatDate(v.ngayKetThuc)}</td>
-                                    <td>
+                        {filtered.map((v) => (
+                            <tr key={v.id}>
+                                <td>
+                                    <strong>{v.tenChuongTrinh}</strong>
+                                </td>
+                                <td>
+                                    {v.loaiGiam === "PHAN_TRAM"
+                                        ? "Phần trăm"
+                                        : "Số tiền"}
+                                </td>
+                                <td>
+                                    {v.loaiGiam === "PHAN_TRAM"
+                                        ? `${v.giaTriGiam}%`
+                                        : formatGia(v.giaTriGiam)}
+                                </td>
+                                <td>{formatDate(v.ngayBatDau)}</td>
+                                <td>{formatDate(v.ngayKetThuc)}</td>
+                                <td>
                                         <span
                                             className={`order-status ${getTrangThaiClass(
                                                 v.trangThai
@@ -396,32 +398,32 @@ export default function AdminKhuyenMai() {
                                         >
                                             {getTrangThaiLabel(v.trangThai)}
                                         </span>
-                                    </td>
-                                    <td style={{ whiteSpace: "nowrap" }}>
-                                        <button
-                                            type="button"
-                                            className="btn-edit"
-                                            onClick={() => openEdit(v)}
-                                        >
-                                            Sửa
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-delete"
-                                            onClick={() => handleDelete(v)}
-                                        >
-                                            Xóa
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {filtered.length === 0 && (
-                                <tr>
-                                    <td colSpan={7} className="admin-empty">
-                                        Không có chương trình nào
-                                    </td>
-                                </tr>
-                            )}
+                                </td>
+                                <td style={{ whiteSpace: "nowrap" }}>
+                                    <button
+                                        type="button"
+                                        className="btn-edit"
+                                        onClick={() => openEdit(v)}
+                                    >
+                                        Sửa
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn-delete"
+                                        onClick={() => handleDelete(v)}
+                                    >
+                                        Xóa
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        {filtered.length === 0 && (
+                            <tr>
+                                <td colSpan={7} className="admin-empty">
+                                    Không có chương trình nào
+                                </td>
+                            </tr>
+                        )}
                         </tbody>
                     </table>
                 </div>
@@ -676,8 +678,8 @@ export default function AdminKhuyenMai() {
                                 {saving
                                     ? "Đang lưu..."
                                     : editing
-                                    ? "Cập nhật"
-                                    : "Tạo mới"}
+                                        ? "Cập nhật"
+                                        : "Tạo mới"}
                             </button>
                         </div>
                     </div>

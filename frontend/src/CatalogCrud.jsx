@@ -1,6 +1,7 @@
+/* eslint-disable react-hooks/set-state-in-effect, no-empty, react-refresh/only-export-components */
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./AdminProducts.css";
- import "./CatalogCrud.css";
+import "./CatalogCrud.css";
 
 const API = "http://localhost:8080/api";
 const CACHE_TTL = 60 * 1000;
@@ -432,7 +433,6 @@ export default function CatalogCrud({ config }) {
         setSortDir("asc");
     };
 
-    const colCount = extraField ? 9 : 8;
     const showSkeleton = loading && danhSach.length === 0;
 
     const hasFilter = search.trim() !== "" || filterTrangThai !== "TAT_CA";
@@ -508,107 +508,107 @@ export default function CatalogCrud({ config }) {
                     <div className="table-wrapper">
                         <table className="products-table">
                             <thead>
-                                <tr>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            className="th-sort"
-                                            onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
-                                            title="Bấm để đổi chiều sắp xếp"
-                                        >
-                                            {codeLabel} {sortDir === "asc" ? "▲" : "▼"}
-                                        </button>
-                                    </th>
-                                    <th>{cap(singular)}</th>
-                                    {extraField && <th>{extraField.column}</th>}
-                                    <th>Mô tả</th>
-                                    <th>Số sản phẩm</th>
-                                    <th>Ngày tạo</th>
-                                    <th>Trạng thái</th>
-                                    <th>Thao tác</th>
-                                </tr>
+                            <tr>
+                                <th>
+                                    <button
+                                        type="button"
+                                        className="th-sort"
+                                        onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+                                        title="Bấm để đổi chiều sắp xếp"
+                                    >
+                                        {codeLabel} {sortDir === "asc" ? "▲" : "▼"}
+                                    </button>
+                                </th>
+                                <th>{cap(singular)}</th>
+                                {extraField && <th>{extraField.column}</th>}
+                                <th>Mô tả</th>
+                                <th>Số sản phẩm</th>
+                                <th>Ngày tạo</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
                             </thead>
 
                             <tbody>
-                                {pageItems.map((item) => {
-                                    const active = isActive(item.trangThai);
-                                    const soSP = thongKe[item.id] || 0;
-                                    const busy = busyId === item.id;
-                                    return (
-                                        <tr key={item.id}>
-                                            <td>
-                                                <strong>{item[codeField] || "-"}</strong>
-                                            </td>
+                            {pageItems.map((item) => {
+                                const active = isActive(item.trangThai);
+                                const soSP = thongKe[item.id] || 0;
+                                const busy = busyId === item.id;
+                                return (
+                                    <tr key={item.id}>
+                                        <td>
+                                            <strong>{item[codeField] || "-"}</strong>
+                                        </td>
 
-                                            <td>
-                                                <div className="product-name">{item[nameField]}</div>
-                                                <small>ID: {item.id}</small>
-                                            </td>
+                                        <td>
+                                            <div className="product-name">{item[nameField]}</div>
+                                            <small>ID: {item.id}</small>
+                                        </td>
 
-                                            {extraField && <td>{item[extraField.key] || "-"}</td>}
+                                        {extraField && <td>{item[extraField.key] || "-"}</td>}
 
-                                            <td className="cell-desc" title={item.moTa || ""}>
-                                                {item.moTa || "-"}
-                                            </td>
+                                        <td className="cell-desc" title={item.moTa || ""}>
+                                            {item.moTa || "-"}
+                                        </td>
 
-                                            <td>{soSP}</td>
-                                            <td>{formatNgay(item.ngayTao)}</td>
+                                        <td>{soSP}</td>
+                                        <td>{formatNgay(item.ngayTao)}</td>
 
-                                            <td>
+                                        <td>
                                                 <span className={active ? "status active" : "status inactive"}>
                                                     {active ? "Hoạt động" : "Ngừng hoạt động"}
                                                 </span>
-                                            </td>
+                                        </td>
 
-                                            <td>
-                                                <div className="action-buttons">
+                                        <td>
+                                            <div className="action-buttons">
+                                                <button
+                                                    type="button"
+                                                    className="btn-edit"
+                                                    disabled={busy}
+                                                    onClick={() => openEdit(item)}
+                                                >
+                                                    Sửa
+                                                </button>
+
+                                                {active ? (
                                                     <button
                                                         type="button"
-                                                        className="btn-edit"
+                                                        className="btn-pause"
                                                         disabled={busy}
-                                                        onClick={() => openEdit(item)}
+                                                        onClick={() => handleNgung(item)}
                                                     >
-                                                        Sửa
+                                                        Ngừng
                                                     </button>
-
-                                                    {active ? (
-                                                        <button
-                                                            type="button"
-                                                            className="btn-pause"
-                                                            disabled={busy}
-                                                            onClick={() => handleNgung(item)}
-                                                        >
-                                                            Ngừng
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            className="btn-activate"
-                                                            disabled={busy}
-                                                            onClick={() => handleKichHoat(item)}
-                                                        >
-                                                            Kích hoạt
-                                                        </button>
-                                                    )}
-
+                                                ) : (
                                                     <button
                                                         type="button"
-                                                        className="btn-delete"
-                                                        disabled={busy || soSP > 0}
-                                                        onClick={() => handleXoaVinhVien(item)}
-                                                        title={
-                                                            soSP > 0
-                                                                ? "Đang có sản phẩm nên không thể xóa vĩnh viễn"
-                                                                : "Xóa vĩnh viễn"
-                                                        }
+                                                        className="btn-activate"
+                                                        disabled={busy}
+                                                        onClick={() => handleKichHoat(item)}
                                                     >
-                                                        Xóa
+                                                        Kích hoạt
                                                     </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                                )}
+
+                                                <button
+                                                    type="button"
+                                                    className="btn-delete"
+                                                    disabled={busy || soSP > 0}
+                                                    onClick={() => handleXoaVinhVien(item)}
+                                                    title={
+                                                        soSP > 0
+                                                            ? "Đang có sản phẩm nên không thể xóa vĩnh viễn"
+                                                            : "Xóa vĩnh viễn"
+                                                    }
+                                                >
+                                                    Xóa
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                             </tbody>
                         </table>
 

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
 import "./AdminProducts.css";
 
@@ -600,13 +601,13 @@ function AdminProducts() {
                                                 String(category.id) === String(form.danhMucId)
                                             )
                                             .map((category) => (
-                                            <option
-                                                key={category.id}
-                                                value={category.id}
-                                            >
-                                                {category.tenDanhMuc}
-                                            </option>
-                                        ))}
+                                                <option
+                                                    key={category.id}
+                                                    value={category.id}
+                                                >
+                                                    {category.tenDanhMuc}
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
 
@@ -630,13 +631,13 @@ function AdminProducts() {
                                                 String(brand.id) === String(form.thuongHieuId)
                                             )
                                             .map((brand) => (
-                                            <option
-                                                key={brand.id}
-                                                value={brand.id}
-                                            >
-                                                {brand.tenThuongHieu}
-                                            </option>
-                                        ))}
+                                                <option
+                                                    key={brand.id}
+                                                    value={brand.id}
+                                                >
+                                                    {brand.tenThuongHieu}
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
 
@@ -832,59 +833,59 @@ function AdminProducts() {
 
                                     <table style={{ width: "100%", fontSize: 14 }}>
                                         <tbody>
-                                            <tr>
-                                                <td style={{ padding: "8px 0", color: "#888", width: 140 }}>
-                                                    Mã sản phẩm
-                                                </td>
-                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
-                                                    {selectedProduct.maSanPham || "—"}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style={{ padding: "8px 0", color: "#888" }}>
-                                                    Danh mục
-                                                </td>
-                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
-                                                    {selectedProduct.danhMuc?.tenDanhMuc || "—"}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style={{ padding: "8px 0", color: "#888" }}>
-                                                    Thương hiệu
-                                                </td>
-                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
-                                                    {selectedProduct.thuongHieu?.tenThuongHieu || "—"}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style={{ padding: "8px 0", color: "#888" }}>
-                                                    Xuất xứ
-                                                </td>
-                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
-                                                    {selectedProduct.xuatXu || "—"}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style={{ padding: "8px 0", color: "#888" }}>
-                                                    Chất liệu
-                                                </td>
-                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
-                                                    {selectedProduct.chatLieu || "—"}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style={{ padding: "8px 0", color: "#888" }}>
-                                                    Kiểu dáng
-                                                </td>
-                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
-                                                    {selectedProduct.kieuDang || "—"}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style={{ padding: "8px 0", color: "#888" }}>
-                                                    Trạng thái
-                                                </td>
-                                                <td style={{ padding: "8px 0" }}>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", color: "#888", width: 140 }}>
+                                                Mã sản phẩm
+                                            </td>
+                                            <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                {selectedProduct.maSanPham || "—"}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", color: "#888" }}>
+                                                Danh mục
+                                            </td>
+                                            <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                {selectedProduct.danhMuc?.tenDanhMuc || "—"}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", color: "#888" }}>
+                                                Thương hiệu
+                                            </td>
+                                            <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                {selectedProduct.thuongHieu?.tenThuongHieu || "—"}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", color: "#888" }}>
+                                                Xuất xứ
+                                            </td>
+                                            <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                {selectedProduct.xuatXu || "—"}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", color: "#888" }}>
+                                                Chất liệu
+                                            </td>
+                                            <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                {selectedProduct.chatLieu || "—"}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", color: "#888" }}>
+                                                Kiểu dáng
+                                            </td>
+                                            <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                {selectedProduct.kieuDang || "—"}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", color: "#888" }}>
+                                                Trạng thái
+                                            </td>
+                                            <td style={{ padding: "8px 0" }}>
                                                     <span
                                                         className={
                                                             selectedProduct.trangThai === "HOAT_DONG"
@@ -896,16 +897,16 @@ function AdminProducts() {
                                                             ? "Hoạt động"
                                                             : "Ngừng hoạt động"}
                                                     </span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style={{ padding: "8px 0", color: "#888" }}>
-                                                    Mô tả
-                                                </td>
-                                                <td style={{ padding: "8px 0" }}>
-                                                    {selectedProduct.moTa || "—"}
-                                                </td>
-                                            </tr>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: "8px 0", color: "#888" }}>
+                                                Mô tả
+                                            </td>
+                                            <td style={{ padding: "8px 0" }}>
+                                                {selectedProduct.moTa || "—"}
+                                            </td>
+                                        </tr>
                                         </tbody>
                                     </table>
                                 </div>

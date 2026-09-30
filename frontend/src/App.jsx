@@ -183,10 +183,6 @@ function App() {
 
     const [toast, setToast] = useState("");
 
-    useEffect(() => {
-        taiSanPham();
-    }, []);
-
     const taiGioHang = async (taiKhoanHienTai, danhSachSanPham = sanPhams) => {
         try {
             const khachHangId = taiKhoanHienTai?.khachHangId;
@@ -269,10 +265,6 @@ function App() {
             return;
         }
 
-        if (vaiTro === "KHACH_HANG") {
-            await taiGioHang(data, sanPhams);
-        }
-
         setPage("home");
     };
 
@@ -282,8 +274,14 @@ function App() {
             String(taiKhoan.vaiTro || "").toUpperCase() === "KHACH_HANG" &&
             sanPhams.length > 0
         ) {
+            // Đồng bộ giỏ hàng từ backend khi tài khoản hoặc danh sách sản phẩm thay đổi.
+            // Đây là side effect có chủ đích vì dữ liệu giỏ hàng nằm ở API.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             taiGioHang(taiKhoan, sanPhams);
         }
+        // taiGioHang là hàm được tạo lại theo mỗi render; chỉ tài khoản và sản phẩm
+        // mới là các điều kiện thực sự cần kích hoạt việc đồng bộ giỏ hàng.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [taiKhoan, sanPhams]);
 
     const dangXuat = () => {
@@ -350,6 +348,13 @@ function App() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        // Tải dữ liệu sản phẩm ban đầu từ API.
+        // setLoading/setSanPhams là state được cập nhật từ kết quả async của API.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        taiSanPham();
+    }, []);
 
     const showToast = (message) => {
         setToast(message);

@@ -1,10 +1,7 @@
-
-
 import { useEffect, useState } from "react";
 import "./AdminDashboard.css";
 import AdminProducts from "./AdminProducts";
 import AdminKho from "./AdminKho";
-import EmployeeDashboard from "./EmployeeDashboard";
 import AdminVoucher from "./AdminVoucher";
 import AdminKhuyenMai from "./AdminKhuyenMai";
 import AdminDanhMuc from "./AdminDanhMuc";
@@ -637,6 +634,7 @@ function HoaDonContent() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         taiHoaDon();
     }, []);
 
@@ -2029,6 +2027,7 @@ function ThanhToanContent() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         taiThanhToan();
     }, []);
 
@@ -2744,6 +2743,7 @@ function CustomerContent() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         taiKhachHang();
     }, []);
 
@@ -2995,6 +2995,7 @@ function EmployeeContent() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         taiNhanVien();
     }, []);
 
@@ -3016,6 +3017,10 @@ function EmployeeContent() {
             ...form,
             [e.target.name]: e.target.value
         });
+    };
+
+    const xemChiTiet = (item) => {
+        setSelected(item);
     };
 
     const moSua = (item) => {
