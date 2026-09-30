@@ -30,6 +30,8 @@ function AdminProducts() {
     const [error, setError] = useState("");
 
     const [showModal, setShowModal] = useState(false);
+    const [showDetail, setShowDetail] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState(null);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
@@ -126,6 +128,7 @@ function AdminProducts() {
     };
 
     const openEdit = (product) => {
+
         setEditingId(product.id);
 
         setForm({
@@ -142,6 +145,16 @@ function AdminProducts() {
         });
 
         setShowModal(true);
+    };
+
+    const openDetail = (sp) => {
+        setSelectedProduct(sp);
+        setShowDetail(true);
+    };
+
+    const closeDetail = () => {
+        setShowDetail(false);
+        setSelectedProduct(null);
     };
 
     const handleSubmit = async (e) => {
@@ -459,6 +472,14 @@ function AdminProducts() {
                                                 Xóa
                                             </button>
 
+                                            <button
+                                                type="button"
+                                                className="btn-edit"
+                                                onClick={() => openDetail(product)}
+                                                style={{ marginRight: 6, background: "#111", color: "#fff" }}
+                                            >
+                                                Xem
+                                            </button>
                                         </div>
                                     </td>
 
@@ -735,6 +756,188 @@ function AdminProducts() {
 
                         </form>
 
+                    </div>
+                </div>
+            )}
+
+            {/* ⭐ MODAL XEM CHI TIẾT SẢN PHẨM */}
+            {showDetail && selectedProduct && (
+                <div
+                    className="modal-overlay"
+                    onMouseDown={closeDetail}
+                >
+                    <div
+                        className="product-modal"
+                        onMouseDown={(e) => e.stopPropagation()}
+                    >
+                        <div className="modal-header">
+                            <div>
+                                <h2>Chi tiết sản phẩm</h2>
+                                <p>Thông tin chi tiết sản phẩm</p>
+                            </div>
+                            <button
+                                className="modal-close"
+                                onClick={closeDetail}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div style={{ padding: 24 }}>
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "220px 1fr",
+                                    gap: 24,
+                                }}
+                            >
+                                <img
+                                    src={
+                                        selectedProduct.hinhAnh ||
+                                        "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=400&q=80"
+                                    }
+                                    alt={selectedProduct.tenSanPham}
+                                    style={{
+                                        width: "100%",
+                                        borderRadius: 10,
+                                        border: "1px solid #eee",
+                                        objectFit: "cover",
+                                    }}
+                                />
+
+                                <div>
+                                    <div style={{ marginBottom: 16 }}>
+                                        <span
+                                            style={{
+                                                display: "inline-block",
+                                                padding: "4px 10px",
+                                                background: "#f3f4f6",
+                                                borderRadius: 6,
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                marginBottom: 8,
+                                            }}
+                                        >
+                                            ID: {selectedProduct.id}
+                                        </span>
+                                        <h3
+                                            style={{
+                                                margin: "6px 0",
+                                                fontSize: 20,
+                                            }}
+                                        >
+                                            {selectedProduct.tenSanPham}
+                                        </h3>
+                                    </div>
+
+                                    <table style={{ width: "100%", fontSize: 14 }}>
+                                        <tbody>
+                                            <tr>
+                                                <td style={{ padding: "8px 0", color: "#888", width: 140 }}>
+                                                    Mã sản phẩm
+                                                </td>
+                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                    {selectedProduct.maSanPham || "—"}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style={{ padding: "8px 0", color: "#888" }}>
+                                                    Danh mục
+                                                </td>
+                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                    {selectedProduct.danhMuc?.tenDanhMuc || "—"}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style={{ padding: "8px 0", color: "#888" }}>
+                                                    Thương hiệu
+                                                </td>
+                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                    {selectedProduct.thuongHieu?.tenThuongHieu || "—"}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style={{ padding: "8px 0", color: "#888" }}>
+                                                    Xuất xứ
+                                                </td>
+                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                    {selectedProduct.xuatXu || "—"}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style={{ padding: "8px 0", color: "#888" }}>
+                                                    Chất liệu
+                                                </td>
+                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                    {selectedProduct.chatLieu || "—"}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style={{ padding: "8px 0", color: "#888" }}>
+                                                    Kiểu dáng
+                                                </td>
+                                                <td style={{ padding: "8px 0", fontWeight: 600 }}>
+                                                    {selectedProduct.kieuDang || "—"}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style={{ padding: "8px 0", color: "#888" }}>
+                                                    Trạng thái
+                                                </td>
+                                                <td style={{ padding: "8px 0" }}>
+                                                    <span
+                                                        className={
+                                                            selectedProduct.trangThai === "HOAT_DONG"
+                                                                ? "status active"
+                                                                : "status inactive"
+                                                        }
+                                                    >
+                                                        {selectedProduct.trangThai === "HOAT_DONG"
+                                                            ? "Hoạt động"
+                                                            : "Ngừng hoạt động"}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style={{ padding: "8px 0", color: "#888" }}>
+                                                    Mô tả
+                                                </td>
+                                                <td style={{ padding: "8px 0" }}>
+                                                    {selectedProduct.moTa || "—"}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div
+                                style={{
+                                    marginTop: 24,
+                                    display: "flex",
+                                    justifyContent: "flex-end",
+                                    gap: 10,
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    className="btn-cancel"
+                                    onClick={() => {
+                                        closeDetail();
+                                        openEdit(selectedProduct);
+                                    }}
+                                >
+                                    Sửa sản phẩm
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={closeDetail}
+                                >
+                                    Đóng
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

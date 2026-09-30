@@ -3,6 +3,20 @@ import { useEffect, useRef, useState } from "react";
 const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_voucher_cache";
 const CACHE_TTL = 60 * 1000;
+// ⭐ Format số tiền có dấu chấm: 200000 → "200.000"
+function formatSoTienInput(value) {
+    if (!value) return "";
+    const num = String(value).replace(/\D/g, "");
+    if (!num) return "";
+    return Number(num).toLocaleString("vi-VN");
+}
+
+// ⭐ Bỏ dấu chấm: "200.000" → "200000"
+function parseSoTienInput(value) {
+    if (!value) return "";
+    return String(value).replace(/\./g, "");
+}
+
 
 const EMPTY_FORM = {
     maVoucher: "",
@@ -34,15 +48,13 @@ function formatDate(str) {
 
 function getTrangThaiClass(trangThai) {
     if (trangThai === "HOAT_DONG") return "active";
-    if (trangThai === "TAM_DUNG") return "paused";
-    if (trangThai === "KET_THUC") return "inactive";
+    if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
     return "";
 }
 
 function getTrangThaiLabel(trangThai) {
     if (trangThai === "HOAT_DONG") return "Hoạt động";
-    if (trangThai === "KET_THUC") return "Ngừng hoạt động";
-    if (trangThai === "TAM_DUNG") return "Tạm dừng";
+    if (trangThai === "NGUNG_HOAT_DONG") return "Ngừng hoạt động";
     return trangThai;
 }
 
@@ -339,10 +351,12 @@ export default function AdminVoucher() {
                     <table className="admin-table">
                         <thead>
                            <tr>
+                               <th>ID</th>
                                <th>Mã</th>
                                <th>Tên</th>
                                <th>Loại</th>
                                <th>Giá trị</th>
+                               <th>Giảm tối đa</th>
                                <th>Đơn tối thiểu</th>
                                <th>SL/ đã dùng</th>
                                <th>Bắt đầu</th>
@@ -383,10 +397,12 @@ export default function AdminVoucher() {
                     <table className="admin-table">
                         <thead>
                             <tr>
+                                <th>ID</th>
                                 <th>Mã</th>
                                 <th>Tên</th>
                                 <th>Loại</th>
                                 <th>Giá trị</th>
+                                <th>Giảm tối đa</th>
                                 <th>Đơn tối thiểu</th>
                                 <th>SL/ đã dùng</th>
                                 <th>Bắt đầu</th>
@@ -399,6 +415,9 @@ export default function AdminVoucher() {
                             {filtered.map((v) => (
                                 <tr key={v.id}>
                                     <td>
+                                        <strong>#{v.id}</strong>
+                                    </td>
+                                    <td>
                                         <strong>{v.maVoucher}</strong>
                                     </td>
                                     <td>{v.tenVoucher}</td>
@@ -407,11 +426,18 @@ export default function AdminVoucher() {
                                             ? "Phần trăm"
                                             : "Số tiền"}
                                     </td>
+
                                     <td>
                                         {v.loaiGiam === "PHAN_TRAM"
                                             ? `${v.giaTriGiam}%`
                                             : formatGia(v.giaTriGiam)}
                                     </td>
+                                    <td>
+                                        {v.giamToiDa
+                                            ? formatGia(v.giamToiDa)
+                                            : "—"}
+                                    </td>
+
                                     <td>{formatGia(v.donToiThieu)}</td>
                                    {/* ⭐ GỘP — SL / Đã dùng */}
                                    <td>
@@ -452,7 +478,7 @@ export default function AdminVoucher() {
                             ))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={10} className="admin-empty">
+                                    <td colSpan={12} className="admin-empty">
                                         Không có voucher nào
                                     </td>
                                 </tr>
@@ -514,6 +540,22 @@ export default function AdminVoucher() {
                                 gap: 14,
                             }}
                         >
+                        {/* ⭐ ID — chỉ hiển thị, không cho sửa */}
+                        {editing && (
+                            <Field label="ID">
+                                <input
+                                    className="price-input"
+                                    type="text"
+                                    value={editing.id || "tự động sinh "}
+                                    disabled
+                                    style={{
+                                        background: "#f5f5f5",
+                                        color: "#666",
+                                        cursor: "not-allowed",
+                                    }}
+                                />
+                            </Field>
+                        )}
                             <Field label="Mã voucher *">
                                 <input
                                     className="price-input"
@@ -568,29 +610,29 @@ export default function AdminVoucher() {
                                 />
                             </Field>
 
-                            <Field label="Giảm tối đa (đ)">
-                                <input
-                                    className="price-input"
-                                    type="number"
-                                    value={form.giamToiDa}
-                                    onChange={(e) =>
-                                        handleChange("giamToiDa", e.target.value)
-                                    }
-                                    placeholder="Chỉ áp dụng nếu giảm %"
-                                />
-                            </Field>
+                           <Field label="Giảm tối đa (đ)">
+                               <input
+                                   className="price-input"
+                                   type="text"
+                                   value={formatSoTienInput(form.giamToiDa)}
+                                   onChange={(e) =>
+                                       handleChange("giamToiDa", parseSoTienInput(e.target.value))
+                                   }
+                                   placeholder="VD: 200.000"
+                               />
+                           </Field>
 
-                            <Field label="Đơn tối thiểu (đ)">
-                                <input
-                                    className="price-input"
-                                    type="number"
-                                    value={form.donToiThieu}
-                                    onChange={(e) =>
-                                        handleChange("donToiThieu", e.target.value)
-                                    }
-                                    placeholder="VD: 500000"
-                                />
-                            </Field>
+                         <Field label="Đơn tối thiểu (đ)">
+                             <input
+                                 className="price-input"
+                                 type="text"
+                                 value={formatSoTienInput(form.donToiThieu)}
+                                 onChange={(e) =>
+                                     handleChange("donToiThieu", parseSoTienInput(e.target.value))
+                                 }
+                                 placeholder="VD: 500.000"
+                             />
+                         </Field>
 
                             <Field label="Số lượng *">
                                 <input
@@ -637,8 +679,6 @@ export default function AdminVoucher() {
                                     <option value="NGUNG_HOAT_DONG">
                                         Ngừng hoạt động
                                     </option>
-                                    <option value="TAM_DUNG">Tạm dừng</option>
-                                    <option value="KET_THUC">Kết thúc</option>
                                 </select>
                             </Field>
                         </div>

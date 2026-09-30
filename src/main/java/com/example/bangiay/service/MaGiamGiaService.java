@@ -226,7 +226,7 @@ public class MaGiamGiaService {
                     && v.getNgayKetThuc() != null
                     && now.isAfter(v.getNgayKetThuc())) {
 
-                v.setTrangThai("KET_THUC");
+                v.setTrangThai("NGUNG_HOAT_DONG");
                 maGiamGiaRepository.save(v);
             }
         }

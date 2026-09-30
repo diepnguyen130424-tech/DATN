@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./AdminProducts.css";
-import "./CatalogCrud.css";
+ import "./CatalogCrud.css";
 
 const API = "http://localhost:8080/api";
 const CACHE_TTL = 60 * 1000;
