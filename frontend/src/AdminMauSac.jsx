@@ -30,11 +30,39 @@ function hienThiTrangThai(trangThai) {
         trangThai === "ACTIVE" ||
         trangThai === "HOAT_DONG"
     ) {
-        return "Hoạt động";
+        return (
+            <span
+                style={{
+                    display: "inline-block",
+                    padding: "7px 16px",
+                    borderRadius: "999px",
+                    background: "#dcfce7",
+                    color: "#2f9e63",
+                    fontSize: "15px",
+                    fontWeight: 500
+                }}
+            >
+                Hoạt động
+            </span>
+        );
     }
 
     if (trangThai === "NGUNG_HOAT_DONG") {
-        return "Ngừng hoạt động";
+        return (
+            <span
+                style={{
+                    display: "inline-block",
+                    padding: "7px 16px",
+                    borderRadius: "999px",
+                    background: "#fde8e8",
+                    color: "#c73f32",
+                    fontSize: "15px",
+                    fontWeight: 500
+                }}
+            >
+                Ngừng hoạt động
+            </span>
+        );
     }
 
     return trangThai || "-";
@@ -70,15 +98,11 @@ function AdminMauSac() {
         taiDuLieu();
     }, []);
 
-    const danhSach = items.filter((item) => {
-        if (item.trangThai === "NGUNG_HOAT_DONG") {
-            return false;
-        }
-
-        return `${item.tenMau} ${item.maMau || ""} ${item.trangThai}`
+    const danhSach = items.filter((item) =>
+        `${item.tenMau} ${item.maMau || ""} ${item.trangThai}`
             .toLowerCase()
-            .includes(search.toLowerCase());
-    });
+            .includes(search.toLowerCase())
+    );
     const moThem = () => {
         setEditing(null);
         setForm({

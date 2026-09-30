@@ -19,7 +19,8 @@ public class MauSacService {
 
     public MauSac getById(Long id) {
         return mauSacRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy màu sắc"));
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy màu sắc"));
     }
 
     public MauSac save(MauSac mauSac) {
@@ -31,11 +32,10 @@ public class MauSacService {
     }
 
     public void delete(Long id) {
-        MauSac mauSac = getById(id);
+        if (!mauSacRepository.existsById(id)) {
+            throw new RuntimeException("Không tìm thấy màu sắc");
+        }
 
-        // Không xóa cứng vì màu sắc có thể đang được SPCT sử dụng
-        mauSac.setTrangThai("NGUNG_HOAT_DONG");
-
-        mauSacRepository.save(mauSac);
+        mauSacRepository.deleteById(id);
     }
 }
