@@ -25,7 +25,7 @@ public class ThuongHieuService {
     private final SanPhamRepository sanPhamRepository;
 
     public List<ThuongHieu> getAll() {
-        return thuongHieuRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
+        return thuongHieuRepository.findAll(Sort.by(Sort.Direction.ASC, "maThuongHieu"));
     }
 
     public ThuongHieu getById(Long id) {
@@ -48,6 +48,7 @@ public class ThuongHieuService {
         kiemTraTrungTen(ten, null);
 
         ThuongHieu thuongHieu = ThuongHieu.builder()
+                .maThuongHieu(taoMaMoi())
                 .tenThuongHieu(ten)
                 .quocGiaThuongHieu(chuanHoaChuoi(input.getQuocGiaThuongHieu(), 100, "Quốc gia"))
                 .moTa(chuanHoaChuoi(input.getMoTa(), Integer.MAX_VALUE, "Mô tả"))
@@ -102,6 +103,13 @@ public class ThuongHieuService {
     }
 
     // ---------- helpers ----------
+
+    /** Sinh mã kế tiếp: TH001, TH002, ... (không dùng lại mã đã xóa). */
+    private String taoMaMoi() {
+        Integer max = thuongHieuRepository.maxSoMa();
+        int next = (max == null ? 0 : max) + 1;
+        return String.format("TH%03d", next);
+    }
 
     private String chuanHoaTen(String ten) {
         if (ten == null || ten.trim().isEmpty()) {

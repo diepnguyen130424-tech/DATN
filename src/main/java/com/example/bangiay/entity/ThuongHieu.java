@@ -18,6 +18,10 @@ public class ThuongHieu {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Mã tự sinh dạng TH001, TH002... */
+    @Column(name = "ma_thuong_hieu", nullable = false, unique = true, length = 20)
+    private String maThuongHieu;
+
     @Column(name = "ten_thuong_hieu", nullable = false, unique = true)
     private String tenThuongHieu;
 

@@ -3,6 +3,9 @@ import CatalogCrud from "./CatalogCrud";
 const CONFIG = {
     endpoint: "danh-muc",
     nameField: "tenDanhMuc",
+    codeField: "maDanhMuc",
+    codeLabel: "Mã danh mục",
+    breadcrumb: "Danh mục",
     title: "Danh mục sản phẩm",
     subtitle: "Quản lý các danh mục dùng để phân loại sản phẩm trong cửa hàng.",
     singular: "danh mục",

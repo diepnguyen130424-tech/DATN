@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import "./AdminProducts.css";
+import "./CatalogCrud.css";
 
 const API = "http://localhost:8080/api";
 const CACHE_TTL = 60 * 1000;
@@ -62,6 +64,7 @@ export default function CatalogCrud({ config }) {
     const {
         endpoint,
         nameField,
+        codeField,
         title,
         subtitle,
         singular,
@@ -69,6 +72,8 @@ export default function CatalogCrud({ config }) {
         namePlaceholder,
         descPlaceholder,
         extraField,
+        breadcrumb,
+        codeLabel = "Mã",
     } = config;
 
     const cache = useMemo(() => makeCache(`admin_${endpoint}_cache`), [endpoint]);
@@ -97,6 +102,7 @@ export default function CatalogCrud({ config }) {
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
     const [page, setPage] = useState(1);
+    const [sortDir, setSortDir] = useState("asc"); // sắp xếp theo mã
 
     const [toast, setToast] = useState(null);
     const [busyId, setBusyId] = useState(null);
@@ -390,6 +396,7 @@ export default function CatalogCrud({ config }) {
         return danhSach.filter((x) => {
             const matchKw =
                 !kw ||
+                String(x[codeField] || "").toLowerCase().includes(kw) ||
                 String(x[nameField] || "").toLowerCase().includes(kw) ||
                 String(x.moTa || "").toLowerCase().includes(kw) ||
                 (extraField && String(x[extraField.key] || "").toLowerCase().includes(kw));
@@ -400,412 +407,368 @@ export default function CatalogCrud({ config }) {
 
             return matchKw && matchTT;
         });
-    }, [danhSach, search, filterTrangThai, nameField, extraField]);
+    }, [danhSach, search, filterTrangThai, nameField, codeField, extraField]);
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const sorted = useMemo(() => {
+        const list = [...filtered].sort((a, b) =>
+            String(a[codeField] || "").localeCompare(String(b[codeField] || ""), "vi", {
+                numeric: true,
+            })
+        );
+        return sortDir === "asc" ? list : list.reverse();
+    }, [filtered, codeField, sortDir]);
+
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
     const currentPage = Math.min(page, totalPages);
-    const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    const pageItems = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
     const tongSo = danhSach.length;
     const soHoatDong = danhSach.filter((x) => isActive(x.trangThai)).length;
     const soNgung = tongSo - soHoatDong;
-    const soExtra = extraField
-        ? new Set(danhSach.map((x) => x[extraField.key]).filter(Boolean)).size
-        : 0;
 
-    const colCount = extraField ? 7 : 6;
+    const resetFilter = () => {
+        setSearch("");
+        setFilterTrangThai("TAT_CA");
+        setSortDir("asc");
+    };
+
+    const colCount = extraField ? 9 : 8;
     const showSkeleton = loading && danhSach.length === 0;
 
+    const hasFilter = search.trim() !== "" || filterTrangThai !== "TAT_CA";
+
     return (
-        <div className="admin-catalog">
-            <div className="admin-page-heading">
+        <div className="admin-products admin-catalog">
+            {/* HEADER */}
+            <div className="products-header">
                 <div>
-                    <div className="admin-eyebrow">FSHOP ADMIN</div>
+                    <div className="products-breadcrumb">Quản lý / {breadcrumb || title}</div>
                     <h1>{title}</h1>
                     <p>{subtitle}</p>
                 </div>
-                <button
-                    type="button"
-                    className="admin-date-button"
-                    onClick={openCreate}
-                    style={{ background: "#111", color: "#fff", border: "none" }}
-                >
-                    <span>+</span>
-                    Thêm {singular}
+
+                <button type="button" className="btn-primary" onClick={openCreate}>
+                    + Thêm {singular}
                 </button>
             </div>
 
-            <div className="admin-stats" style={{ marginBottom: 18 }}>
-                <StatCard icon={icon} value={tongSo} label={`Tổng ${singular}`} />
-                <StatCard icon="✓" value={soHoatDong} label="Đang hoạt động" />
-                <StatCard icon="⏸" value={soNgung} label="Ngừng hoạt động" />
-                {extraField && (
-                    <StatCard icon="◎" value={soExtra} label={extraField.statLabel} />
-                )}
-            </div>
+            {/* FILTER */}
+            <div className="products-filter catalog-filter">
+                <div className="filter-search">
+                    <span>🔍</span>
+                    <input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder={`Tìm theo mã, tên${extraField ? ", " + extraField.column.toLowerCase() : ""} hoặc mô tả...`}
+                    />
+                </div>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
-                <input
-                    className="price-input"
-                    placeholder={`Tìm theo tên${extraField ? ", " + extraField.column.toLowerCase() : ""} hoặc mô tả...`}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    style={{ flex: 1, minWidth: 220 }}
-                />
-                <select
-                    className="price-input"
-                    value={filterTrangThai}
-                    onChange={(e) => setFilterTrangThai(e.target.value)}
-                    style={{ width: 200 }}
-                >
+                <select value={filterTrangThai} onChange={(e) => setFilterTrangThai(e.target.value)}>
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="HOAT_DONG">Hoạt động</option>
                     <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
                 </select>
+
+                <button type="button" className="btn-reset" onClick={resetFilter}>
+                    Đặt lại
+                </button>
             </div>
 
-            {showSkeleton && (
-                <div className="admin-table-scroll">
-                    <table className="admin-table">
-                        <thead>
-                            <HeaderRow extraField={extraField} nameLabel={cap(singular)} />
-                        </thead>
-                        <tbody>
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <tr key={i}>
-                                    {Array.from({ length: colCount }).map((_, j) => (
-                                        <td key={j}>
-                                            <div
-                                                style={{
-                                                    height: 14,
-                                                    background:
-                                                        "linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)",
-                                                    backgroundSize: "200% 100%",
-                                                    animation: "catalogShimmer 1.4s infinite",
-                                                    borderRadius: 4,
-                                                }}
-                                            />
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    <style>{`@keyframes catalogShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+            {/* LIST */}
+            <div className="products-card">
+                <div className="products-card-header">
+                    <div>
+                        <strong>Danh sách {singular}</strong>
+                        <span>
+                            {sorted.length} {singular}
+                            {hasFilter ? ` (tổng ${tongSo})` : ""} · {soHoatDong} hoạt động · {soNgung} ngừng
+                        </span>
+                    </div>
                 </div>
-            )}
 
-            {!showSkeleton && error && danhSach.length === 0 && (
-                <div
-                    style={{
-                        textAlign: "center",
-                        padding: "40px 20px",
-                        background: "#fdecea",
-                        borderRadius: 12,
-                        maxWidth: 520,
-                        margin: "20px auto",
-                    }}
-                >
-                    <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
-                    <h3 style={{ margin: "0 0 8px", color: "#c0392b" }}>Không tải được dữ liệu</h3>
-                    <p style={{ color: "#666", margin: "0 0 20px", fontSize: 14 }}>{error}</p>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            cache.clear();
-                            load();
-                        }}
-                        style={btn("#e53935", "#fff")}
-                    >
-                        Thử lại
-                    </button>
-                </div>
-            )}
+                {showSkeleton && <div className="products-loading">Đang tải {singular}...</div>}
 
-            {!showSkeleton && danhSach.length > 0 && (
-                <>
-                    <div className="admin-table-scroll">
-                        <table className="admin-table">
+                {!showSkeleton && error && danhSach.length === 0 && (
+                    <div className="products-error">
+                        <p style={{ margin: "0 0 14px" }}>{error}</p>
+                        <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => {
+                                cache.clear();
+                                load();
+                            }}
+                        >
+                            Thử lại
+                        </button>
+                    </div>
+                )}
+
+                {!showSkeleton && !(error && danhSach.length === 0) && (
+                    <div className="table-wrapper">
+                        <table className="products-table">
                             <thead>
-                                <HeaderRow extraField={extraField} nameLabel={cap(singular)} />
+                                <tr>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            className="th-sort"
+                                            onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+                                            title="Bấm để đổi chiều sắp xếp"
+                                        >
+                                            {codeLabel} {sortDir === "asc" ? "▲" : "▼"}
+                                        </button>
+                                    </th>
+                                    <th>{cap(singular)}</th>
+                                    {extraField && <th>{extraField.column}</th>}
+                                    <th>Mô tả</th>
+                                    <th>Số sản phẩm</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Trạng thái</th>
+                                    <th>Thao tác</th>
+                                </tr>
                             </thead>
+
                             <tbody>
                                 {pageItems.map((item) => {
                                     const active = isActive(item.trangThai);
                                     const soSP = thongKe[item.id] || 0;
                                     const busy = busyId === item.id;
                                     return (
-                                        <tr key={item.id} style={{ opacity: active ? 1 : 0.65 }}>
+                                        <tr key={item.id}>
                                             <td>
-                                                <strong>{item[nameField]}</strong>
+                                                <strong>{item[codeField] || "-"}</strong>
                                             </td>
-                                            {extraField && <td>{item[extraField.key] || "—"}</td>}
-                                            <td
-                                                style={{
-                                                    maxWidth: 280,
-                                                    color: "#666",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    whiteSpace: "nowrap",
-                                                }}
-                                                title={item.moTa || ""}
-                                            >
-                                                {item.moTa || "—"}
+
+                                            <td>
+                                                <div className="product-name">{item[nameField]}</div>
+                                                <small>ID: {item.id}</small>
                                             </td>
+
+                                            {extraField && <td>{item[extraField.key] || "-"}</td>}
+
+                                            <td className="cell-desc" title={item.moTa || ""}>
+                                                {item.moTa || "-"}
+                                            </td>
+
                                             <td>{soSP}</td>
                                             <td>{formatNgay(item.ngayTao)}</td>
+
                                             <td>
-                                                <span className={`order-status ${active ? "Đã-giao" : ""}`}>
+                                                <span className={active ? "status active" : "status inactive"}>
                                                     {active ? "Hoạt động" : "Ngừng hoạt động"}
                                                 </span>
                                             </td>
-                                            <td style={{ whiteSpace: "nowrap" }}>
-                                                <button
-                                                    type="button"
-                                                    disabled={busy}
-                                                    onClick={() => openEdit(item)}
-                                                    style={smallBtn("#fff", "#111", "#ddd")}
-                                                >
-                                                    Sửa
-                                                </button>
-                                                {active ? (
+
+                                            <td>
+                                                <div className="action-buttons">
                                                     <button
                                                         type="button"
+                                                        className="btn-edit"
                                                         disabled={busy}
-                                                        onClick={() => handleNgung(item)}
-                                                        style={smallBtn("#fff7e6", "#b26a00", "#ffe1a8")}
+                                                        onClick={() => openEdit(item)}
                                                     >
-                                                        Ngừng
+                                                        Sửa
                                                     </button>
-                                                ) : (
+
+                                                    {active ? (
+                                                        <button
+                                                            type="button"
+                                                            className="btn-pause"
+                                                            disabled={busy}
+                                                            onClick={() => handleNgung(item)}
+                                                        >
+                                                            Ngừng
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="btn-activate"
+                                                            disabled={busy}
+                                                            onClick={() => handleKichHoat(item)}
+                                                        >
+                                                            Kích hoạt
+                                                        </button>
+                                                    )}
+
                                                     <button
                                                         type="button"
-                                                        disabled={busy}
-                                                        onClick={() => handleKichHoat(item)}
-                                                        style={smallBtn("#eafaf0", "#1e8449", "#bfe8cf")}
+                                                        className="btn-delete"
+                                                        disabled={busy || soSP > 0}
+                                                        onClick={() => handleXoaVinhVien(item)}
+                                                        title={
+                                                            soSP > 0
+                                                                ? "Đang có sản phẩm nên không thể xóa vĩnh viễn"
+                                                                : "Xóa vĩnh viễn"
+                                                        }
                                                     >
-                                                        Kích hoạt
+                                                        Xóa
                                                     </button>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    disabled={busy}
-                                                    onClick={() => handleXoaVinhVien(item)}
-                                                    title={
-                                                        soSP > 0
-                                                            ? "Đang có sản phẩm nên không thể xóa vĩnh viễn"
-                                                            : "Xóa vĩnh viễn"
-                                                    }
-                                                    style={{
-                                                        ...smallBtn("#fdecea", "#c0392b", "#fdd"),
-                                                        opacity: soSP > 0 || busy ? 0.5 : 1,
-                                                        marginRight: 0,
-                                                    }}
-                                                >
-                                                    Xóa
-                                                </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
                                 })}
-                                {filtered.length === 0 && (
-                                    <tr>
-                                        <td
-                                            colSpan={colCount}
-                                            style={{ textAlign: "center", padding: 30, color: "#888" }}
-                                        >
-                                            Không tìm thấy {singular} nào
-                                        </td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
-                    </div>
 
-                    {filtered.length > PAGE_SIZE && (
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                marginTop: 14,
-                                fontSize: 13,
-                                color: "#666",
-                            }}
-                        >
-                            <span>
-                                Hiển thị {(currentPage - 1) * PAGE_SIZE + 1}–
-                                {Math.min(currentPage * PAGE_SIZE, filtered.length)} / {filtered.length}
-                            </span>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                <button
-                                    type="button"
-                                    disabled={currentPage <= 1}
-                                    onClick={() => setPage(currentPage - 1)}
-                                    style={{ ...smallBtn("#fff", "#111", "#ddd"), opacity: currentPage <= 1 ? 0.4 : 1, marginRight: 0 }}
-                                >
-                                    ‹ Trước
-                                </button>
-                                <span>
-                                    Trang {currentPage}/{totalPages}
-                                </span>
-                                <button
-                                    type="button"
-                                    disabled={currentPage >= totalPages}
-                                    onClick={() => setPage(currentPage + 1)}
-                                    style={{ ...smallBtn("#fff", "#111", "#ddd"), opacity: currentPage >= totalPages ? 0.4 : 1, marginRight: 0 }}
-                                >
-                                    Sau ›
-                                </button>
+                        {sorted.length === 0 && (
+                            <div className="empty-products">
+                                <div>{icon}</div>
+                                <h3>Không tìm thấy {singular}</h3>
+                                <p>Hãy thử thay đổi bộ lọc hoặc thêm {singular} mới.</p>
                             </div>
-                        </div>
-                    )}
-                </>
-            )}
+                        )}
+                    </div>
+                )}
 
-            {!showSkeleton && !error && danhSach.length === 0 && (
-                <div style={{ textAlign: "center", padding: "60px 20px", color: "#888" }}>
-                    <div style={{ fontSize: 44, marginBottom: 12 }}>{icon}</div>
-                    <p style={{ marginBottom: 20 }}>Chưa có {singular} nào.</p>
-                    <button type="button" onClick={openCreate} style={btn("#111", "#fff")}>
-                        + Thêm {singular} đầu tiên
-                    </button>
-                </div>
-            )}
+                {sorted.length > PAGE_SIZE && (
+                    <div className="catalog-pagination">
+                        <span>
+                            Hiển thị {(currentPage - 1) * PAGE_SIZE + 1}–
+                            {Math.min(currentPage * PAGE_SIZE, sorted.length)} / {sorted.length}
+                        </span>
+                        <div>
+                            <button
+                                type="button"
+                                className="btn-reset"
+                                disabled={currentPage <= 1}
+                                onClick={() => setPage(currentPage - 1)}
+                            >
+                                ‹ Trước
+                            </button>
+                            <span>
+                                Trang {currentPage}/{totalPages}
+                            </span>
+                            <button
+                                type="button"
+                                className="btn-reset"
+                                disabled={currentPage >= totalPages}
+                                onClick={() => setPage(currentPage + 1)}
+                            >
+                                Sau ›
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {toast && (
-                <div
-                    role="status"
-                    style={{
-                        position: "fixed",
-                        right: 24,
-                        bottom: 24,
-                        zIndex: 200,
-                        maxWidth: 380,
-                        padding: "12px 18px",
-                        borderRadius: 10,
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#fff",
-                        background: toast.type === "err" ? "#c0392b" : "#1e8449",
-                        boxShadow: "0 8px 24px rgba(0,0,0,.2)",
-                    }}
-                >
+                <div role="status" className={`catalog-toast ${toast.type === "err" ? "err" : "ok"}`}>
                     {toast.message}
                 </div>
             )}
 
+            {/* MODAL */}
             {showModal && (
-                <div
-                    onClick={closeModal}
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 100,
-                        padding: 20,
-                    }}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: "#fff",
-                            borderRadius: 12,
-                            padding: 28,
-                            width: "100%",
-                            maxWidth: 480,
-                            maxHeight: "90vh",
-                            overflowY: "auto",
-                        }}
-                    >
-                        <h2 style={{ marginTop: 0 }}>
-                            {editing ? `Sửa ${singular}` : `Thêm ${singular}`}
-                        </h2>
-
-                        {formError && (
-                            <div
-                                style={{
-                                    background: "#fdecea",
-                                    color: "#c0392b",
-                                    padding: "10px 14px",
-                                    borderRadius: 8,
-                                    marginBottom: 16,
-                                    fontSize: 13,
-                                }}
-                            >
-                                {formError}
+                <div className="modal-overlay" onClick={closeModal}>
+                    <div className="product-modal catalog-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <div>
+                                <h2>{editing ? `Sửa ${singular}` : `Thêm ${singular}`}</h2>
+                                <p>
+                                    {editing
+                                        ? `Cập nhật thông tin ${singular}. Mã không thể thay đổi.`
+                                        : `Mã ${singular} được tạo tự động khi lưu.`}
+                                </p>
                             </div>
-                        )}
+                            <button type="button" className="modal-close" onClick={closeModal}>
+                                ×
+                            </button>
+                        </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                            <Field label={`Tên ${singular} *`}>
-                                <input
-                                    className="price-input"
-                                    autoFocus
-                                    maxLength={150}
-                                    value={form[nameField]}
-                                    onChange={(e) => handleChange(nameField, e.target.value)}
-                                    placeholder={namePlaceholder}
-                                    onKeyDown={(e) => e.key === "Enter" && handleSave()}
-                                />
-                            </Field>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                handleSave();
+                            }}
+                        >
+                            {formError && <div className="catalog-form-error">{formError}</div>}
 
-                            {extraField && (
-                                <Field label={extraField.label}>
+                            <div className="form-grid">
+                                <div className="form-group">
+                                    <label>{codeLabel}</label>
                                     <input
-                                        className="price-input"
-                                        maxLength={100}
-                                        value={form[extraField.key]}
-                                        onChange={(e) => handleChange(extraField.key, e.target.value)}
-                                        placeholder={extraField.placeholder}
+                                        readOnly
+                                        className="input-readonly"
+                                        value={editing ? editing[codeField] || "" : ""}
+                                        placeholder="Tự động tạo"
                                     />
-                                </Field>
-                            )}
+                                </div>
 
-                            <Field label="Mô tả">
-                                <textarea
-                                    className="price-input"
-                                    rows={3}
-                                    value={form.moTa}
-                                    onChange={(e) => handleChange("moTa", e.target.value)}
-                                    placeholder={descPlaceholder}
-                                    style={{ resize: "vertical", fontFamily: "inherit" }}
-                                />
-                            </Field>
+                                <div className="form-group">
+                                    <label>Ngày tạo</label>
+                                    <input
+                                        readOnly
+                                        className="input-readonly"
+                                        value={editing ? formatNgay(editing.ngayTao) : ""}
+                                        placeholder="Tự động tạo"
+                                    />
+                                </div>
 
-                            <Field label="Trạng thái">
-                                <select
-                                    className="price-input"
-                                    value={form.trangThai}
-                                    onChange={(e) => handleChange("trangThai", e.target.value)}
-                                >
-                                    <option value="HOAT_DONG">Hoạt động</option>
-                                    <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
-                                </select>
-                            </Field>
-                        </div>
+                                <div className={`form-group ${extraField ? "" : "full"}`}>
+                                    <label>{`Tên ${singular} *`}</label>
+                                    <input
+                                        autoFocus
+                                        maxLength={150}
+                                        value={form[nameField]}
+                                        onChange={(e) => handleChange(nameField, e.target.value)}
+                                        placeholder={namePlaceholder}
+                                    />
+                                </div>
 
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
-                            <button
-                                type="button"
-                                onClick={closeModal}
-                                disabled={saving}
-                                style={btn("#fff", "#111", "1px solid #ddd")}
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleSave}
-                                disabled={saving}
-                                style={{ ...btn("#111", "#fff"), opacity: saving ? 0.7 : 1 }}
-                            >
-                                {saving ? "Đang lưu..." : editing ? "Cập nhật" : "Tạo mới"}
-                            </button>
-                        </div>
+                                {extraField && (
+                                    <div className="form-group">
+                                        <label>{extraField.column}</label>
+                                        <input
+                                            maxLength={100}
+                                            value={form[extraField.key]}
+                                            onChange={(e) => handleChange(extraField.key, e.target.value)}
+                                            placeholder={extraField.placeholder}
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="form-group">
+                                    <label>Trạng thái</label>
+                                    <select
+                                        value={form.trangThai}
+                                        onChange={(e) => handleChange("trangThai", e.target.value)}
+                                    >
+                                        <option value="HOAT_DONG">Hoạt động</option>
+                                        <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Số sản phẩm</label>
+                                    <input
+                                        readOnly
+                                        className="input-readonly"
+                                        value={editing ? thongKe[editing.id] || 0 : 0}
+                                    />
+                                </div>
+
+                                <div className="form-group full">
+                                    <label>Mô tả</label>
+                                    <textarea
+                                        rows={3}
+                                        value={form.moTa}
+                                        onChange={(e) => handleChange("moTa", e.target.value)}
+                                        placeholder={descPlaceholder}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="modal-footer">
+                                <button type="button" className="btn-cancel" onClick={closeModal} disabled={saving}>
+                                    Hủy
+                                </button>
+                                <button type="submit" className="btn-primary" disabled={saving}>
+                                    {saving ? "Đang lưu..." : editing ? "Cập nhật" : "Tạo mới"}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
@@ -815,60 +778,3 @@ export default function CatalogCrud({ config }) {
 
 // ---------- small pieces ----------
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-
-const btn = (bg, color, border = "none") => ({
-    padding: "10px 20px",
-    border,
-    borderRadius: 8,
-    background: bg,
-    color,
-    cursor: "pointer",
-    fontWeight: 700,
-});
-
-const smallBtn = (bg, color, borderColor) => ({
-    marginRight: 6,
-    padding: "6px 10px",
-    border: `1px solid ${borderColor}`,
-    borderRadius: 6,
-    cursor: "pointer",
-    background: bg,
-    color,
-});
-
-function HeaderRow({ extraField, nameLabel }) {
-    return (
-        <tr>
-            <th>{nameLabel}</th>
-            {extraField && <th>{extraField.column}</th>}
-            <th>Mô tả</th>
-            <th>Số sản phẩm</th>
-            <th>Ngày tạo</th>
-            <th>Trạng thái</th>
-            <th></th>
-        </tr>
-    );
-}
-
-function StatCard({ icon, value, label }) {
-    return (
-        <div className="admin-stat-card">
-            <div className="admin-stat-top">
-                <div className="admin-stat-icon">{icon}</div>
-            </div>
-            <div className="admin-stat-value">{value}</div>
-            <div className="admin-stat-label">{label}</div>
-        </div>
-    );
-}
-
-function Field({ label, children }) {
-    return (
-        <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                {label}
-            </label>
-            {children}
-        </div>
-    );
-}

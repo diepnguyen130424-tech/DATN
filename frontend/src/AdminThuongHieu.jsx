@@ -3,6 +3,9 @@ import CatalogCrud from "./CatalogCrud";
 const CONFIG = {
     endpoint: "thuong-hieu",
     nameField: "tenThuongHieu",
+    codeField: "maThuongHieu",
+    codeLabel: "Mã thương hiệu",
+    breadcrumb: "Thương hiệu",
     title: "Thương hiệu",
     subtitle: "Quản lý các thương hiệu giày đang kinh doanh tại cửa hàng.",
     singular: "thương hiệu",

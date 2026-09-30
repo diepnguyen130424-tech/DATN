@@ -18,6 +18,10 @@ public class DanhMuc {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Mã tự sinh dạng DM001, DM002... */
+    @Column(name = "ma_danh_muc", nullable = false, unique = true, length = 20)
+    private String maDanhMuc;
+
     @Column(name = "ten_danh_muc", nullable = false, unique = true)
     private String tenDanhMuc;
 

@@ -25,7 +25,7 @@ public class DanhMucService {
     private final SanPhamRepository sanPhamRepository;
 
     public List<DanhMuc> getAll() {
-        return danhMucRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
+        return danhMucRepository.findAll(Sort.by(Sort.Direction.ASC, "maDanhMuc"));
     }
 
     public DanhMuc getById(Long id) {
@@ -48,6 +48,7 @@ public class DanhMucService {
         kiemTraTrungTen(ten, null);
 
         DanhMuc danhMuc = DanhMuc.builder()
+                .maDanhMuc(taoMaMoi())
                 .tenDanhMuc(ten)
                 .moTa(chuanHoaMoTa(input.getMoTa()))
                 .trangThai(chuanHoaTrangThai(input.getTrangThai()))
@@ -99,6 +100,13 @@ public class DanhMucService {
     }
 
     // ---------- helpers ----------
+
+    /** Sinh mã kế tiếp: DM001, DM002, ... (không dùng lại mã đã xóa). */
+    private String taoMaMoi() {
+        Integer max = danhMucRepository.maxSoMa();
+        int next = (max == null ? 0 : max) + 1;
+        return String.format("DM%03d", next);
+    }
 
     private String chuanHoaTen(String ten) {
         if (ten == null || ten.trim().isEmpty()) {
