@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
 import "./App.css";
 import "./Auth.css";
@@ -6,6 +7,7 @@ import EmployeeDashboard from "./EmployeeDashboard";
 import Login from "./Login";
 import Register from "./Register";
 import KhuyenMai from "./KhuyenMai";
+import AIDoSize from "./ai/AIDoSize";
 
 const API = "http://localhost:8080/api";
 
@@ -195,532 +197,506 @@ function App() {
 
             const gioHangResponse = await fetch(
                 `${API}/gio-hang/khach-hang/${khachHangId}/lay-hoac-tao`
-            );
+);
 
-            if (!gioHangResponse.ok) {
-                throw new Error("Không lấy được giỏ hàng");
-            }
+if (!gioHangResponse.ok) {
+    throw new Error("Không lấy được giỏ hàng");
+}
 
-            const gioHangData = await gioHangResponse.json();
-            setGioHangId(gioHangData.id);
+const gioHangData = await gioHangResponse.json();
+setGioHangId(gioHangData.id);
 
-            const detailResponse = await fetch(
-                `${API}/gio-hang/${gioHangData.id}/chi-tiet`
-            );
+const detailResponse = await fetch(
+    `${API}/gio-hang/${gioHangData.id}/chi-tiet`
+);
 
-            if (!detailResponse.ok) {
-                throw new Error("Không lấy được chi tiết giỏ hàng");
-            }
+if (!detailResponse.ok) {
+    throw new Error("Không lấy được chi tiết giỏ hàng");
+}
 
-            const details = await detailResponse.json();
+const details = await detailResponse.json();
 
-            if (!Array.isArray(details)) {
-                setGioHang([]);
-                return gioHangData.id;
-            }
+if (!Array.isArray(details)) {
+    setGioHang([]);
+    return gioHangData.id;
+}
 
-            const cartFrontend = details
-                .map((detail) => {
-                    const spct = detail?.sanPhamChiTiet;
-                    const sanPham =
-                        danhSachSanPham.find(
-                            (sp) => sp.id === spct?.sanPham?.id
-                        ) ||
-                        spct?.sanPham ||
-                        null;
+const cartFrontend = details
+    .map((detail) => {
+        const spct = detail?.sanPhamChiTiet;
+        const sanPham =
+            danhSachSanPham.find(
+                (sp) => sp.id === spct?.sanPham?.id
+            ) ||
+            spct?.sanPham ||
+            null;
 
-                    return {
-                        id: detail.id,
-                        variantId: spct?.id,
-                        sanPham,
-                        chiTiet: spct,
-                        soLuong: detail.soLuong,
-                    };
-                })
-                .filter((item) => item.variantId && item.sanPham);
+        return {
+            id: detail.id,
+            variantId: spct?.id,
+            sanPham,
+            chiTiet: spct,
+            soLuong: detail.soLuong,
+        };
+    })
+    .filter((item) => item.variantId && item.sanPham);
 
-            setGioHang(cartFrontend);
-            return gioHangData.id;
-        } catch (error) {
-            console.error("Lỗi tải giỏ hàng:", error);
-            setGioHang([]);
-            setGioHangId(null);
-            return null;
+setGioHang(cartFrontend);
+return gioHangData.id;
+} catch (error) {
+    console.error("Lỗi tải giỏ hàng:", error);
+    setGioHang([]);
+    setGioHangId(null);
+    return null;
+}
+};
+
+const xuLyDangNhapThanhCong = async (data) => {
+    const vaiTro = String(data?.vaiTro || "").toUpperCase();
+
+    setTaiKhoan(data);
+    localStorage.setItem("taiKhoan", JSON.stringify(data));
+
+    if (vaiTro === "QUAN_TRI") {
+        setPage("admin");
+        return;
+    }
+
+    if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN_VIÊN") {
+        setPage("employee");
+        return;
+    }
+
+    setPage("home");
+};
+
+useEffect(() => {
+    if (
+        taiKhoan &&
+        String(taiKhoan.vaiTro || "").toUpperCase() === "KHACH_HANG" &&
+        sanPhams.length > 0
+    ) {
+        taiGioHang(taiKhoan, sanPhams);
+    }
+}, [taiKhoan, sanPhams]);
+
+const dangXuat = () => {
+    localStorage.removeItem("taiKhoan");
+    setTaiKhoan(null);
+    setGioHang([]);
+    setPage("home");
+};
+
+const taiSanPham = async () => {
+    try {
+        setLoading(true);
+
+        const response = await fetch(`${API}/san-pham`);
+
+        if (!response.ok) {
+            throw new Error("Không thể lấy danh sách sản phẩm");
         }
-    };
 
-    const xuLyDangNhapThanhCong = async (data) => {
-        const vaiTro = String(data?.vaiTro || "").toUpperCase();
+        const data = await response.json();
 
-        setTaiKhoan(data);
-        localStorage.setItem("taiKhoan", JSON.stringify(data));
+        const danhSach = Array.isArray(data) ? data : [];
 
-        if (vaiTro === "QUAN_TRI") {
-            setPage("admin");
-            return;
-        }
+        const sanPhamCoGia = await Promise.all(
+            danhSach.map(async (sanPham) => {
+                try {
+                    const detailResponse = await fetch(
+                        `${API}/san-pham/${sanPham.id}/chi-tiet`
+                    );
 
-        if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN_VIÊN") {
-            setPage("employee");
-            return;
-        }
-
-        setPage("home");
-    };
-
-    useEffect(() => {
-        if (
-            taiKhoan &&
-            String(taiKhoan.vaiTro || "").toUpperCase() === "KHACH_HANG" &&
-            sanPhams.length > 0
-        ) {
-            // Đồng bộ giỏ hàng từ backend khi tài khoản hoặc danh sách sản phẩm thay đổi.
-            // Đây là side effect có chủ đích vì dữ liệu giỏ hàng nằm ở API.
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            taiGioHang(taiKhoan, sanPhams);
-        }
-        // taiGioHang là hàm được tạo lại theo mỗi render; chỉ tài khoản và sản phẩm
-        // mới là các điều kiện thực sự cần kích hoạt việc đồng bộ giỏ hàng.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [taiKhoan, sanPhams]);
-
-    const dangXuat = () => {
-        localStorage.removeItem("taiKhoan");
-        setTaiKhoan(null);
-        setGioHang([]);
-        setPage("home");
-    };
-
-    const taiSanPham = async () => {
-        try {
-            setLoading(true);
-
-            const response = await fetch(`${API}/san-pham`);
-
-            if (!response.ok) {
-                throw new Error("Không thể lấy danh sách sản phẩm");
-            }
-
-            const data = await response.json();
-
-            const danhSach = Array.isArray(data) ? data : [];
-
-            const sanPhamCoGia = await Promise.all(
-                danhSach.map(async (sanPham) => {
-                    try {
-                        const detailResponse = await fetch(
-                            `${API}/san-pham/${sanPham.id}/chi-tiet`
-                        );
-
-                        if (!detailResponse.ok) {
-                            return {
-                                ...sanPham,
-                                chiTiets: [],
-                                giaBan: null,
-                            };
-                        }
-
-                        const details = await detailResponse.json();
-
-                        return {
-                            ...sanPham,
-                            chiTiets: Array.isArray(details) ? details : [],
-                            giaBan:
-                                Array.isArray(details) && details.length > 0
-                                    ? details[0].giaBan
-                                    : null,
-                        };
-                    } catch {
+                    if (!detailResponse.ok) {
                         return {
                             ...sanPham,
                             chiTiets: [],
                             giaBan: null,
                         };
                     }
-                })
-            );
 
-            setSanPhams(sanPhamCoGia);
-        } catch (error) {
-            console.error(error);
-            setSanPhams([]);
-        } finally {
-            setLoading(false);
-        }
-    };
+                    const details = await detailResponse.json();
 
-    useEffect(() => {
-        // Tải dữ liệu sản phẩm ban đầu từ API.
-        // setLoading/setSanPhams là state được cập nhật từ kết quả async của API.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        taiSanPham();
-    }, []);
-
-    const showToast = (message) => {
-        setToast(message);
-
-        setTimeout(() => {
-            setToast("");
-        }, 2000);
-    };
-
-    const xemSanPham = async (sanPham) => {
-        try {
-            const response = await fetch(
-                `${API}/san-pham/${sanPham.id}/chi-tiet`
-            );
-
-            let chiTiets = [];
-
-            if (response.ok) {
-                const data = await response.json();
-                chiTiets = Array.isArray(data) ? data : [];
-            }
-
-            setSelectedProduct({
-                ...sanPham,
-                chiTiets,
-            });
-
-            setPage("detail");
-
-            window.scrollTo({
-                top: 0,
-                behavior: "smooth",
-            });
-        } catch (error) {
-            console.error(error);
-
-            setSelectedProduct({
-                ...sanPham,
-                chiTiets: sanPham.chiTiets || [],
-            });
-
-            setPage("detail");
-        }
-    };
-
-    const themVaoGio = async (sanPham, chiTiet = null, soLuong = 1) => {
-        if (!taiKhoan) {
-            setPage("login");
-            return false;
-        }
-
-        if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") {
-            alert("Chỉ khách hàng mới có thể thêm sản phẩm vào giỏ");
-            return false;
-        }
-
-        if (!chiTiet?.id) {
-            alert("Sản phẩm chưa có biến thể để mua");
-            return false;
-        }
-
-        const variantId = chiTiet.id;
-        const tonKho = Number(chiTiet.soLuongTon ?? 0);
-
-        if (tonKho <= 0) {
-            alert("Sản phẩm đã hết hàng");
-            return false;
-        }
-
-        let currentGioHangId = gioHangId;
-
-        if (!currentGioHangId) {
-            currentGioHangId = await taiGioHang(taiKhoan, sanPhams);
-        }
-
-        if (!currentGioHangId) {
-            alert("Không thể khởi tạo giỏ hàng");
-            return false;
-        }
-
-        const soLuongThem = Math.max(1, Number(soLuong) || 1);
-        const existing = gioHang.find(
-            (item) => item.variantId === variantId
+                    return {
+                        ...sanPham,
+                        chiTiets: Array.isArray(details) ? details : [],
+                        giaBan:
+                            Array.isArray(details) && details.length > 0
+                                ? details[0].giaBan
+                                : null,
+                    };
+                } catch {
+                    return {
+                        ...sanPham,
+                        chiTiets: [],
+                        giaBan: null,
+                    };
+                }
+            })
         );
 
-        try {
-            if (existing) {
-                const soLuongMoi = existing.soLuong + soLuongThem;
+        setSanPhams(sanPhamCoGia);
+    } catch (error) {
+        console.error(error);
+        setSanPhams([]);
+    } finally {
+        setLoading(false);
+    }
+};
 
-                if (soLuongMoi > tonKho) {
-                    alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
-                    return false;
-                }
+useEffect(() => {
+    taiSanPham();
+}, []);
 
-                const response = await fetch(
-                    `${API}/gio-hang/chi-tiet/${existing.id}`,
-                    {
-                        method: "PUT",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            gioHang: { id: currentGioHangId },
-                            sanPhamChiTiet: { id: variantId },
-                            soLuong: soLuongMoi,
-                        }),
-                    }
-                );
+const showToast = (message) => {
+    setToast(message);
 
-                if (!response.ok) {
-                    const text = await response.text();
-                    throw new Error(text || "Không thể cập nhật giỏ hàng");
-                }
+    setTimeout(() => {
+        setToast("");
+    }, 2000);
+};
 
-                setGioHang((oldCart) =>
-                    oldCart.map((item) =>
-                        item.variantId === variantId
-                            ? { ...item, soLuong: soLuongMoi }
-                            : item
-                    )
-                );
+const xemSanPham = async (sanPham) => {
+    try {
+        const response = await fetch(
+            `${API}/san-pham/${sanPham.id}/chi-tiet`
+        );
 
-                showToast("Đã cập nhật số lượng");
-                return true;
+        let chiTiets = [];
+
+        if (response.ok) {
+            const data = await response.json();
+            chiTiets = Array.isArray(data) ? data : [];
+        }
+
+        setSelectedProduct({
+            ...sanPham,
+            chiTiets,
+        });
+
+        setPage("detail");
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    } catch (error) {
+        console.error(error);
+
+        setSelectedProduct({
+            ...sanPham,
+            chiTiets: sanPham.chiTiets || [],
+        });
+
+        setPage("detail");
+    }
+};
+
+const themVaoGio = async (sanPham, chiTiet = null, soLuong = 1) => {
+    if (!taiKhoan) {
+        setPage("login");
+        return false;
+    }
+
+    if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") {
+        alert("Chỉ khách hàng mới có thể thêm sản phẩm vào giỏ");
+        return false;
+    }
+
+    if (!chiTiet?.id) {
+        alert("Sản phẩm chưa có biến thể để mua");
+        return false;
+    }
+
+    const variantId = chiTiet.id;
+    const tonKho = Number(chiTiet.soLuongTon ?? 0);
+
+    if (tonKho <= 0) {
+        alert("Sản phẩm đã hết hàng");
+        return false;
+    }
+
+    let currentGioHangId = gioHangId;
+
+    if (!currentGioHangId) {
+        currentGioHangId = await taiGioHang(taiKhoan, sanPhams);
+    }
+
+    if (!currentGioHangId) {
+        alert("Không thể khởi tạo giỏ hàng");
+        return false;
+    }
+
+    const soLuongThem = Math.max(1, Number(soLuong) || 1);
+    const existing = gioHang.find(
+        (item) => item.variantId === variantId
+    );
+
+    try {
+        if (existing) {
+            const soLuongMoi = existing.soLuong + soLuongThem;
+
+            if (soLuongMoi > tonKho) {
+                alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
+                return false;
             }
 
-            const soLuongMoi = Math.min(soLuongThem, tonKho);
+            const response = await fetch(
+                `${API}/gio-hang/chi-tiet/${existing.id}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        gioHang: { id: currentGioHangId },
+                        sanPhamChiTiet: { id: variantId },
+                        soLuong: soLuongMoi,
+                    }),
+                }
+            );
 
-            const response = await fetch(`${API}/gio-hang/chi-tiet`, {
-                method: "POST",
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || "Không thể cập nhật giỏ hàng");
+            }
+
+            setGioHang((oldCart) =>
+                oldCart.map((item) =>
+                    item.variantId === variantId
+                        ? { ...item, soLuong: soLuongMoi }
+                        : item
+                )
+            );
+
+            showToast("Đã cập nhật số lượng");
+            return true;
+        }
+
+        const soLuongMoi = Math.min(soLuongThem, tonKho);
+
+        const response = await fetch(`${API}/gio-hang/chi-tiet`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                gioHang: { id: currentGioHangId },
+                sanPhamChiTiet: { id: variantId },
+                soLuong: soLuongMoi,
+            }),
+        });
+
+        const text = await response.text();
+        let data = null;
+
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch {
+            data = null;
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data?.message ||
+                data?.error ||
+                text ||
+                "Không thể thêm sản phẩm vào giỏ"
+            );
+        }
+
+        setGioHang((oldCart) => [
+            ...oldCart,
+            {
+                id: data.id,
+                variantId,
+                sanPham,
+                chiTiet: data.sanPhamChiTiet || chiTiet,
+                soLuong: data.soLuong,
+            },
+        ]);
+
+        showToast("Đã thêm sản phẩm vào giỏ hàng");
+        return true;
+    } catch (error) {
+        console.error("Lỗi thêm sản phẩm vào giỏ:", error);
+        alert(error.message || "Không thể thêm sản phẩm vào giỏ");
+        return false;
+    }
+};
+
+const tangSoLuong = async (variantId) => {
+    const item = gioHang.find(
+        (item) => item.variantId === variantId
+    );
+
+    if (!item) return;
+
+    const tonKho = Number(item.chiTiet?.soLuongTon ?? 0);
+    const soLuongMoi = item.soLuong + 1;
+
+    if (tonKho > 0 && soLuongMoi > tonKho) {
+        alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API}/gio-hang/chi-tiet/${item.id}`,
+            {
+                method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    gioHang: { id: currentGioHangId },
+                    gioHang: { id: gioHangId },
                     sanPhamChiTiet: { id: variantId },
                     soLuong: soLuongMoi,
                 }),
-            });
+            }
+        );
 
+        if (!response.ok) {
             const text = await response.text();
-            let data = null;
-
-            try {
-                data = text ? JSON.parse(text) : null;
-            } catch {
-                data = null;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data?.message ||
-                    data?.error ||
-                    text ||
-                    "Không thể thêm sản phẩm vào giỏ"
-                );
-            }
-
-            setGioHang((oldCart) => [
-                ...oldCart,
-                {
-                    id: data.id,
-                    variantId,
-                    sanPham,
-                    chiTiet: data.sanPhamChiTiet || chiTiet,
-                    soLuong: data.soLuong,
-                },
-            ]);
-
-            showToast("Đã thêm sản phẩm vào giỏ hàng");
-            return true;
-        } catch (error) {
-            console.error("Lỗi thêm sản phẩm vào giỏ:", error);
-            alert(error.message || "Không thể thêm sản phẩm vào giỏ");
-            return false;
+            throw new Error(text || "Không thể tăng số lượng");
         }
-    };
 
-    const tangSoLuong = async (variantId) => {
-        const item = gioHang.find(
-            (item) => item.variantId === variantId
+        setGioHang((oldCart) =>
+            oldCart.map((cartItem) =>
+                cartItem.variantId === variantId
+                    ? { ...cartItem, soLuong: soLuongMoi }
+                    : cartItem
+            )
         );
+    } catch (error) {
+        console.error("Lỗi tăng số lượng:", error);
+        alert(error.message || "Không thể tăng số lượng");
+    }
+};
 
-        if (!item) return;
-
-        const tonKho = Number(item.chiTiet?.soLuongTon ?? 0);
-        const soLuongMoi = item.soLuong + 1;
-
-        if (tonKho > 0 && soLuongMoi > tonKho) {
-            alert(`Sản phẩm chỉ còn ${tonKho} sản phẩm trong kho`);
-            return;
-        }
-
-        try {
-            const response = await fetch(
-                `${API}/gio-hang/chi-tiet/${item.id}`,
-                {
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        gioHang: { id: gioHangId },
-                        sanPhamChiTiet: { id: variantId },
-                        soLuong: soLuongMoi,
-                    }),
-                }
-            );
-
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(text || "Không thể tăng số lượng");
-            }
-
-            setGioHang((oldCart) =>
-                oldCart.map((cartItem) =>
-                    cartItem.variantId === variantId
-                        ? { ...cartItem, soLuong: soLuongMoi }
-                        : cartItem
-                )
-            );
-        } catch (error) {
-            console.error("Lỗi tăng số lượng:", error);
-            alert(error.message || "Không thể tăng số lượng");
-        }
-    };
-
-    const giamSoLuong = async (variantId) => {
-        const item = gioHang.find(
-            (item) => item.variantId === variantId
-        );
-
-        if (!item) return;
-
-        if (item.soLuong <= 1) {
-            await xoaKhoiGio(variantId);
-            return;
-        }
-
-        const soLuongMoi = item.soLuong - 1;
-
-        try {
-            const response = await fetch(
-                `${API}/gio-hang/chi-tiet/${item.id}`,
-                {
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        gioHang: { id: gioHangId },
-                        sanPhamChiTiet: { id: variantId },
-                        soLuong: soLuongMoi,
-                    }),
-                }
-            );
-
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(text || "Không thể giảm số lượng");
-            }
-
-            setGioHang((oldCart) =>
-                oldCart.map((cartItem) =>
-                    cartItem.variantId === variantId
-                        ? { ...cartItem, soLuong: soLuongMoi }
-                        : cartItem
-                )
-            );
-        } catch (error) {
-            console.error("Lỗi giảm số lượng:", error);
-            alert(error.message || "Không thể giảm số lượng");
-        }
-    };
-
-    const xoaKhoiGio = async (variantId) => {
-        const item = gioHang.find(
-            (item) => item.variantId === variantId
-        );
-
-        if (!item) return;
-
-        try {
-            const response = await fetch(
-                `${API}/gio-hang/chi-tiet/${item.id}`,
-                { method: "DELETE" }
-            );
-
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(text || "Không thể xóa sản phẩm khỏi giỏ");
-            }
-
-            setGioHang((oldCart) =>
-                oldCart.filter(
-                    (cartItem) => cartItem.variantId !== variantId
-                )
-            );
-
-            showToast("Đã xóa sản phẩm khỏi giỏ");
-        } catch (error) {
-            console.error("Lỗi xóa sản phẩm khỏi giỏ:", error);
-            alert(error.message || "Không thể xóa sản phẩm khỏi giỏ");
-        }
-    };
-
-    const tongSoLuong = gioHang.reduce(
-        (total, item) => total + item.soLuong,
-        0
+const giamSoLuong = async (variantId) => {
+    const item = gioHang.find(
+        (item) => item.variantId === variantId
     );
 
-    const tongTien = gioHang.reduce((total, item) => {
-        const gia =
-            item.chiTiet?.giaBan ||
-            item.sanPham?.giaBan ||
-            0;
+    if (!item) return;
 
-        return total + Number(gia) * item.soLuong;
-    }, 0);
-
-    if (page === "admin") {
-        const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
-
-        if (vaiTro === "QUAN_TRI") {
-            return <AdminDashboard dangXuat={dangXuat} />;
-        }
-
-        if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN_VIÊN") {
-            return (
-                <EmployeeDashboard
-                    taiKhoan={taiKhoan}
-                    dangXuat={dangXuat}
-                    onBackToShop={() => setPage("home")}
-                />
-            );
-        }
-
-        return (
-            <Login
-                setPage={setPage}
-                onLoginSuccess={xuLyDangNhapThanhCong}
-            />
-        );
+    if (item.soLuong <= 1) {
+        await xoaKhoiGio(variantId);
+        return;
     }
 
-    if (page === "employee") {
-        const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
+    const soLuongMoi = item.soLuong - 1;
 
-        if (vaiTro !== "NHAN_VIEN" && vaiTro !== "NHÂN_VIÊN") {
-            return (
-                <Login
-                    setPage={setPage}
-                    onLoginSuccess={xuLyDangNhapThanhCong}
-                />
-            );
+    try {
+        const response = await fetch(
+            `${API}/gio-hang/chi-tiet/${item.id}`,
+            {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    gioHang: { id: gioHangId },
+                    sanPhamChiTiet: { id: variantId },
+                    soLuong: soLuongMoi,
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || "Không thể giảm số lượng");
         }
 
+        setGioHang((oldCart) =>
+            oldCart.map((cartItem) =>
+                cartItem.variantId === variantId
+                    ? { ...cartItem, soLuong: soLuongMoi }
+                    : cartItem
+            )
+        );
+    } catch (error) {
+        console.error("Lỗi giảm số lượng:", error);
+        alert(error.message || "Không thể giảm số lượng");
+    }
+};
+
+const xoaKhoiGio = async (variantId) => {
+    const item = gioHang.find(
+        (item) => item.variantId === variantId
+    );
+
+    if (!item) return;
+
+    try {
+        const response = await fetch(
+            `${API}/gio-hang/chi-tiet/${item.id}`,
+            { method: "DELETE" }
+        );
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || "Không thể xóa sản phẩm khỏi giỏ");
+        }
+
+        setGioHang((oldCart) =>
+            oldCart.filter(
+                (cartItem) => cartItem.variantId !== variantId
+            )
+        );
+
+        showToast("Đã xóa sản phẩm khỏi giỏ");
+    } catch (error) {
+        console.error("Lỗi xóa sản phẩm khỏi giỏ:", error);
+        alert(error.message || "Không thể xóa sản phẩm khỏi giỏ");
+    }
+};
+
+const tongSoLuong = gioHang.reduce(
+    (total, item) => total + item.soLuong,
+    0
+);
+
+const tongTien = gioHang.reduce((total, item) => {
+    const gia =
+        item.chiTiet?.giaBan ||
+        item.sanPham?.giaBan ||
+        0;
+
+    return total + Number(gia) * item.soLuong;
+}, 0);
+
+if (page === "admin") {
+    const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
+
+    if (vaiTro === "QUAN_TRI") {
+        return <AdminDashboard dangXuat={dangXuat} />;
+    }
+
+    if (vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN_VIÊN") {
         return (
             <EmployeeDashboard
                 taiKhoan={taiKhoan}
                 dangXuat={dangXuat}
+                onBackToShop={() => setPage("home")}
             />
         );
     }
 
-    if (page === "login") {
+    return (
+        <Login
+            setPage={setPage}
+            onLoginSuccess={xuLyDangNhapThanhCong}
+        />
+    );
+}
+
+if (page === "employee") {
+    const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
+
+    if (vaiTro !== "NHAN_VIEN" && vaiTro !== "NHÂN_VIÊN") {
         return (
             <Login
                 setPage={setPage}
@@ -729,87 +705,104 @@ function App() {
         );
     }
 
-    if (page === "register") {
-        return <Register setPage={setPage} />;
-    }
-
     return (
-        <div className="fshop">
+        <EmployeeDashboard
+            taiKhoan={taiKhoan}
+            dangXuat={dangXuat}
+        />
+    );
+}
 
-            <Header
-                page={page}
+if (page === "login") {
+    return (
+        <Login
+            setPage={setPage}
+            onLoginSuccess={xuLyDangNhapThanhCong}
+        />
+    );
+}
+
+if (page === "register") {
+    return <Register setPage={setPage} />;
+}
+
+return (
+    <div className="fshop">
+
+        <Header
+            page={page}
+            setPage={setPage}
+            search={search}
+            setSearch={setSearch}
+            tongSoLuong={tongSoLuong}
+            taiKhoan={taiKhoan}
+            dangXuat={dangXuat}
+        />
+
+        {page === "home" && (
+            <Home
+                sanPhams={sanPhams}
+                loading={loading}
+                xemSanPham={xemSanPham}
+                themVaoGio={themVaoGio}
                 setPage={setPage}
+            />
+        )}
+
+        {page === "products" && (
+            <ProductList
+                sanPhams={sanPhams}
+                loading={loading}
                 search={search}
                 setSearch={setSearch}
-                tongSoLuong={tongSoLuong}
-                taiKhoan={taiKhoan}
-                dangXuat={dangXuat}
+                xemSanPham={xemSanPham}
+                themVaoGio={themVaoGio}
             />
+        )}
 
-            {page === "home" && (
-                <Home
-                    sanPhams={sanPhams}
-                    loading={loading}
-                    xemSanPham={xemSanPham}
-                    themVaoGio={themVaoGio}
-                    setPage={setPage}
-                />
-            )}
+        {page === "detail" && selectedProduct && (
+            <ProductDetail
+                sanPham={selectedProduct}
+                themVaoGio={themVaoGio}
+                setPage={setPage}
+            />
+        )}
 
-            {page === "products" && (
-                <ProductList
-                    sanPhams={sanPhams}
-                    loading={loading}
-                    search={search}
-                    setSearch={setSearch}
-                    xemSanPham={xemSanPham}
-                    themVaoGio={themVaoGio}
-                />
-            )}
+        {page === "cart" && (
+            <Cart
+                gioHang={gioHang}
+                tongTien={tongTien}
+                tangSoLuong={tangSoLuong}
+                giamSoLuong={giamSoLuong}
+                xoaKhoiGio={xoaKhoiGio}
+                setPage={setPage}
+                taiKhoan={taiKhoan}
+            />
+        )}
+        {page === "khuyen-mai" && (
+            <KhuyenMai setPage={setPage} />
+        )}
 
-            {page === "detail" && selectedProduct && (
-                <ProductDetail
-                    sanPham={selectedProduct}
-                    themVaoGio={themVaoGio}
-                    setPage={setPage}
-                />
-            )}
+        {page === "checkout" && (
+            <Checkout
+                gioHang={gioHang}
+                gioHangId={gioHangId}
+                tongTien={tongTien}
+                setPage={setPage}
+                setGioHang={setGioHang}
+            />
+        )}
 
-            {page === "cart" && (
-                <Cart
-                    gioHang={gioHang}
-                    tongTien={tongTien}
-                    tangSoLuong={tangSoLuong}
-                    giamSoLuong={giamSoLuong}
-                    xoaKhoiGio={xoaKhoiGio}
-                    setPage={setPage}
-                    taiKhoan={taiKhoan}
-                />
-            )}
-            {page === "khuyen-mai" && (
-                <KhuyenMai setPage={setPage} />
-            )}
+        <Footer />
 
-            {page === "checkout" && (
-                <Checkout
-                    gioHang={gioHang}
-                    gioHangId={gioHangId}
-                    tongTien={tongTien}
-                    setPage={setPage}
-                    setGioHang={setGioHang}
-                />
-            )}
-
-            <Footer />
-
-            {toast && (
-                <div className="toast">
-                    <span>✓</span>
-                    {toast}
-                </div>
-            )}
-        </div>
-    );
+        {toast && (
+            <div className="toast">
+                <span>✓</span>
+                {toast}
+            </div>
+        )}
+    </div>
+);
 }
 
 function Header({
@@ -1329,9 +1322,6 @@ function ProductCard({
 
     const normalize = (value) =>
         String(value || "").trim().toLowerCase();
-
-    // Khi đang lọc màu/size, card phải lấy đúng biến thể
-    // tương ứng thay vì luôn lấy chiTiet đầu tiên.
     const variant =
         chiTiets.find((item) => {
             const mau = normalize(item?.mauSac?.tenMau);
@@ -1941,6 +1931,7 @@ function ProductDetail({
     );
 
     const [soLuong, setSoLuong] = useState(1);
+    const [showAIDoSize, setShowAIDoSize] = useState(false);
 
     const [anh, setAnh] = useState(
         layAnhTheoMau(sanPham, firstVariant?.mauSac?.tenMau || "")
@@ -2042,429 +2033,465 @@ function ProductDetail({
     };
 
     return (
-        <main className="detail-page">
-            <div className="container">
+        <>
+            <main className="detail-page">
+                <div className="container">
 
-                <div className="breadcrumb">
-                    Trang chủ / Sản phẩm / {sanPham.tenSanPham}
-                </div>
-
-                <div className="detail-layout">
-
-                    {/* ================= IMAGE ================= */}
-                    <div className="detail-gallery">
-
-                        <div className="detail-main-image">
-                            <img
-                                src={anh}
-                                alt={sanPham.tenSanPham}
-                            />
-
-                            <span className="detail-sale">
-                                -20%
-                            </span>
-                        </div>
-
-                        <div
-                            className="detail-thumbnails"
-                            style={{
-                                display: "flex",
-                                gap: "8px",
-                                alignItems: "center",
-                                flexWrap: "nowrap",
-                            }}
-                        >
-                            {/* ẢNH MÀU ĐEN */}
-                            <button
-                                type="button"
-                                className={
-                                    selectedColor?.toLowerCase().includes("đen") ||
-                                    selectedColor?.toLowerCase().includes("den") ||
-                                    selectedColor?.toLowerCase().includes("black")
-                                        ? "thumbnail active"
-                                        : "thumbnail"
-                                }
-                                title="Xem màu đen"
-                                onClick={() => {
-                                    const colorDen = chiTiets.find((item) => {
-                                        const color = String(item.mauSac?.tenMau || "").toLowerCase();
-                                        return color.includes("đen") || color.includes("den") || color.includes("black");
-                                    })?.mauSac?.tenMau || "Đen";
-
-                                    setSelectedColor(colorDen);
-                                    setAnh(layAnhTheoMau(sanPham, colorDen));
-                                }}
-                            >
-                                <img
-                                    src={layAnhTheoMau(sanPham, "Đen")}
-                                    alt={`${sanPham.tenSanPham} màu đen`}
-                                />
-                            </button>
-
-                            {/* ẢNH MÀU TRẮNG */}
-                            <button
-                                type="button"
-                                className={
-                                    selectedColor?.toLowerCase().includes("trắng") ||
-                                    selectedColor?.toLowerCase().includes("trang") ||
-                                    selectedColor?.toLowerCase().includes("white")
-                                        ? "thumbnail active"
-                                        : "thumbnail"
-                                }
-                                title="Xem màu trắng"
-                                onClick={() => {
-                                    const colorTrang = chiTiets.find((item) => {
-                                        const color = String(item.mauSac?.tenMau || "").toLowerCase();
-                                        return color.includes("trắng") || color.includes("trang") || color.includes("white");
-                                    })?.mauSac?.tenMau || "Trắng";
-
-                                    setSelectedColor(colorTrang);
-                                    setAnh(layAnhTheoMau(sanPham, colorTrang));
-                                }}
-                            >
-                                <img
-                                    src={layAnhTheoMau(sanPham, "Trắng")}
-                                    alt={`${sanPham.tenSanPham} màu trắng`}
-                                />
-                            </button>
-                        </div>
+                    <div className="breadcrumb">
+                        Trang chủ / Sản phẩm / {sanPham.tenSanPham}
                     </div>
 
-                    {/* ================= INFO ================= */}
-                    <div className="detail-info">
+                    <div className="detail-layout">
 
-                        <div className="detail-brand">
-                            {sanPham.thuongHieu?.tenThuongHieu || "FSHOP"}
-                        </div>
+                        {/* ================= IMAGE ================= */}
+                        <div className="detail-gallery">
 
-                        <h1>{sanPham.tenSanPham}</h1>
+                            <div className="detail-main-image">
+                                <img
+                                    src={anh}
+                                    alt={sanPham.tenSanPham}
+                                />
 
-                        <div className="detail-rating">
-                            <span>★</span>
-                            4.8
-                            <span className="rating-count">
-                                (126 đánh giá)
+                                <span className="detail-sale">
+                                -20%
                             </span>
-                        </div>
-
-                        <div className="detail-price">
-                            {formatGia(gia)}
-                        </div>
-
-                        <div className="detail-old-price">
-                            {gia
-                                ? formatGia(Number(gia) * 1.2)
-                                : ""}
-                        </div>
-
-                        <div className="detail-line"></div>
-
-                        {/* ================= SIZE ================= */}
-                        {sizes.length > 0 && (
-                            <div className="option-group">
-
-                                <div className="option-title">
-                                    Kích thước
-                                    <span>
-                                        {selectedSize || "Chọn size"}
-                                    </span>
-                                </div>
-
-                                <div className="size-list">
-
-                                    {sizes.map((size) => {
-                                        const active =
-                                            selectedSize === size;
-
-                                        const disabled =
-                                            !sizeCoTheChon(size);
-
-                                        return (
-                                            <button
-                                                key={size}
-                                                type="button"
-                                                disabled={disabled}
-                                                className={
-                                                    active
-                                                        ? "size-button selected"
-                                                        : "size-button"
-                                                }
-                                                style={{
-                                                    opacity: disabled ? 0.4 : 1,
-                                                    cursor: disabled
-                                                        ? "not-allowed"
-                                                        : "pointer",
-                                                }}
-                                                onClick={() =>
-                                                    chonSize(size)
-                                                }
-                                            >
-                                                {size}
-                                            </button>
-                                        );
-                                    })}
-
-                                </div>
                             </div>
-                        )}
 
-                        {/* ================= MÀU ================= */}
-                        {colors.length > 0 && (
-                            <div className="option-group">
-
-                                <div className="option-title">
-                                    Màu sắc
-                                    <span>
-                                        {selectedColor || "Chọn màu"}
-                                    </span>
-                                </div>
-
-                                <div className="color-list">
-
-                                    {colors.map((color) => {
-                                        const active =
-                                            selectedColor === color;
-
-                                        const disabled =
-                                            !mauCoTheChon(color);
-
-                                        return (
-                                            <button
-                                                key={color}
-                                                type="button"
-                                                disabled={disabled}
-                                                className={
-                                                    active
-                                                        ? "color-button selected"
-                                                        : "color-button"
-                                                }
-                                                style={{
-                                                    opacity: disabled ? 0.4 : 1,
-                                                    cursor: disabled
-                                                        ? "not-allowed"
-                                                        : "pointer",
-                                                }}
-                                                onClick={() =>
-                                                    chonMau(color)
-                                                }
-                                            >
-                                                {color}
-                                            </button>
-                                        );
-                                    })}
-
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="stock">
-                            {selectedVariant
-                                ? stock > 0
-                                    ? `Còn ${stock} sản phẩm`
-                                    : "Sản phẩm đã hết hàng"
-                                : "Vui lòng chọn size và màu"}
-                        </div>
-
-                        <div className="quantity-row">
-
-                            <div className="quantity-control">
-
+                            <div
+                                className="detail-thumbnails"
+                                style={{
+                                    display: "flex",
+                                    gap: "8px",
+                                    alignItems: "center",
+                                    flexWrap: "nowrap",
+                                }}
+                            >
+                                {/* ẢNH MÀU ĐEN */}
                                 <button
                                     type="button"
-                                    onClick={() =>
-                                        setSoLuong(
-                                            Math.max(
-                                                1,
-                                                soLuong - 1
-                                            )
-                                        )
+                                    className={
+                                        selectedColor?.toLowerCase().includes("đen") ||
+                                        selectedColor?.toLowerCase().includes("den") ||
+                                        selectedColor?.toLowerCase().includes("black")
+                                            ? "thumbnail active"
+                                            : "thumbnail"
                                     }
-                                >
-                                    −
-                                </button>
-
-                                <span>{soLuong}</span>
-
-                                <button
-                                    type="button"
+                                    title="Xem màu đen"
                                     onClick={() => {
-                                        if (
-                                            selectedVariant &&
-                                            stock > 0 &&
-                                            soLuong < stock
-                                        ) {
-                                            setSoLuong(soLuong + 1);
-                                        }
+                                        const colorDen = chiTiets.find((item) => {
+                                            const color = String(item.mauSac?.tenMau || "").toLowerCase();
+                                            return color.includes("đen") || color.includes("den") || color.includes("black");
+                                        })?.mauSac?.tenMau || "Đen";
+
+                                        setSelectedColor(colorDen);
+                                        setAnh(layAnhTheoMau(sanPham, colorDen));
                                     }}
                                 >
-                                    +
+                                    <img
+                                        src={layAnhTheoMau(sanPham, "Đen")}
+                                        alt={`${sanPham.tenSanPham} màu đen`}
+                                    />
                                 </button>
 
+                                {/* ẢNH MÀU TRẮNG */}
+                                <button
+                                    type="button"
+                                    className={
+                                        selectedColor?.toLowerCase().includes("trắng") ||
+                                        selectedColor?.toLowerCase().includes("trang") ||
+                                        selectedColor?.toLowerCase().includes("white")
+                                            ? "thumbnail active"
+                                            : "thumbnail"
+                                    }
+                                    title="Xem màu trắng"
+                                    onClick={() => {
+                                        const colorTrang = chiTiets.find((item) => {
+                                            const color = String(item.mauSac?.tenMau || "").toLowerCase();
+                                            return color.includes("trắng") || color.includes("trang") || color.includes("white");
+                                        })?.mauSac?.tenMau || "Trắng";
+
+                                        setSelectedColor(colorTrang);
+                                        setAnh(layAnhTheoMau(sanPham, colorTrang));
+                                    }}
+                                >
+                                    <img
+                                        src={layAnhTheoMau(sanPham, "Trắng")}
+                                        alt={`${sanPham.tenSanPham} màu trắng`}
+                                    />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="detail-info">
+
+                            <div className="detail-brand">
+                                {sanPham.thuongHieu?.tenThuongHieu || "FSHOP"}
                             </div>
 
-                            <span className="quantity-label">
+                            <h1>{sanPham.tenSanPham}</h1>
+
+                            <div className="detail-rating">
+                                <span>★</span>
+                                4.8
+                                <span className="rating-count">
+                                (126 đánh giá)
+                            </span>
+                            </div>
+
+                            <div className="detail-price">
+                                {formatGia(gia)}
+                            </div>
+
+                            <div className="detail-old-price">
+                                {gia
+                                    ? formatGia(Number(gia) * 1.2)
+                                    : ""}
+                            </div>
+
+                            <div className="detail-line"></div>
+                            {sizes.length > 0 && (
+                                <div className="option-group">
+
+                                    <div className="option-title">
+                                        Kích thước
+                                        <span>
+                                        {selectedSize || "Chọn size"}
+                                    </span>
+                                    </div>
+
+                                    <div className="size-list">
+
+                                        {sizes.map((size) => {
+                                            const active =
+                                                selectedSize === size;
+
+                                            const disabled =
+                                                !sizeCoTheChon(size);
+
+                                            return (
+                                                <button
+                                                    key={size}
+                                                    type="button"
+                                                    disabled={disabled}
+                                                    className={
+                                                        active
+                                                            ? "size-button selected"
+                                                            : "size-button"
+                                                    }
+                                                    style={{
+                                                        opacity: disabled ? 0.4 : 1,
+                                                        cursor: disabled
+                                                            ? "not-allowed"
+                                                            : "pointer",
+                                                    }}
+                                                    onClick={() =>
+                                                        chonSize(size)
+                                                    }
+                                                >
+                                                    {size}
+                                                </button>
+                                            );
+                                        })}
+
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="ai-size-box">
+                                <div className="ai-size-box-content">
+                                    <div className="ai-size-icon">📷</div>
+                                    <div>
+                                        <strong>Không biết chọn size?</strong>
+                                        <p>Đặt chân lên giấy A4 và để AI đo chiều dài bàn chân.</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="ai-size-button"
+                                    onClick={() => setShowAIDoSize(true)}
+                                >
+                                    📏 Đo size giày bằng AI
+                                </button>
+                            </div>
+                            {colors.length > 0 && (
+                                <div className="option-group">
+
+                                    <div className="option-title">
+                                        Màu sắc
+                                        <span>
+                                        {selectedColor || "Chọn màu"}
+                                    </span>
+                                    </div>
+
+                                    <div className="color-list">
+
+                                        {colors.map((color) => {
+                                            const active =
+                                                selectedColor === color;
+
+                                            const disabled =
+                                                !mauCoTheChon(color);
+
+                                            return (
+                                                <button
+                                                    key={color}
+                                                    type="button"
+                                                    disabled={disabled}
+                                                    className={
+                                                        active
+                                                            ? "color-button selected"
+                                                            : "color-button"
+                                                    }
+                                                    style={{
+                                                        opacity: disabled ? 0.4 : 1,
+                                                        cursor: disabled
+                                                            ? "not-allowed"
+                                                            : "pointer",
+                                                    }}
+                                                    onClick={() =>
+                                                        chonMau(color)
+                                                    }
+                                                >
+                                                    {color}
+                                                </button>
+                                            );
+                                        })}
+
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="stock">
+                                {selectedVariant
+                                    ? stock > 0
+                                        ? `Còn ${stock} sản phẩm`
+                                        : "Sản phẩm đã hết hàng"
+                                    : "Vui lòng chọn size và màu"}
+                            </div>
+
+                            <div className="quantity-row">
+
+                                <div className="quantity-control">
+
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setSoLuong(
+                                                Math.max(
+                                                    1,
+                                                    soLuong - 1
+                                                )
+                                            )
+                                        }
+                                    >
+                                        −
+                                    </button>
+
+                                    <span>{soLuong}</span>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (
+                                                selectedVariant &&
+                                                stock > 0 &&
+                                                soLuong < stock
+                                            ) {
+                                                setSoLuong(soLuong + 1);
+                                            }
+                                        }}
+                                    >
+                                        +
+                                    </button>
+
+                                </div>
+
+                                <span className="quantity-label">
                                 Số lượng
                             </span>
 
-                        </div>
+                            </div>
 
-                        {/* ================= BUTTON ================= */}
-                        <div className="detail-buttons">
+                            <div className="detail-buttons">
 
-                            {/* THÊM GIỎ */}
-                            <button
-                                type="button"
-                                className="detail-add-cart"
-                                onClick={async () => {
+                                {/* THÊM GIỎ */}
+                                <button
+                                    type="button"
+                                    className="detail-add-cart"
+                                    onClick={async () => {
 
-                                    if (!selectedVariant?.id) {
-                                        alert(
-                                            "Vui lòng chọn đúng size và màu"
-                                        );
-                                        return;
-                                    }
+                                        if (!selectedVariant?.id) {
+                                            alert(
+                                                "Vui lòng chọn đúng size và màu"
+                                            );
+                                            return;
+                                        }
 
-                                    if (stock <= 0) {
-                                        alert(
-                                            "Sản phẩm đã hết hàng"
-                                        );
-                                        return;
-                                    }
+                                        if (stock <= 0) {
+                                            alert(
+                                                "Sản phẩm đã hết hàng"
+                                            );
+                                            return;
+                                        }
 
-                                    await themVaoGio(
-                                        sanPham,
-                                        selectedVariant,
-                                        soLuong
-                                    );
-                                }}
-                            >
-                                🛒 Thêm vào giỏ
-                            </button>
-
-                            {/* MUA NGAY */}
-                            <button
-                                type="button"
-                                className="detail-buy"
-                                onClick={async () => {
-
-                                    if (!selectedVariant?.id) {
-                                        alert(
-                                            "Vui lòng chọn đúng size và màu"
-                                        );
-                                        return;
-                                    }
-
-                                    if (stock <= 0) {
-                                        alert(
-                                            "Sản phẩm đã hết hàng"
-                                        );
-                                        return;
-                                    }
-
-                                    const daThem =
                                         await themVaoGio(
                                             sanPham,
                                             selectedVariant,
                                             soLuong
                                         );
+                                    }}
+                                >
+                                    🛒 Thêm vào giỏ
+                                </button>
 
-                                    if (daThem) {
-                                        setPage("cart");
-                                    }
-                                }}
-                            >
-                                Mua ngay
-                            </button>
+                                {/* MUA NGAY */}
+                                <button
+                                    type="button"
+                                    className="detail-buy"
+                                    onClick={async () => {
 
-                        </div>
+                                        if (!selectedVariant?.id) {
+                                            alert(
+                                                "Vui lòng chọn đúng size và màu"
+                                            );
+                                            return;
+                                        }
 
-                        <div className="detail-guarantees">
+                                        if (stock <= 0) {
+                                            alert(
+                                                "Sản phẩm đã hết hàng"
+                                            );
+                                            return;
+                                        }
 
-                            <div>
-                                🚚
-                                <span>
+                                        const daThem =
+                                            await themVaoGio(
+                                                sanPham,
+                                                selectedVariant,
+                                                soLuong
+                                            );
+
+                                        if (daThem) {
+                                            setPage("cart");
+                                        }
+                                    }}
+                                >
+                                    Mua ngay
+                                </button>
+
+                            </div>
+
+                            <div className="detail-guarantees">
+
+                                <div>
+                                    🚚
+                                    <span>
                                     Giao hàng toàn quốc
                                 </span>
-                            </div>
+                                </div>
 
-                            <div>
-                                ↻
-                                <span>
+                                <div>
+                                    ↻
+                                    <span>
                                     Đổi trả trong 7 ngày
                                 </span>
-                            </div>
+                                </div>
 
-                            <div>
-                                ✓
-                                <span>
+                                <div>
+                                    ✓
+                                    <span>
                                     Kiểm tra hàng trước khi nhận
                                 </span>
-                            </div>
+                                </div>
 
-                        </div>
-
-                    </div>
-                </div>
-
-                <div className="detail-description">
-
-                    <div className="description-tabs">
-                        <button className="active">
-                            Mô tả sản phẩm
-                        </button>
-
-                        <button>
-                            Thông tin sản phẩm
-                        </button>
-
-                        <button>
-                            Đánh giá
-                        </button>
-                    </div>
-
-                    <div className="description-content">
-
-                        <h2>
-                            {sanPham.tenSanPham}
-                        </h2>
-
-                        <p>
-                            {sanPham.moTa ||
-                                "Sản phẩm giày nam được thiết kế theo phong cách hiện đại, phù hợp sử dụng hàng ngày, đi làm, đi chơi và luyện tập thể thao."}
-                        </p>
-
-                        <div className="specifications">
-
-                            <div>
-                                <span>Chất liệu</span>
-                                <strong>
-                                    {sanPham.chatLieu ||
-                                        "Đang cập nhật"}
-                                </strong>
-                            </div>
-
-                            <div>
-                                <span>Kiểu dáng</span>
-                                <strong>
-                                    {sanPham.kieuDang ||
-                                        "Đang cập nhật"}
-                                </strong>
-                            </div>
-
-                            <div>
-                                <span>Xuất xứ</span>
-                                <strong>
-                                    {sanPham.xuatXu ||
-                                        "Đang cập nhật"}
-                                </strong>
                             </div>
 
                         </div>
                     </div>
-                </div>
 
-            </div>
-        </main>
+                    <div className="detail-description">
+
+                        <div className="description-tabs">
+                            <button className="active">
+                                Mô tả sản phẩm
+                            </button>
+
+                            <button>
+                                Thông tin sản phẩm
+                            </button>
+
+                            <button>
+                                Đánh giá
+                            </button>
+                        </div>
+
+                        <div className="description-content">
+
+                            <h2>
+                                {sanPham.tenSanPham}
+                            </h2>
+
+                            <p>
+                                {sanPham.moTa ||
+                                    "Sản phẩm giày nam được thiết kế theo phong cách hiện đại, phù hợp sử dụng hàng ngày, đi làm, đi chơi và luyện tập thể thao."}
+                            </p>
+
+                            <div className="specifications">
+
+                                <div>
+                                    <span>Chất liệu</span>
+                                    <strong>
+                                        {sanPham.chatLieu ||
+                                            "Đang cập nhật"}
+                                    </strong>
+                                </div>
+
+                                <div>
+                                    <span>Kiểu dáng</span>
+                                    <strong>
+                                        {sanPham.kieuDang ||
+                                            "Đang cập nhật"}
+                                    </strong>
+                                </div>
+
+                                <div>
+                                    <span>Xuất xứ</span>
+                                    <strong>
+                                        {sanPham.xuatXu ||
+                                            "Đang cập nhật"}
+                                    </strong>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+
+            {showAIDoSize && (
+                <AIDoSize
+                    onSelectSize={(size) => {
+                        const sizeText = String(size);
+                        const variant = chiTiets.find(
+                            (item) => String(item?.kichCo?.tenKichCo) === sizeText
+                        );
+
+                        if (variant) {
+                            setSelectedSize(variant.kichCo?.tenKichCo || sizeText);
+                            const color = variant.mauSac?.tenMau || selectedColor;
+                            if (color) {
+                                setSelectedColor(color);
+                                setAnh(layAnhTheoMau(sanPham, color));
+                            }
+                        }
+
+                        setShowAIDoSize(false);
+                    }}
+                    onClose={() => setShowAIDoSize(false)}
+                />
+            )}
+        </>
     );
 }
 
