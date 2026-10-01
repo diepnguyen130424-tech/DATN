@@ -1,10 +1,7 @@
-
-
 import { useEffect, useState } from "react";
 import "./AdminDashboard.css";
 import AdminProducts from "./AdminProducts";
 import AdminKho from "./AdminKho";
-import EmployeeDashboard from "./EmployeeDashboard";
 import AdminVoucher from "./AdminVoucher";
 import AdminKhuyenMai from "./AdminKhuyenMai";
 import AdminDanhMuc from "./AdminDanhMuc";
@@ -12,6 +9,159 @@ import AdminThuongHieu from "./AdminThuongHieu";
 import AdminKichCo from "./AdminKichCo";
 import AdminMauSac from "./AdminMauSac";
 const API = "http://localhost:8080/api";
+
+const adminDataCache = {
+    hoaDons: null,
+    hoaDonsPromise: null,
+    khachHangs: null,
+    khachHangsPromise: null,
+    thanhToans: {},
+    thanhToanPromises: {}
+};
+
+async function getHoaDons(force = false) {
+    if (!force && adminDataCache.hoaDons) {
+        return adminDataCache.hoaDons;
+    }
+
+    if (!force && adminDataCache.hoaDonsPromise) {
+        return adminDataCache.hoaDonsPromise;
+    }
+
+    const promise = fetch(`${API}/hoa-don`)
+        .then(async (response) => {
+            const text = await response.text();
+            let data;
+
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch {
+                data = null;
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    data?.message ||
+                    data?.error ||
+                    text ||
+                    "Không thể tải danh sách hóa đơn"
+                );
+            }
+
+            const danhSach = Array.isArray(data) ? data : [];
+
+
+            danhSach.sort((a, b) => {
+                const ngayA = new Date(
+                    a?.ngayLap || a?.ngayTao || 0
+                ).getTime();
+
+                const ngayB = new Date(
+                    b?.ngayLap || b?.ngayTao || 0
+                ).getTime();
+
+                return ngayB - ngayA;
+            });
+
+            adminDataCache.hoaDons = danhSach;
+            return danhSach;
+        })
+        .finally(() => {
+            adminDataCache.hoaDonsPromise = null;
+        });
+
+    adminDataCache.hoaDonsPromise = promise;
+    return promise;
+}
+
+async function getKhachHangs(force = false) {
+    if (!force && adminDataCache.khachHangs) {
+        return adminDataCache.khachHangs;
+    }
+
+    if (!force && adminDataCache.khachHangsPromise) {
+        return adminDataCache.khachHangsPromise;
+    }
+
+    const promise = fetch(`${API}/khach-hang`)
+        .then(async (response) => {
+            const data = await response.json().catch(() => []);
+
+            if (!response.ok) {
+                throw new Error(
+                    data?.message ||
+                    data?.error ||
+                    "Không thể tải danh sách khách hàng"
+                );
+            }
+
+            const danhSach = Array.isArray(data) ? data : [];
+            adminDataCache.khachHangs = danhSach;
+            return danhSach;
+        })
+        .finally(() => {
+            adminDataCache.khachHangsPromise = null;
+        });
+
+    adminDataCache.khachHangsPromise = promise;
+    return promise;
+}
+
+async function getThanhToanByHoaDonId(id, force = false) {
+    if (!force && adminDataCache.thanhToans[id]) {
+        return adminDataCache.thanhToans[id];
+    }
+
+    if (!force && adminDataCache.thanhToanPromises[id]) {
+        return adminDataCache.thanhToanPromises[id];
+    }
+
+    const promise = fetch(`${API}/hoa-don/${id}/thanh-toan`)
+        .then(async (response) => {
+            if (!response.ok) {
+                return null;
+            }
+
+            const data = await response.json().catch(() => null);
+
+            if (data) {
+                adminDataCache.thanhToans[id] = data;
+            }
+
+            return data;
+        })
+        .finally(() => {
+            delete adminDataCache.thanhToanPromises[id];
+        });
+
+    adminDataCache.thanhToanPromises[id] = promise;
+    return promise;
+}
+
+async function prefetchAdminData() {
+    const [hoaDonResult] = await Promise.allSettled([
+        getHoaDons(),
+        getKhachHangs()
+    ]);
+
+    if (hoaDonResult.status === "fulfilled") {
+        const danhSachHoaDon = hoaDonResult.value;
+        danhSachHoaDon.forEach((hoaDon) => {
+            getThanhToanByHoaDonId(hoaDon.id).catch((err) => {
+                console.error(
+                    `Lỗi tải thanh toán hóa đơn ${hoaDon.id}:`,
+                    err
+                );
+            });
+        });
+    } else {
+        console.error(
+            "Lỗi preload hóa đơn:",
+            hoaDonResult.reason
+        );
+    }
+}
+
 
 
 const menuItems = [
@@ -192,344 +342,163 @@ const stats = [
     },
 ];
 
-const orders = [
-    [
-        "HD001",
-        "Nguyễn Văn A",
-        "4.800.000đ",
-        "Chờ xác nhận",
-    ],
-    [
-        "HD002",
-        "Trần Văn B",
-        "2.350.000đ",
-        "Đang giao",
-    ],
-    [
-        "HD003",
-        "Lê Văn C",
-        "1.500.000đ",
-        "Đã giao",
-    ],
-    [
-        "HD004",
-        "Phạm Văn D",
-        "3.200.000đ",
-        "Đã thanh toán",
-    ],
-];
+function DashboardContent({ onViewAll }) {
+    const [hoaDons, setHoaDons] = useState(
+        adminDataCache.hoaDons || []
+    );
+    const [loadingOrders, setLoadingOrders] = useState(
+        !adminDataCache.hoaDons
+    );
 
-function DashboardContent() {
+    useEffect(() => {
+        let mounted = true;
+
+        getHoaDons()
+            .then((danhSach) => {
+                if (!mounted) return;
+                setHoaDons(danhSach);
+            })
+            .catch((err) => {
+                console.error("Lỗi tải đơn hàng tổng quan:", err);
+            })
+            .finally(() => {
+                if (mounted) setLoadingOrders(false);
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const recentOrders = hoaDons.slice(0, 4);
+
     return (
         <div className="admin-dashboard-content">
-
             <div className="admin-page-heading">
-
                 <div>
-                    <div className="admin-eyebrow">
-                        FSHOP ADMIN
-                    </div>
-
+                    <div className="admin-eyebrow">FSHOP ADMIN</div>
                     <h1>Tổng quan</h1>
-
-                    <p>
-                        Theo dõi hoạt động kinh doanh
-                        của cửa hàng.
-                    </p>
+                    <p>Theo dõi hoạt động kinh doanh của cửa hàng.</p>
                 </div>
 
-                <button
-                    type="button"
-                    className="admin-date-button"
-                >
+                <button type="button" className="admin-date-button">
                     <span>▣</span>
                     Tháng 09/2026
                 </button>
             </div>
 
             <div className="admin-stats">
-
                 {stats.map((item) => (
-                    <div
-                        className="admin-stat-card"
-                        key={item.label}
-                    >
+                    <div className="admin-stat-card" key={item.label}>
                         <div className="admin-stat-top">
-
-                            <div className="admin-stat-icon">
-                                {item.icon}
-                            </div>
-
-                            <span className="admin-growth">
-                                {item.note}
-                            </span>
-
+                            <div className="admin-stat-icon">{item.icon}</div>
+                            <span className="admin-growth">{item.note}</span>
                         </div>
-
-                        <div className="admin-stat-value">
-                            {item.value}
-                        </div>
-
-                        <div className="admin-stat-label">
-                            {item.label}
-                        </div>
+                        <div className="admin-stat-value">{item.value}</div>
+                        <div className="admin-stat-label">{item.label}</div>
                     </div>
                 ))}
-
             </div>
 
             <div className="admin-dashboard-grid">
-
                 <section className="admin-card revenue-card">
-
                     <div className="admin-card-heading">
-
                         <div>
                             <h2>Doanh thu</h2>
-
-                            <p>
-                                Doanh thu trong 7 ngày
-                                gần nhất
-                            </p>
+                            <p>Doanh thu trong 7 ngày gần nhất</p>
                         </div>
-
-                        <strong>
-                            48.500.000đ
-                        </strong>
-
+                        <strong>48.500.000đ</strong>
                     </div>
 
                     <div className="revenue-chart">
-
                         <div className="chart-labels">
-                            <span>10tr</span>
-                            <span>8tr</span>
-                            <span>6tr</span>
-                            <span>4tr</span>
-                            <span>2tr</span>
-                            <span>0</span>
+                            <span>10tr</span><span>8tr</span><span>6tr</span>
+                            <span>4tr</span><span>2tr</span><span>0</span>
                         </div>
-
                         <div className="chart-main">
-
                             <div className="chart-grid-lines">
-                                <i />
-                                <i />
-                                <i />
-                                <i />
-                                <i />
+                                <i /><i /><i /><i /><i />
                             </div>
-
                             <div className="chart-bars">
-
-                                {[
-                                    35,
-                                    52,
-                                    42,
-                                    72,
-                                    58,
-                                    88,
-                                    76,
-                                ].map(
-                                    (
-                                        height,
-                                        index
-                                    ) => (
-                                        <div
-                                            className="chart-bar-wrap"
-                                            key={index}
-                                        >
-                                            <div
-                                                className="chart-bar"
-                                                style={{
-                                                    height:
-                                                        `${height}%`,
-                                                }}
-                                            />
-
-                                            <span>
-                                                {
-                                                    [
-                                                        "T2",
-                                                        "T3",
-                                                        "T4",
-                                                        "T5",
-                                                        "T6",
-                                                        "T7",
-                                                        "CN",
-                                                    ][
-                                                        index
-                                                        ]
-                                                }
-                                            </span>
-                                        </div>
-                                    )
-                                )}
-
+                                {[35, 52, 42, 72, 58, 88, 76].map((height, index) => (
+                                    <div className="chart-bar-wrap" key={index}>
+                                        <div className="chart-bar" style={{ height: `${height}%` }} />
+                                        <span>{["T2", "T3", "T4", "T5", "T6", "T7", "CN"][index]}</span>
+                                    </div>
+                                ))}
                             </div>
-
                         </div>
-
                     </div>
-
                 </section>
 
                 <section className="admin-card">
-
                     <div className="admin-card-heading">
-
                         <div>
-                            <h2>
-                                Trạng thái đơn hàng
-                            </h2>
-
-                            <p>
-                                Tổng quan đơn hàng
-                            </p>
+                            <h2>Trạng thái đơn hàng</h2>
+                            <p>Tổng quan đơn hàng</p>
                         </div>
-
                     </div>
-
                     <div className="order-status-list">
-
-                        <div>
-                            <span className="status-dot pending" />
-                            <span>
-                                Chờ xác nhận
-                            </span>
-                            <strong>
-                                12
-                            </strong>
-                        </div>
-
-                        <div>
-                            <span className="status-dot processing" />
-                            <span>
-                                Đang xử lý
-                            </span>
-                            <strong>
-                                18
-                            </strong>
-                        </div>
-
-                        <div>
-                            <span className="status-dot shipping" />
-                            <span>
-                                Đang giao
-                            </span>
-                            <strong>
-                                15
-                            </strong>
-                        </div>
-
-                        <div>
-                            <span className="status-dot done" />
-                            <span>
-                                Đã giao
-                            </span>
-                            <strong>
-                                11
-                            </strong>
-                        </div>
-
+                        <div><span className="status-dot pending" /><span>Chờ xác nhận</span><strong>12</strong></div>
+                        <div><span className="status-dot processing" /><span>Đang xử lý</span><strong>18</strong></div>
+                        <div><span className="status-dot shipping" /><span>Đang giao</span><strong>15</strong></div>
+                        <div><span className="status-dot done" /><span>Đã giao</span><strong>11</strong></div>
                     </div>
-
                 </section>
-
             </div>
 
             <section className="admin-card">
-
                 <div className="admin-card-heading">
-
                     <div>
-                        <h2>
-                            Đơn hàng gần đây
-                        </h2>
-
-                        <p>
-                            Các đơn hàng mới nhất
-                        </p>
+                        <h2>Đơn hàng gần đây</h2>
+                        <p>4 đơn hàng mới nhất</p>
                     </div>
-
                     <button
                         type="button"
                         className="admin-link-button"
+                        onClick={onViewAll}
                     >
                         Xem tất cả →
                     </button>
-
                 </div>
 
                 <div className="admin-table-scroll">
-
-                    <table className="admin-table">
-
-                        <thead>
-                        <tr>
-                            <th>
-                                Mã hóa đơn
-                            </th>
-
-                            <th>
-                                Khách hàng
-                            </th>
-
-                            <th>
-                                Tổng tiền
-                            </th>
-
-                            <th>
-                                Trạng thái
-                            </th>
-                        </tr>
-                        </thead>
-
-                        <tbody>
-
-                        {orders.map(
-                            (
-                                [
-                                    code,
-                                    customer,
-                                    total,
-                                    status,
-                                ]
-                            ) => (
-                                <tr key={code}>
-
+                    {loadingOrders ? (
+                        <div style={{ padding: "40px", textAlign: "center", color: "#777" }}>
+                            Đang tải đơn hàng...
+                        </div>
+                    ) : recentOrders.length === 0 ? (
+                        <div style={{ padding: "40px", textAlign: "center", color: "#777" }}>
+                            Chưa có đơn hàng.
+                        </div>
+                    ) : (
+                        <table className="admin-table">
+                            <thead>
+                            <tr>
+                                <th>Mã hóa đơn</th>
+                                <th>Khách hàng</th>
+                                <th>Tổng tiền</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {recentOrders.map((hoaDon) => (
+                                <tr key={hoaDon.id}>
+                                    <td><strong>{hoaDon.maHoaDon || `HD${hoaDon.id}`}</strong></td>
                                     <td>
-                                        <strong>
-                                            {code}
-                                        </strong>
+                                        {hoaDon?.khachHang?.hoTen ||
+                                            hoaDon?.diaChi?.tenNguoiNhan ||
+                                            "Khách lẻ"}
                                     </td>
-
-                                    <td>
-                                        {customer}
-                                    </td>
-
-                                    <td>
-                                        {total}
-                                    </td>
-
-                                    <td>
-                                        <span className="order-status">
-                                            {status}
-                                        </span>
-                                    </td>
-
+                                    <td><strong>{formatTien(hoaDon.tongThanhToan)}</strong></td>
+                                    <td><span className="order-status">{tenTrangThaiHoaDon(hoaDon.trangThai)}</span></td>
                                 </tr>
-                            )
-                        )}
-
-                        </tbody>
-
-                    </table>
-
+                            ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
-
             </section>
-
         </div>
     );
 }
@@ -575,68 +544,35 @@ function HoaDonContent() {
     const [updatingStatus, setUpdatingStatus] =
         useState(false);
 
-    const taiHoaDon = async () => {
-
+    const taiHoaDon = async (force = false) => {
         try {
+            // Nếu đã có cache thì hiện ngay, không hiện màn hình loading.
+            if (!force && adminDataCache.hoaDons) {
+                setHoaDons(adminDataCache.hoaDons);
+                setLoading(false);
+                setError("");
+                return;
+            }
 
             setLoading(true);
             setError("");
 
-            const response =
-                await fetch(
-                    `${API}/hoa-don`
-                );
-
-            const text =
-                await response.text();
-
-            let data = null;
-
-            try {
-                data = text
-                    ? JSON.parse(text)
-                    : null;
-            } catch {
-                data = null;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data?.message ||
-                    data?.error ||
-                    text ||
-                    "Không thể tải danh sách hóa đơn"
-                );
-            }
-
-            setHoaDons(
-                Array.isArray(data)
-                    ? data
-                    : []
-            );
-
+            const danhSach = await getHoaDons(force);
+            setHoaDons(danhSach);
         } catch (err) {
-
-            console.error(
-                "Lỗi tải hóa đơn:",
-                err
-            );
-
+            console.error("Lỗi tải hóa đơn:", err);
             setError(
                 err.message ||
                 "Không thể kết nối tới máy chủ"
             );
-
             setHoaDons([]);
-
         } finally {
-
             setLoading(false);
-
         }
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         taiHoaDon();
     }, []);
 
@@ -1198,8 +1134,9 @@ function HoaDonContent() {
                         <table
                             className="admin-table"
                             style={{
-                                minWidth:
-                                    "1000px",
+                                width: "100%",
+                                minWidth: "1080px",
+                                tableLayout: "fixed",
                             }}
                         >
 
@@ -1207,31 +1144,39 @@ function HoaDonContent() {
 
                             <tr>
 
-                                <th>
+                                <th style={{ width: "8%" }}>
+                                    ID khách hàng
+                                </th>
+
+                                <th style={{ width: "16%" }}>
                                     Mã hóa đơn
                                 </th>
 
-                                <th>
+                                <th style={{ width: "12%" }}>
                                     Khách hàng
                                 </th>
 
-                                <th>
+                                <th style={{ width: "11%" }}>
+                                    Số điện thoại
+                                </th>
+
+                                <th style={{ width: "12%" }}>
                                     Ngày lập
                                 </th>
 
-                                <th>
+                                <th style={{ width: "7%" }}>
                                     Loại
                                 </th>
 
-                                <th>
+                                <th style={{ width: "11%" }}>
                                     Tổng tiền
                                 </th>
 
-                                <th>
+                                <th style={{ width: "12%" }}>
                                     Trạng thái
                                 </th>
 
-                                <th>
+                                <th style={{ width: "11%" }}>
                                     Thao tác
                                 </th>
 
@@ -1242,13 +1187,17 @@ function HoaDonContent() {
                             <tbody>
 
                             {danhSachLoc.map(
-                                (hoaDon) => (
+                                (hoaDon, index) => (
 
                                     <tr
                                         key={
                                             hoaDon.id
                                         }
                                     >
+
+                                        <td>
+                                            #{index + 1}
+                                        </td>
 
                                         <td>
                                             <strong>
@@ -1267,6 +1216,18 @@ function HoaDonContent() {
                                                     .diaChi
                                                     ?.tenNguoiNhan ||
                                                 "Khách lẻ"
+                                            }
+                                        </td>
+
+                                        <td>
+                                            {
+                                                hoaDon
+                                                    .khachHang
+                                                    ?.soDienThoai ||
+                                                hoaDon
+                                                    .diaChi
+                                                    ?.soDienThoai ||
+                                                "-"
                                             }
                                         </td>
 
@@ -1291,12 +1252,36 @@ function HoaDonContent() {
                                         </td>
 
                                         <td>
-                                            {tenTrangThaiHoaDon(
-                                                hoaDon.trangThai
-                                            )}
+                                            <span
+                                                style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    padding: "6px 10px",
+                                                    borderRadius: "999px",
+                                                    background:
+                                                        hoaDon.trangThai === "DA_THANH_TOAN"
+                                                            ? "#e8f5e9"
+                                                            : hoaDon.trangThai === "CHO_XAC_NHAN"
+                                                                ? "#fff3e0"
+                                                                : "#f5f5f5",
+                                                    color:
+                                                        hoaDon.trangThai === "DA_THANH_TOAN"
+                                                            ? "#2e7d32"
+                                                            : hoaDon.trangThai === "CHO_XAC_NHAN"
+                                                                ? "#ef6c00"
+                                                                : "#666",
+                                                    fontSize: "12px",
+                                                    fontWeight: 700,
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                            >
+                                                {hoaDon.trangThai === "DA_THANH_TOAN" && "✓ "}
+                                                {tenTrangThaiHoaDon(hoaDon.trangThai)}
+                                            </span>
                                         </td>
 
-                                        <td>
+                                        <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
 
                                             <button
                                                 type="button"
@@ -1306,22 +1291,16 @@ function HoaDonContent() {
                                                     )
                                                 }
                                                 style={{
-                                                    border:
-                                                        "1px solid #ddd",
-                                                    background:
-                                                        "#fff",
-                                                    color:
-                                                        "#222",
-                                                    padding:
-                                                        "8px 16px",
-                                                    borderRadius:
-                                                        "9px",
-                                                    cursor:
-                                                        "pointer",
-                                                    fontSize:
-                                                        "16px",
-                                                    fontWeight:
-                                                        400,
+                                                    border: "1px solid #ddd",
+                                                    background: "#fff",
+                                                    color: "#222",
+                                                    padding: "7px 14px",
+                                                    minWidth: "72px",
+                                                    borderRadius: "8px",
+                                                    cursor: "pointer",
+                                                    fontSize: "14px",
+                                                    fontWeight: 600,
+                                                    whiteSpace: "nowrap",
                                                 }}
                                             >
                                                 Xem
@@ -1924,111 +1903,66 @@ function ThanhToanContent() {
     const [filterTrangThai, setFilterTrangThai] =
         useState("");
 
-    const taiThanhToan = async () => {
+    const taiThanhToanNen = async (danhSach, force = false) => {
+        // Tải từng payment ở nền. Bảng hóa đơn không phải chờ tất cả payment.
+        danhSach.forEach((hoaDon) => {
+            getThanhToanByHoaDonId(hoaDon.id, force)
+                .then((payment) => {
+                    if (!payment) return;
 
+                    setThanhToans((old) => ({
+                        ...old,
+                        [hoaDon.id]: payment
+                    }));
+                })
+                .catch((err) => {
+                    console.error(
+                        `Lỗi tải thanh toán hóa đơn ${hoaDon.id}:`,
+                        err
+                    );
+                });
+        });
+    };
+
+    const taiThanhToan = async (force = false) => {
         try {
+            if (!force && adminDataCache.hoaDons) {
+                const danhSach = adminDataCache.hoaDons;
+
+                setHoaDons(danhSach);
+                setLoading(false);
+                setError("");
+
+                // Không await.
+                taiThanhToanNen(danhSach);
+                return;
+            }
 
             setLoading(true);
             setError("");
 
-            const response =
-                await fetch(
-                    `${API}/hoa-don`
-                );
+            const danhSach = await getHoaDons(force);
+            setHoaDons(danhSach);
+            setLoading(false);
 
-            const text =
-                await response.text();
-
-            let data = null;
-
-            try {
-                data = text
-                    ? JSON.parse(text)
-                    : null;
-            } catch {
-                data = null;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data?.message ||
-                    data?.error ||
-                    text ||
-                    "Không thể tải thanh toán"
-                );
-            }
-
-            const danhSach =
-                Array.isArray(data)
-                    ? data
-                    : [];
-
-            setHoaDons(
-                danhSach
-            );
-
-            const result = {};
-
-            await Promise.all(
-                danhSach.map(
-                    async (hoaDon) => {
-
-                        try {
-
-                            const paymentResponse =
-                                await fetch(
-                                    `${API}/hoa-don/${hoaDon.id}/thanh-toan`
-                                );
-
-                            if (
-                                paymentResponse.ok
-                            ) {
-
-                                result[
-                                    hoaDon.id
-                                    ] =
-                                    await paymentResponse.json();
-
-                            }
-
-                        } catch (
-                            paymentError
-                            ) {
-
-                            console.error(
-                                paymentError
-                            );
-
-                        }
-
-                    }
-                )
-            );
-
-            setThanhToans(
-                result
-            );
-
+            // Hiện bảng ngay sau khi có hóa đơn.
+            // Payment tiếp tục cập nhật nền.
+            taiThanhToanNen(danhSach, force);
         } catch (err) {
-
-            console.error(
-                "Lỗi tải thanh toán:",
-                err
-            );
+            console.error("Lỗi tải thanh toán:", err);
 
             setError(
                 err.message ||
                 "Không thể kết nối tới máy chủ"
             );
 
-        } finally {
-
+            setHoaDons([]);
             setLoading(false);
-
         }
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         taiThanhToan();
     }, []);
 
@@ -2166,11 +2100,25 @@ function ThanhToanContent() {
 
                 }
 
-                alert(
-                    "Đã xác nhận thanh toán thành công."
+                // Cập nhật ngay trên giao diện, không tải lại toàn bộ danh sách.
+                setThanhToans((prev) => ({
+                    ...prev,
+                    [hoaDon.id]: {
+                        ...prev[hoaDon.id],
+                        ...thanhToan,
+                        trangThai: "DA_THANH_TOAN",
+                    },
+                }));
+
+                setHoaDons((prev) =>
+                    prev.map((item) =>
+                        item.id === hoaDon.id
+                            ? { ...item, trangThai: "DA_THANH_TOAN" }
+                            : item
+                    )
                 );
 
-                await taiThanhToan();
+                alert("Đã xác nhận thanh toán thành công.");
 
             } catch (err) {
 
@@ -2482,8 +2430,9 @@ function ThanhToanContent() {
                         <table
                             className="admin-table"
                             style={{
-                                minWidth:
-                                    "1100px",
+                                width: "100%",
+                                minWidth: "1100px",
+                                tableLayout: "fixed",
                             }}
                         >
 
@@ -2491,35 +2440,39 @@ function ThanhToanContent() {
 
                             <tr>
 
-                                <th>
+                                <th style={{ width: "8%" }}>
+                                    ID thanh toán
+                                </th>
+
+                                <th style={{ width: "16%" }}>
                                     Mã hóa đơn
                                 </th>
 
-                                <th>
+                                <th style={{ width: "12%" }}>
                                     Khách hàng
                                 </th>
 
-                                <th>
+                                <th style={{ width: "9%" }}>
                                     Phương thức
                                 </th>
 
-                                <th>
+                                <th style={{ width: "10%" }}>
                                     Số tiền
                                 </th>
 
-                                <th>
+                                <th style={{ width: "10%" }}>
                                     Mã giao dịch
                                 </th>
 
-                                <th>
+                                <th style={{ width: "12%" }}>
                                     Trạng thái
                                 </th>
 
-                                <th>
+                                <th style={{ width: "12%" }}>
                                     Ngày thanh toán
                                 </th>
 
-                                <th>
+                                <th style={{ width: "11%" }}>
                                     Thao tác
                                 </th>
 
@@ -2530,7 +2483,7 @@ function ThanhToanContent() {
                             <tbody>
 
                             {danhSachLoc.map(
-                                (hoaDon) => {
+                                (hoaDon, index) => {
 
                                     const payment =
                                         thanhToans[
@@ -2543,6 +2496,10 @@ function ThanhToanContent() {
                                                 hoaDon.id
                                             }
                                         >
+
+                                            <td>
+                                                #{index + 1}
+                                            </td>
 
                                             <td>
                                                 <strong>
@@ -2640,7 +2597,7 @@ function ThanhToanContent() {
                                                 )}
                                             </td>
 
-                                            <td>
+                                            <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
 
                                                 {payment &&
                                                 payment.trangThai !==
@@ -2655,20 +2612,15 @@ function ThanhToanContent() {
                                                             )
                                                         }
                                                         style={{
-                                                            border:
-                                                                "none",
-                                                            background:
-                                                                "#2e7d32",
-                                                            color:
-                                                                "#fff",
-                                                            padding:
-                                                                "8px 12px",
-                                                            borderRadius:
-                                                                "7px",
-                                                            cursor:
-                                                                "pointer",
-                                                            fontWeight:
-                                                                600,
+                                                            border: "none",
+                                                            background: "#2e7d32",
+                                                            color: "#fff",
+                                                            padding: "8px 12px",
+                                                            minWidth: "92px",
+                                                            borderRadius: "7px",
+                                                            cursor: "pointer",
+                                                            fontWeight: 700,
+                                                            whiteSpace: "nowrap",
                                                         }}
                                                     >
                                                         ✓ Xác nhận
@@ -2678,10 +2630,9 @@ function ThanhToanContent() {
 
                                                     <span
                                                         style={{
-                                                            color:
-                                                                "#2e7d32",
-                                                            fontWeight:
-                                                                600,
+                                                            color: "#2e7d32",
+                                                            fontWeight: 700,
+                                                            whiteSpace: "nowrap",
                                                         }}
                                                     >
                                                         ✓ Hoàn tất
@@ -2732,25 +2683,100 @@ function CustomerContent() {
     const [selected, setSelected] = useState(null);
     const [addresses, setAddresses] = useState([]);
 
-    const taiKhachHang = async () => {
+    const taiKhachHang = async (force = false) => {
         try {
-            const res = await fetch(`${API}/khach-hang`);
-            if (res.ok) setCustomers(await res.json());
+            if (!force && adminDataCache.khachHangs) {
+                setCustomers(adminDataCache.khachHangs);
+                setLoading(false);
+
+                getHoaDons()
+                    .then((hoaDons) => {
+                        const lanDatGanNhat = new Map();
+                        hoaDons.forEach((hoaDon) => {
+                            const khachHangId = hoaDon?.khachHang?.id;
+                            const thoiGian = new Date(
+                                hoaDon?.ngayLap || hoaDon?.ngayTao || 0
+                            ).getTime();
+                            if (khachHangId && Number.isFinite(thoiGian)) {
+                                const cu = lanDatGanNhat.get(khachHangId) || 0;
+                                lanDatGanNhat.set(khachHangId, Math.max(cu, thoiGian));
+                            }
+                        });
+                        setCustomers((current) =>
+                            [...current].sort((a, b) => {
+                                const ngayA = lanDatGanNhat.get(a.id) || 0;
+                                const ngayB = lanDatGanNhat.get(b.id) || 0;
+                                return ngayB !== ngayA
+                                    ? ngayB - ngayA
+                                    : Number(b.id || 0) - Number(a.id || 0);
+                            })
+                        );
+                    })
+                    .catch((err) => console.error("Lỗi sắp xếp khách hàng:", err));
+                return;
+            }
+
+            setLoading(true);
+
+            const danhSach = await getKhachHangs(force);
+            setCustomers(danhSach);
+
+            // Hiện danh sách khách hàng ngay, sau đó sắp xếp theo đơn đặt gần nhất.
+            getHoaDons(force)
+                .then((hoaDons) => {
+                    const lanDatGanNhat = new Map();
+
+                    hoaDons.forEach((hoaDon) => {
+                        const khachHangId = hoaDon?.khachHang?.id;
+                        const thoiGian = new Date(
+                            hoaDon?.ngayLap || hoaDon?.ngayTao || 0
+                        ).getTime();
+
+                        if (khachHangId && Number.isFinite(thoiGian)) {
+                            const cu = lanDatGanNhat.get(khachHangId) || 0;
+                            if (thoiGian > cu) {
+                                lanDatGanNhat.set(khachHangId, thoiGian);
+                            }
+                        }
+                    });
+
+                    setCustomers((current) =>
+                        [...current].sort((a, b) => {
+                            const ngayA = lanDatGanNhat.get(a.id) || 0;
+                            const ngayB = lanDatGanNhat.get(b.id) || 0;
+
+                            if (ngayA !== ngayB) {
+                                return ngayB - ngayA;
+                            }
+
+                            return Number(b.id || 0) - Number(a.id || 0);
+                        })
+                    );
+                })
+                .catch((err) => {
+                    console.error("Lỗi sắp xếp khách hàng theo đơn mới nhất:", err);
+                });
         } catch (err) {
-            console.error(err);
+            console.error("Lỗi tải khách hàng:", err);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         taiKhachHang();
     }, []);
 
+    // Giữ nguyên thứ tự đã sắp xếp:
+    // 1. Khách có đơn hàng mới nhất lên đầu
+    // 2. Nếu cùng thời gian thì ID lớn hơn lên trước
+    // 3. Khách chưa có đơn thì ID lớn hơn lên trước
+    // Không sort lại theo ID ở đây vì sẽ làm mất thứ tự khách mới nhất.
     const filtered = customers.filter((item) =>
-        `${item.hoTen} ${item.taiKhoan?.tenDangNhap || ""} ${item.soDienThoai || ""}`
+        `${item.hoTen || ""} ${item.taiKhoan?.tenDangNhap || ""} ${item.soDienThoai || ""}`
             .toLowerCase()
-            .includes(search.toLowerCase())
+            .includes(search.trim().toLowerCase())
     );
 
     const formatGioiTinh = (value) => {
@@ -2819,14 +2845,14 @@ function CustomerContent() {
                         <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan="6" className="customer-empty">
+                                <td colSpan="7" className="customer-empty">
                                     Đang tải khách hàng...
                                 </td>
                             </tr>
                         ) : filtered.length ? (
-                            filtered.map((item) => (
+                            filtered.map((item, index) => (
                                 <tr key={item.id}>
-                                    <td>#{item.id}</td>
+                                    <td>#{index + 1}</td>
                                     <td><strong>{item.hoTen}</strong></td>
                                     <td>{item.taiKhoan?.tenDangNhap || "-"}</td>
                                     <td>{item.soDienThoai || "-"}</td>
@@ -2995,6 +3021,7 @@ function EmployeeContent() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         taiNhanVien();
     }, []);
 
@@ -3016,6 +3043,10 @@ function EmployeeContent() {
             ...form,
             [e.target.name]: e.target.value
         });
+    };
+
+    const xemChiTiet = (item) => {
+        setSelected(item);
     };
 
     const moSua = (item) => {
@@ -3719,6 +3750,12 @@ export default function AdminDashboard({
         )?.label ||
         "Tổng quan";
 
+    useEffect(() => {
+        // Preload ngay khi mở Admin để click vào 3 màn này hiện dữ liệu gần như tức thì.
+        prefetchAdminData();
+    }, []);
+
+
     return (
         <div className="admin-layout">
 
@@ -3881,7 +3918,7 @@ export default function AdminDashboard({
                     {activeMenu ===
                     "dashboard" ? (
 
-                        <DashboardContent />
+                        <DashboardContent onViewAll={() => setActiveMenu("hoa-don")} />
 
                     ) : activeMenu ===
                     "hoa-don" ? (
@@ -3935,3 +3972,4 @@ export default function AdminDashboard({
         </div>
     );
 }
+

@@ -27,6 +27,7 @@ export default function KhuyenMai({ setPage }) {
 
     // Mã đã sao chép của tài khoản hiện tại
     const [copiedList, setCopiedList] = useState([]);
+    const [thongBao, setThongBao] = useState("");
 
     // Lấy tên tài khoản đang đăng nhập
     const getTenDangNhap = () => {
@@ -44,16 +45,20 @@ export default function KhuyenMai({ setPage }) {
 
     // Load danh sách mã đã sao chép
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem(getCacheKey());
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                setCopiedList(Array.isArray(parsed) ? parsed : []);
+        const timer = setTimeout(() => {
+            try {
+                const raw = localStorage.getItem(getCacheKey());
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    setCopiedList(Array.isArray(parsed) ? parsed : []);
+                }
+            } catch {
+                setCopiedList([]);
             }
-        } catch {
-            setCopiedList([]);
-        }
-    }, []);
+        }, 0);
+
+        return () => clearTimeout(timer);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Load voucher
     useEffect(() => {
@@ -71,7 +76,8 @@ export default function KhuyenMai({ setPage }) {
                 setLoadingVoucher(false);
             }
         };
-        load();
+        const timer = setTimeout(load, 0);
+        return () => clearTimeout(timer);
     }, []);
 
     // Load chương trình
@@ -92,7 +98,8 @@ export default function KhuyenMai({ setPage }) {
                 setLoadingCT(false);
             }
         };
-        load();
+        const timer = setTimeout(load, 0);
+        return () => clearTimeout(timer);
     }, []);
 
     const copyMa = async (ma) => {
@@ -254,6 +261,22 @@ export default function KhuyenMai({ setPage }) {
                     </button>
                 </div>
 
+                {thongBao && (
+                    <div
+                        style={{
+                            margin: "16px 0",
+                            padding: "10px 14px",
+                            borderRadius: "10px",
+                            background: "#e8f5e9",
+                            color: "#2e7d32",
+                            fontWeight: 600,
+                            textAlign: "center"
+                        }}
+                    >
+                        {thongBao}
+                    </div>
+                )}
+
                 {/* ===== TAB 1: VOUCHER ===== */}
                 {activeTab === "voucher" && (
                     <>
@@ -290,8 +313,8 @@ export default function KhuyenMai({ setPage }) {
                                                 {v.loaiGiam === "PHAN_TRAM"
                                                     ? `-${v.giaTriGiam}%`
                                                     : `-${formatGia(
-                                                          v.giaTriGiam
-                                                      )}`}
+                                                        v.giaTriGiam
+                                                    )}`}
                                             </div>
 
                                             <div className="khuyen-mai-body">
@@ -338,8 +361,8 @@ export default function KhuyenMai({ setPage }) {
                                                                 0,
                                                                 (v.soLuong ??
                                                                     0) -
-                                                                    (v.soLuongDaDung ??
-                                                                        0)
+                                                                (v.soLuongDaDung ??
+                                                                    0)
                                                             )}{" "}
                                                             lượt
                                                         </strong>
@@ -398,8 +421,8 @@ export default function KhuyenMai({ setPage }) {
                                             {ct.loaiGiam === "PHAN_TRAM"
                                                 ? `-${ct.giaTriGiam}%`
                                                 : `-${formatGia(
-                                                      ct.giaTriGiam
-                                                  )}`}
+                                                    ct.giaTriGiam
+                                                )}`}
                                         </div>
 
                                         <div className="khuyen-mai-body">
@@ -425,8 +448,8 @@ export default function KhuyenMai({ setPage }) {
                                                         "PHAN_TRAM"
                                                             ? `${ct.giaTriGiam}%`
                                                             : formatGia(
-                                                                  ct.giaTriGiam
-                                                              )}
+                                                                ct.giaTriGiam
+                                                            )}
                                                     </strong>
                                                 </li>
                                                 <li>
