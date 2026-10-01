@@ -5,7 +5,7 @@ import "./CatalogCrud.css";
 
 const API = "http://localhost:8080/api";
 const CACHE_TTL = 60 * 1000;
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 export function isActive(trangThai) {
     const v = String(trangThai || "").toUpperCase();
@@ -397,6 +397,7 @@ export default function CatalogCrud({ config }) {
         return danhSach.filter((x) => {
             const matchKw =
                 !kw ||
+                String(x.id ?? "").includes(kw) ||
                 String(x[codeField] || "").toLowerCase().includes(kw) ||
                 String(x[nameField] || "").toLowerCase().includes(kw) ||
                 String(x.moTa || "").toLowerCase().includes(kw) ||
@@ -431,6 +432,7 @@ export default function CatalogCrud({ config }) {
         setSearch("");
         setFilterTrangThai("TAT_CA");
         setSortDir("asc");
+        setPage(1);
     };
 
     const showSkeleton = loading && danhSach.length === 0;
@@ -459,7 +461,7 @@ export default function CatalogCrud({ config }) {
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder={`Tìm theo mã, tên${extraField ? ", " + extraField.column.toLowerCase() : ""} hoặc mô tả...`}
+                        placeholder={`Tìm theo ID, mã, tên${extraField ? ", " + extraField.column.toLowerCase() : ""} hoặc mô tả...`}
                     />
                 </div>
 
@@ -509,6 +511,7 @@ export default function CatalogCrud({ config }) {
                         <table className="products-table">
                             <thead>
                             <tr>
+                                <th>ID</th>
                                 <th>
                                     <button
                                         type="button"
@@ -536,13 +539,14 @@ export default function CatalogCrud({ config }) {
                                 const busy = busyId === item.id;
                                 return (
                                     <tr key={item.id}>
+                                        <td>{item.id}</td>
+
                                         <td>
                                             <strong>{item[codeField] || "-"}</strong>
                                         </td>
 
                                         <td>
                                             <div className="product-name">{item[nameField]}</div>
-                                            <small>ID: {item.id}</small>
                                         </td>
 
                                         {extraField && <td>{item[extraField.key] || "-"}</td>}
@@ -622,33 +626,89 @@ export default function CatalogCrud({ config }) {
                     </div>
                 )}
 
-                {sorted.length > PAGE_SIZE && (
-                    <div className="catalog-pagination">
-                        <span>
-                            Hiển thị {(currentPage - 1) * PAGE_SIZE + 1}–
-                            {Math.min(currentPage * PAGE_SIZE, sorted.length)} / {sorted.length}
-                        </span>
-                        <div>
+                {sorted.length > 0 && (
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "18px 0"
+                        }}
+                    >
+                        <button
+                            type="button"
+                            disabled={currentPage === 1}
+                            onClick={() =>
+                                setPage((page) => page - 1)
+                            }
+                            style={{
+                                minWidth: "38px",
+                                height: "38px",
+                                border: "1px solid #ddd",
+                                borderRadius: "8px",
+                                background: "#fff",
+                                cursor:
+                                    currentPage === 1
+                                        ? "not-allowed"
+                                        : "pointer"
+                            }}
+                        >
+                            ←
+                        </button>
+
+                        {Array.from(
+                            { length: totalPages },
+                            (_, index) => index + 1
+                        ).map((item) => (
                             <button
+                                key={item}
                                 type="button"
-                                className="btn-reset"
-                                disabled={currentPage <= 1}
-                                onClick={() => setPage(currentPage - 1)}
+                                onClick={() => setPage(item)}
+                                style={{
+                                    minWidth: "38px",
+                                    height: "38px",
+                                    border: "1px solid #ddd",
+                                    borderRadius: "8px",
+                                    background:
+                                        currentPage === item
+                                            ? "#d94b3f"
+                                            : "#fff",
+                                    color:
+                                        currentPage === item
+                                            ? "#fff"
+                                            : "#222",
+                                    cursor: "pointer",
+                                    fontWeight:
+                                        currentPage === item
+                                            ? 600
+                                            : 400
+                                }}
                             >
-                                ‹ Trước
+                                {item}
                             </button>
-                            <span>
-                                Trang {currentPage}/{totalPages}
-                            </span>
-                            <button
-                                type="button"
-                                className="btn-reset"
-                                disabled={currentPage >= totalPages}
-                                onClick={() => setPage(currentPage + 1)}
-                            >
-                                Sau ›
-                            </button>
-                        </div>
+                        ))}
+
+                        <button
+                            type="button"
+                            disabled={currentPage === totalPages}
+                            onClick={() =>
+                                setPage((page) => page + 1)
+                            }
+                            style={{
+                                minWidth: "38px",
+                                height: "38px",
+                                border: "1px solid #ddd",
+                                borderRadius: "8px",
+                                background: "#fff",
+                                cursor:
+                                    currentPage === totalPages
+                                        ? "not-allowed"
+                                        : "pointer"
+                            }}
+                        >
+                            →
+                        </button>
                     </div>
                 )}
             </div>
@@ -686,6 +746,16 @@ export default function CatalogCrud({ config }) {
                             {formError && <div className="catalog-form-error">{formError}</div>}
 
                             <div className="form-grid">
+                                <div className="form-group">
+                                    <label>ID</label>
+                                    <input
+                                        readOnly
+                                        className="input-readonly"
+                                        value={editing ? editing.id : ""}
+                                        placeholder="Tự động tạo"
+                                    />
+                                </div>
+
                                 <div className="form-group">
                                     <label>{codeLabel}</label>
                                     <input

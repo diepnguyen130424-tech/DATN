@@ -37,6 +37,9 @@ function AdminProducts() {
     const [form, setForm] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
+
 
     const loadData = async () => {
         try {
@@ -112,6 +115,27 @@ function AdminProducts() {
         statusFilter,
     ]);
 
+    const totalPages = Math.ceil(
+        filteredProducts.length / itemsPerPage
+    );
+
+    const startIndex =
+        (currentPage - 1) * itemsPerPage;
+
+    const currentProducts =
+        filteredProducts.slice(
+            startIndex,
+            startIndex + itemsPerPage
+        );
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [
+        keyword,
+        categoryFilter,
+        brandFilter,
+        statusFilter,
+    ]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -392,7 +416,7 @@ function AdminProducts() {
 
                             <tbody>
 
-                            {filteredProducts.map((product) => (
+                            {currentProducts.map((product) => (
                                 <tr key={product.id}>
 
                                     <td>
@@ -490,6 +514,100 @@ function AdminProducts() {
                             </tbody>
 
                         </table>
+
+                        {totalPages > 1 && (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    padding: "18px 0"
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setCurrentPage(
+                                            (page) => page - 1
+                                        )
+                                    }
+                                    disabled={currentPage === 1}
+                                    style={{
+                                        minWidth: "38px",
+                                        height: "38px",
+                                        border: "1px solid #ddd",
+                                        borderRadius: "8px",
+                                        background: "#fff",
+                                        cursor:
+                                            currentPage === 1
+                                                ? "not-allowed"
+                                                : "pointer"
+                                    }}
+                                >
+                                    ←
+                                </button>
+
+                                {Array.from(
+                                    { length: totalPages },
+                                    (_, index) => index + 1
+                                ).map((page) => (
+                                    <button
+                                        key={page}
+                                        type="button"
+                                        onClick={() =>
+                                            setCurrentPage(page)
+                                        }
+                                        style={{
+                                            minWidth: "38px",
+                                            height: "38px",
+                                            border: "1px solid #ddd",
+                                            borderRadius: "8px",
+                                            background:
+                                                currentPage === page
+                                                    ? "#d94b3f"
+                                                    : "#fff",
+                                            color:
+                                                currentPage === page
+                                                    ? "#fff"
+                                                    : "#222",
+                                            cursor: "pointer",
+                                            fontWeight:
+                                                currentPage === page
+                                                    ? 600
+                                                    : 400
+                                        }}
+                                    >
+                                        {page}
+                                    </button>
+                                ))}
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setCurrentPage(
+                                            (page) => page + 1
+                                        )
+                                    }
+                                    disabled={
+                                        currentPage === totalPages
+                                    }
+                                    style={{
+                                        minWidth: "38px",
+                                        height: "38px",
+                                        border: "1px solid #ddd",
+                                        borderRadius: "8px",
+                                        background: "#fff",
+                                        cursor:
+                                            currentPage === totalPages
+                                                ? "not-allowed"
+                                                : "pointer"
+                                    }}
+                                >
+                                    →
+                                </button>
+                            </div>
+                        )}
 
                         {filteredProducts.length === 0 && (
                             <div className="empty-products">

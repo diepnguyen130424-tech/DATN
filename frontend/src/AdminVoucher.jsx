@@ -1,3 +1,4 @@
+
 /* eslint-disable react-hooks/set-state-in-effect, no-empty */
 import { useEffect, useRef, useState } from "react";
 
@@ -93,6 +94,8 @@ export default function AdminVoucher() {
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
 
     const abortRef = useRef(null);
     const isMountedRef = useRef(true);
@@ -119,338 +122,359 @@ export default function AdminVoucher() {
 
             const timeoutId = setTimeout(() => controller.abort(), 12000);
             const res = await fetch(`${API}/ma-giam-gia`, {
-                signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
+signal: controller.signal,
+});
+clearTimeout(timeoutId);
 
-            if (!isMountedRef.current) return;
-            if (!res.ok) {
-                throw new Error(`Lỗi ${res.status}: Không tải được danh sách`);
-            }
+if (!isMountedRef.current) return;
+if (!res.ok) {
+    throw new Error(`Lỗi ${res.status}: Không tải được danh sách`);
+}
 
-            const data = await res.json();
-            if (!isMountedRef.current) return;
+const data = await res.json();
+if (!isMountedRef.current) return;
 
-            const list = Array.isArray(data) ? data : [];
-            setDanhSach(list);
-            writeCache(list);
+const list = Array.isArray(data) ? data : [];
+setDanhSach(list);
+writeCache(list);
+setError("");
+} catch (err) {
+    if (err.name === "AbortError") return;
+    if (!isMountedRef.current) return;
+
+    if (!background) {
+        const cached = readCache();
+        if (cached && cached.length > 0) {
+            setDanhSach(cached);
             setError("");
-        } catch (err) {
-            if (err.name === "AbortError") return;
-            if (!isMountedRef.current) return;
-
-            if (!background) {
-                const cached = readCache();
-                if (cached && cached.length > 0) {
-                    setDanhSach(cached);
-                    setError("");
-                } else {
-                    let msg = err.message;
-                    if (err.message === "Failed to fetch") {
-                        msg = "Không kết nối được tới máy chủ.";
-                    }
-                    setError(msg);
-                }
+        } else {
+            let msg = err.message;
+            if (err.message === "Failed to fetch") {
+                msg = "Không kết nối được tới máy chủ.";
             }
-        } finally {
-            if (isMountedRef.current) setLoading(false);
+            setError(msg);
         }
-    };
+    }
+} finally {
+    if (isMountedRef.current) setLoading(false);
+}
+};
 
-    useEffect(() => {
-        loadDanhSach();
-    }, []);
+useEffect(() => {
+    loadDanhSach();
+}, []);
 
-    const openCreate = () => {
-        setEditing(null);
-        setForm(EMPTY_FORM);
-        setFormError("");
-        setShowModal(true);
-    };
+const openCreate = () => {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setFormError("");
+    setShowModal(true);
+};
 
-    const openEdit = (v) => {
-        setEditing(v);
-        setForm({
-            maVoucher: v.maVoucher || "",
-            tenVoucher: v.tenVoucher || "",
-            loaiGiam: v.loaiGiam || "PHAN_TRAM",
-            giaTriGiam: v.giaTriGiam ?? "",
-            giamToiDa: v.giamToiDa ?? "",
-            donToiThieu: v.donToiThieu ?? "",
-            soLuong: v.soLuong ?? "",
-            soLuongDaDung: v.soLuongDaDung ?? 0,
-            ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
-            ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
-            trangThai: v.trangThai || "HOAT_DONG",
+const openEdit = (v) => {
+    setEditing(v);
+    setForm({
+        maVoucher: v.maVoucher || "",
+        tenVoucher: v.tenVoucher || "",
+        loaiGiam: v.loaiGiam || "PHAN_TRAM",
+        giaTriGiam: v.giaTriGiam ?? "",
+        giamToiDa: v.giamToiDa ?? "",
+        donToiThieu: v.donToiThieu ?? "",
+        soLuong: v.soLuong ?? "",
+        soLuongDaDung: v.soLuongDaDung ?? 0,
+        ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
+        ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
+        trangThai: v.trangThai || "HOAT_DONG",
+    });
+    setFormError("");
+    setShowModal(true);
+};
+
+const closeModal = () => {
+    if (saving) return;
+    setShowModal(false);
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setFormError("");
+};
+
+const handleChange = (field, value) => {
+    setForm((old) => ({ ...old, [field]: value }));
+};
+
+const validate = () => {
+    if (!form.maVoucher.trim()) return "Vui lòng nhập mã voucher";
+    if (!/^[A-Z0-9_]+$/.test(form.maVoucher.trim().toUpperCase()))
+        return "Mã chỉ dùng chữ HOA, số và dấu gạch dưới";
+    if (!form.tenVoucher.trim()) return "Vui lòng nhập tên voucher";
+    if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0)
+        return "Giá trị giảm phải lớn hơn 0";
+    if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 100)
+        return "Giảm % không được vượt quá 100";
+    if (!form.soLuong || Number(form.soLuong) <= 0)
+        return "Số lượng phải lớn hơn 0";
+    return "";
+};
+
+const handleSave = async () => {
+    const err = validate();
+    if (err) {
+        setFormError(err);
+        return;
+    }
+
+    setSaving(true);
+    setFormError("");
+
+    try {
+        const body = {
+            maVoucher: form.maVoucher.trim().toUpperCase(),
+            tenVoucher: form.tenVoucher.trim(),
+            loaiGiam: form.loaiGiam,
+            giaTriGiam: Number(form.giaTriGiam),
+            giamToiDa: form.giamToiDa ? Number(form.giamToiDa) : null,
+            donToiThieu: form.donToiThieu ? Number(form.donToiThieu) : null,
+            soLuong: Number(form.soLuong),
+            soLuongDaDung: Number(form.soLuongDaDung) || 0,
+            ngayBatDau: form.ngayBatDau ? form.ngayBatDau + ":00" : null,
+            ngayKetThuc: form.ngayKetThuc ? form.ngayKetThuc + ":00" : null,
+            trangThai: form.trangThai,
+        };
+
+        const url = editing
+            ? `${API}/ma-giam-gia/${editing.id}`
+            : `${API}/ma-giam-gia`;
+        const method = editing ? "PUT" : "POST";
+
+        const res = await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
         });
-        setFormError("");
-        setShowModal(true);
-    };
 
-    const closeModal = () => {
-        if (saving) return;
-        setShowModal(false);
-        setEditing(null);
-        setForm(EMPTY_FORM);
-        setFormError("");
-    };
-
-    const handleChange = (field, value) => {
-        setForm((old) => ({ ...old, [field]: value }));
-    };
-
-    const validate = () => {
-        if (!form.maVoucher.trim()) return "Vui lòng nhập mã voucher";
-        if (!/^[A-Z0-9_]+$/.test(form.maVoucher.trim().toUpperCase()))
-            return "Mã chỉ dùng chữ HOA, số và dấu gạch dưới";
-        if (!form.tenVoucher.trim()) return "Vui lòng nhập tên voucher";
-        if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0)
-            return "Giá trị giảm phải lớn hơn 0";
-        if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 100)
-            return "Giảm % không được vượt quá 100";
-        if (!form.soLuong || Number(form.soLuong) <= 0)
-            return "Số lượng phải lớn hơn 0";
-        return "";
-    };
-
-    const handleSave = async () => {
-        const err = validate();
-        if (err) {
-            setFormError(err);
-            return;
+        if (!res.ok) {
+            const text = await res.text();
+            let msg = "Lưu thất bại";
+            try {
+                const j = JSON.parse(text);
+                msg = j.message || msg;
+            } catch {
+                msg = text || msg;
+            }
+            throw new Error(msg);
         }
 
-        setSaving(true);
-        setFormError("");
+        const savedData = await res.json();
 
-        try {
-            const body = {
-                maVoucher: form.maVoucher.trim().toUpperCase(),
-                tenVoucher: form.tenVoucher.trim(),
-                loaiGiam: form.loaiGiam,
-                giaTriGiam: Number(form.giaTriGiam),
-                giamToiDa: form.giamToiDa ? Number(form.giamToiDa) : null,
-                donToiThieu: form.donToiThieu ? Number(form.donToiThieu) : null,
-                soLuong: Number(form.soLuong),
-                soLuongDaDung: Number(form.soLuongDaDung) || 0,
-                ngayBatDau: form.ngayBatDau ? form.ngayBatDau + ":00" : null,
-                ngayKetThuc: form.ngayKetThuc ? form.ngayKetThuc + ":00" : null,
-                trangThai: form.trangThai,
-            };
-
-            const url = editing
-                ? `${API}/ma-giam-gia/${editing.id}`
-                : `${API}/ma-giam-gia`;
-            const method = editing ? "PUT" : "POST";
-
-            const res = await fetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-
-            if (!res.ok) {
-                const text = await res.text();
-                let msg = "Lưu thất bại";
-                try {
-                    const j = JSON.parse(text);
-                    msg = j.message || msg;
-                } catch {
-                    msg = text || msg;
-                }
-                throw new Error(msg);
-            }
-
-            const savedData = await res.json();
-
-            let newList;
-            if (editing) {
-                newList = danhSach.map((item) =>
-                    item.id === savedData.id ? savedData : item
-                );
-            } else {
-                newList = [savedData, ...danhSach];
-            }
-
-            setDanhSach(newList);
-            writeCache(newList);
-            closeModal();
-            setTimeout(() => loadDanhSach(true), 500);
-        } catch (err) {
-            setFormError(err.message);
-        } finally {
-            setSaving(false);
+        let newList;
+        if (editing) {
+            newList = danhSach.map((item) =>
+                item.id === savedData.id ? savedData : item
+            );
+        } else {
+            newList = [savedData, ...danhSach];
         }
-    };
 
-    const handleDelete = async (v) => {
-        if (!window.confirm(`Xóa voucher "${v.maVoucher}"?`)) return;
-
-        const oldList = danhSach;
-        const newList = danhSach.filter((item) => item.id !== v.id);
         setDanhSach(newList);
         writeCache(newList);
+        closeModal();
+        setTimeout(() => loadDanhSach(true), 500);
+    } catch (err) {
+        setFormError(err.message);
+    } finally {
+        setSaving(false);
+    }
+};
 
-        try {
-            const res = await fetch(`${API}/ma-giam-gia/${v.id}`, {
-                method: "DELETE",
-            });
-            if (!res.ok) throw new Error("Xóa thất bại");
-            setTimeout(() => loadDanhSach(true), 400);
-        } catch (err) {
-            setDanhSach(oldList);
-            writeCache(oldList);
-            alert(err.message);
-        }
-    };
+const handleDelete = async (v) => {
+    if (!window.confirm(`Xóa voucher "${v.maVoucher}"?`)) return;
 
-    const filtered = danhSach.filter((v) => {
-        const kw = search.trim().toLowerCase();
-        const matchKw =
-            !kw ||
-            v.maVoucher?.toLowerCase().includes(kw) ||
-            v.tenVoucher?.toLowerCase().includes(kw);
-        const matchTT =
-            filterTrangThai === "TAT_CA" || v.trangThai === filterTrangThai;
-        return matchKw && matchTT;
-    });
+    const oldList = danhSach;
+    const newList = danhSach.filter((item) => item.id !== v.id);
+    setDanhSach(newList);
+    writeCache(newList);
 
-    const showSkeleton = loading && danhSach.length === 0;
+    try {
+        const res = await fetch(`${API}/ma-giam-gia/${v.id}`, {
+            method: "DELETE",
+        });
+        if (!res.ok) throw new Error("Xóa thất bại");
+        setTimeout(() => loadDanhSach(true), 400);
+    } catch (err) {
+        setDanhSach(oldList);
+        writeCache(oldList);
+        alert(err.message);
+    }
+};
 
-    return (
-        <div className="admin-voucher">
-            <div className="admin-page-heading">
-                <div>
-                    <div className="admin-eyebrow">Quản lý / Voucher</div>
-                    <h1>Quản lý Voucher</h1>
-                    <p>Quản lý các mã giảm giá của cửa hàng.</p>
-                </div>
-                <button className="admin-date-button" onClick={openCreate}>
-                    + Thêm voucher
-                </button>
+const filtered = danhSach.filter((v) => {
+    const kw = search.trim().toLowerCase();
+    const matchKw =
+        !kw ||
+        v.maVoucher?.toLowerCase().includes(kw) ||
+        v.tenVoucher?.toLowerCase().includes(kw);
+    const matchTT =
+        filterTrangThai === "TAT_CA" || v.trangThai === filterTrangThai;
+    return matchKw && matchTT;
+});
+
+const totalPages = Math.max(
+    1,
+    Math.ceil(filtered.length / itemsPerPage)
+);
+
+useEffect(() => {
+    setCurrentPage(1);
+}, [search, filterTrangThai]);
+
+useEffect(() => {
+    setCurrentPage((page) =>
+        Math.min(page, totalPages)
+    );
+}, [totalPages]);
+
+const currentItems = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+);
+
+const showSkeleton = loading && danhSach.length === 0;
+
+return (
+    <div className="admin-voucher">
+        <div className="admin-page-heading">
+            <div>
+                <div className="admin-eyebrow">Quản lý / Voucher</div>
+                <h1>Quản lý Voucher</h1>
+                <p>Quản lý các mã giảm giá của cửa hàng.</p>
             </div>
+            <button className="admin-date-button" onClick={openCreate}>
+                + Thêm voucher
+            </button>
+        </div>
 
-            <div className="admin-filters">
-                <input
-                    placeholder="Tìm theo mã hoặc tên voucher..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                />
-                <select
-                    value={filterTrangThai}
-                    onChange={(e) => setFilterTrangThai(e.target.value)}
-                >
-                    <option value="TAT_CA">Tất cả trạng thái</option>
-                    <option value="HOAT_DONG">Hoạt động</option>
-                    <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
+        <div className="admin-filters">
+            <input
+                placeholder="Tìm theo mã hoặc tên voucher..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+            />
+            <select
+                value={filterTrangThai}
+                onChange={(e) => setFilterTrangThai(e.target.value)}
+            >
+                <option value="TAT_CA">Tất cả trạng thái</option>
+                <option value="HOAT_DONG">Hoạt động</option>
+                <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
 
-                </select>
+            </select>
+        </div>
+
+        {showSkeleton && (
+            <div className="admin-table-scroll">
+                <table className="admin-table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Mã</th>
+                        <th>Tên</th>
+                        <th>Loại</th>
+                        <th>Giá trị</th>
+                        <th>Giảm tối đa</th>
+                        <th>Đơn tối thiểu</th>
+                        <th>SL/ đã dùng</th>
+                        <th>Bắt đầu</th>
+                        <th>Hết hạn</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                        <tr key={i} className="skeleton-row">
+                            {Array.from({ length: 10 }).map((_, j) => (
+                                <td key={j}>
+                                    <div className="skeleton-bar" />
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                    </tbody>
+
+                </table>
             </div>
+        )}
 
-            {showSkeleton && (
-                <div className="admin-table-scroll">
-                    <table className="admin-table">
-                        <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Mã</th>
-                            <th>Tên</th>
-                            <th>Loại</th>
-                            <th>Giá trị</th>
-                            <th>Giảm tối đa</th>
-                            <th>Đơn tối thiểu</th>
-                            <th>SL/ đã dùng</th>
-                            <th>Bắt đầu</th>
-                            <th>Hết hạn</th>
-                            <th>Trạng thái</th>
-                            <th>Thao tác</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {[1, 2, 3, 4, 5].map((i) => (
-                            <tr key={i} className="skeleton-row">
-                                {Array.from({ length: 10 }).map((_, j) => (
-                                    <td key={j}>
-                                        <div className="skeleton-bar" />
-                                    </td>
-                                ))}
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table>
+        {!showSkeleton && error && danhSach.length === 0 && (
+            <div className="admin-error-box">
+                <div className="icon">⚠️</div>
+                <h3>Không tải được dữ liệu</h3>
+                <p>{error}</p>
+            </div>
+        )}
+
+        {!showSkeleton && danhSach.length > 0 && (
+            <div className="admin-table-scroll">
+                <div className="admin-table-head">
+                    <h2>Danh sách voucher</h2>
+                    <span>{filtered.length} voucher</span>
                 </div>
-            )}
+                <table className="admin-table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Mã</th>
+                        <th>Tên</th>
+                        <th>Loại</th>
+                        <th>Giá trị</th>
+                        <th>Giảm tối đa</th>
+                        <th>Đơn tối thiểu</th>
+                        <th>SL/ đã dùng</th>
+                        <th>Bắt đầu</th>
+                        <th>Hết hạn</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {currentItems.map((v) => (
+                        <tr key={v.id}>
+                            <td>
+                                <strong>#{v.id}</strong>
+                            </td>
+                            <td>
+                                <strong>{v.maVoucher}</strong>
+                            </td>
+                            <td>{v.tenVoucher}</td>
+                            <td>
+                                {v.loaiGiam === "PHAN_TRAM"
+                                    ? "Phần trăm"
+                                    : "Số tiền"}
+                            </td>
 
-            {!showSkeleton && error && danhSach.length === 0 && (
-                <div className="admin-error-box">
-                    <div className="icon">⚠️</div>
-                    <h3>Không tải được dữ liệu</h3>
-                    <p>{error}</p>
-                </div>
-            )}
+                            <td>
+                                {v.loaiGiam === "PHAN_TRAM"
+                                    ? `${v.giaTriGiam}%`
+                                    : formatGia(v.giaTriGiam)}
+                            </td>
+                            <td>
+                                {v.giamToiDa
+                                    ? formatGia(v.giamToiDa)
+                                    : "—"}
+                            </td>
 
-            {!showSkeleton && danhSach.length > 0 && (
-                <div className="admin-table-scroll">
-                    <div className="admin-table-head">
-                        <h2>Danh sách voucher</h2>
-                        <span>{filtered.length} voucher</span>
-                    </div>
-                    <table className="admin-table">
-                        <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Mã</th>
-                            <th>Tên</th>
-                            <th>Loại</th>
-                            <th>Giá trị</th>
-                            <th>Giảm tối đa</th>
-                            <th>Đơn tối thiểu</th>
-                            <th>SL/ đã dùng</th>
-                            <th>Bắt đầu</th>
-                            <th>Hết hạn</th>
-                            <th>Trạng thái</th>
-                            <th>Thao tác</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {filtered.map((v) => (
-                            <tr key={v.id}>
-                                <td>
-                                    <strong>#{v.id}</strong>
-                                </td>
-                                <td>
-                                    <strong>{v.maVoucher}</strong>
-                                </td>
-                                <td>{v.tenVoucher}</td>
-                                <td>
-                                    {v.loaiGiam === "PHAN_TRAM"
-                                        ? "Phần trăm"
-                                        : "Số tiền"}
-                                </td>
+                            <td>{formatGia(v.donToiThieu)}</td>
+                            {/* ⭐ GỘP — SL / Đã dùng */}
+                            <td>
+                                <strong>
+                                    {v.soLuong ?? 0}/{v.soLuongDaDung ?? 0}
+                                </strong>
+                            </td>
 
-                                <td>
-                                    {v.loaiGiam === "PHAN_TRAM"
-                                        ? `${v.giaTriGiam}%`
-                                        : formatGia(v.giaTriGiam)}
-                                </td>
-                                <td>
-                                    {v.giamToiDa
-                                        ? formatGia(v.giamToiDa)
-                                        : "—"}
-                                </td>
-
-                                <td>{formatGia(v.donToiThieu)}</td>
-                                {/* ⭐ GỘP — SL / Đã dùng */}
-                                <td>
-                                    <strong>
-                                        {v.soLuong ?? 0}/{v.soLuongDaDung ?? 0}
-                                    </strong>
-                                </td>
-
-                                {/* ⭐ MỚI — Ngày bắt đầu */}
-                                <td>{formatDate(v.ngayBatDau)}</td>
-                                <td>{formatDate(v.ngayKetThuc)}</td>
-                                <td>
+                            {/* ⭐ MỚI — Ngày bắt đầu */}
+                            <td>{formatDate(v.ngayBatDau)}</td>
+                            <td>{formatDate(v.ngayKetThuc)}</td>
+                            <td>
                                         <span
                                             className={`order-status ${getTrangThaiClass(
                                                 v.trangThai
@@ -458,280 +482,372 @@ export default function AdminVoucher() {
                                         >
                                             {getTrangThaiLabel(v.trangThai)}
                                         </span>
-                                </td>
-                                <td style={{ whiteSpace: "nowrap" }}>
-                                    <button
-                                        type="button"
-                                        className="btn-edit"
-                                        onClick={() => openEdit(v)}
-                                    >
-                                        Sửa
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn-delete"
-                                        onClick={() => handleDelete(v)}
-                                    >
-                                        Xóa
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                        {filtered.length === 0 && (
-                            <tr>
-                                <td colSpan={12} className="admin-empty">
-                                    Không có voucher nào
-                                </td>
-                            </tr>
-                        )}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                            </td>
+                            <td style={{ whiteSpace: "nowrap" }}>
+                                <button
+                                    type="button"
+                                    className="btn-edit"
+                                    onClick={() => openEdit(v)}
+                                >
+                                    Sửa
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-delete"
+                                    onClick={() => handleDelete(v)}
+                                >
+                                    Xóa
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                    {filtered.length === 0 && (
+                        <tr>
+                            <td colSpan={12} className="admin-empty">
+                                Không có voucher nào
+                            </td>
+                        </tr>
+                    )}
 
-            {showModal && (
+                    <tr>
+                        <td
+                            colSpan={12}
+                            style={{
+                                textAlign: "center",
+                                padding: "12px"
+                            }}
+                        >
+                            {filtered.length > 0 && (
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        gap: "8px"
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.max(1, page - 1)
+                                            )
+                                        }
+                                        disabled={currentPage === 1}
+                                        style={{
+                                            width: 56,
+                                            height: 56,
+                                            border: "1px solid #ddd",
+                                            borderRadius: 10,
+                                            background: "#fff",
+                                            fontSize: 22,
+                                            color: currentPage === 1 ? "#ccc" : "#222",
+                                            cursor: currentPage === 1 ? "default" : "pointer"
+                                        }}
+                                    >
+                                        ←
+                                    </button>
+
+                                    {Array.from(
+                                        { length: totalPages },
+                                        (_, index) => index + 1
+                                    ).map((page) => (
+                                        <button
+                                            key={page}
+                                            type="button"
+                                            onClick={() => setCurrentPage(page)}
+                                            style={{
+                                                width: 56,
+                                                height: 56,
+                                                border: currentPage === page
+                                                    ? "1px solid #d94b3f"
+                                                    : "1px solid #ddd",
+                                                borderRadius: 10,
+                                                background: currentPage === page
+                                                    ? "#d94b3f"
+                                                    : "#fff",
+                                                color: currentPage === page ? "#fff" : "#222",
+                                                fontWeight: currentPage === page ? 700 : 500,
+                                                cursor: "pointer"
+                                            }}
+                                        >
+                                            {page}
+                                        </button>
+                                    ))}
+
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.min(totalPages, page + 1)
+                                            )
+                                        }
+                                        disabled={currentPage === totalPages}
+                                        style={{
+                                            width: 56,
+                                            height: 56,
+                                            border: "1px solid #ddd",
+                                            borderRadius: 10,
+                                            background: "#fff",
+                                            fontSize: 22,
+                                            color: currentPage === totalPages ? "#ccc" : "#222",
+                                            cursor: currentPage === totalPages ? "default" : "pointer"
+                                        }}
+                                    >
+                                        →
+                                    </button>
+                                </div>
+                            )}
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        )}
+
+        {showModal && (
+            <div
+                onClick={closeModal}
+                style={{
+                    position: "fixed",
+                    inset: 0,
+                    background: "rgba(0,0,0,.5)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 100,
+                    padding: 20,
+                }}
+            >
                 <div
-                    onClick={closeModal}
+                    onClick={(e) => e.stopPropagation()}
                     style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 100,
-                        padding: 20,
+                        background: "#fff",
+                        borderRadius: 12,
+                        padding: 28,
+                        width: "100%",
+                        maxWidth: 620,
+                        maxHeight: "90vh",
+                        overflowY: "auto",
                     }}
                 >
+                    <h2 style={{ marginTop: 0 }}>
+                        {editing ? "Sửa voucher" : "Thêm voucher"}
+                    </h2>
+
+                    {formError && (
+                        <div
+                            style={{
+                                background: "#fdecea",
+                                color: "#c0392b",
+                                padding: "10px 14px",
+                                borderRadius: 8,
+                                marginBottom: 16,
+                                fontSize: 13,
+                            }}
+                        >
+                            {formError}
+                        </div>
+                    )}
+
                     <div
-                        onClick={(e) => e.stopPropagation()}
                         style={{
-                            background: "#fff",
-                            borderRadius: 12,
-                            padding: 28,
-                            width: "100%",
-                            maxWidth: 620,
-                            maxHeight: "90vh",
-                            overflowY: "auto",
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: 14,
                         }}
                     >
-                        <h2 style={{ marginTop: 0 }}>
-                            {editing ? "Sửa voucher" : "Thêm voucher"}
-                        </h2>
-
-                        {formError && (
-                            <div
-                                style={{
-                                    background: "#fdecea",
-                                    color: "#c0392b",
-                                    padding: "10px 14px",
-                                    borderRadius: 8,
-                                    marginBottom: 16,
-                                    fontSize: 13,
-                                }}
-                            >
-                                {formError}
-                            </div>
+                        {/* ⭐ ID — chỉ hiển thị, không cho sửa */}
+                        {editing && (
+                            <Field label="ID">
+                                <input
+                                    className="price-input"
+                                    type="text"
+                                    value={editing.id || "tự động sinh "}
+                                    disabled
+                                    style={{
+                                        background: "#f5f5f5",
+                                        color: "#666",
+                                        cursor: "not-allowed",
+                                    }}
+                                />
+                            </Field>
                         )}
+                        <Field label="Mã voucher *">
+                            <input
+                                className="price-input"
+                                value={form.maVoucher}
+                                onChange={(e) =>
+                                    handleChange(
+                                        "maVoucher",
+                                        e.target.value.toUpperCase()
+                                    )
+                                }
+                                placeholder="VD: SALE10"
+                            />
+                        </Field>
 
-                        <div
+                        <Field label="Tên voucher *">
+                            <input
+                                className="price-input"
+                                value={form.tenVoucher}
+                                onChange={(e) =>
+                                    handleChange("tenVoucher", e.target.value)
+                                }
+                                placeholder="VD: Giảm 10% đơn hàng"
+                            />
+                        </Field>
+
+                        <Field label="Loại giảm">
+                            <select
+                                className="price-input"
+                                value={form.loaiGiam}
+                                onChange={(e) =>
+                                    handleChange("loaiGiam", e.target.value)
+                                }
+                            >
+                                <option value="PHAN_TRAM">Phần trăm (%)</option>
+                                <option value="SO_TIEN">Số tiền (đ)</option>
+                            </select>
+                        </Field>
+
+                        <Field label="Giá trị giảm *">
+                            <input
+                                className="price-input"
+                                type="number"
+                                value={form.giaTriGiam}
+                                onChange={(e) =>
+                                    handleChange("giaTriGiam", e.target.value)
+                                }
+                                placeholder={
+                                    form.loaiGiam === "PHAN_TRAM"
+                                        ? "VD: 10"
+                                        : "VD: 50000"
+                                }
+                            />
+                        </Field>
+
+                        <Field label="Giảm tối đa (đ)">
+                            <input
+                                className="price-input"
+                                type="text"
+                                value={formatSoTienInput(form.giamToiDa)}
+                                onChange={(e) =>
+                                    handleChange("giamToiDa", parseSoTienInput(e.target.value))
+                                }
+                                placeholder="VD: 200.000"
+                            />
+                        </Field>
+
+                        <Field label="Đơn tối thiểu (đ)">
+                            <input
+                                className="price-input"
+                                type="text"
+                                value={formatSoTienInput(form.donToiThieu)}
+                                onChange={(e) =>
+                                    handleChange("donToiThieu", parseSoTienInput(e.target.value))
+                                }
+                                placeholder="VD: 500.000"
+                            />
+                        </Field>
+
+                        <Field label="Số lượng *">
+                            <input
+                                className="price-input"
+                                type="number"
+                                value={form.soLuong}
+                                onChange={(e) =>
+                                    handleChange("soLuong", e.target.value)
+                                }
+                                placeholder="VD: 100"
+                            />
+                        </Field>
+                        <Field label="Ngày bắt đầu">
+                            <input
+                                className="price-input"
+                                type="datetime-local"
+                                value={form.ngayBatDau}
+                                onChange={(e) =>
+                                    handleChange("ngayBatDau", e.target.value)
+                                }
+                            />
+                        </Field>
+
+                        <Field label="Ngày kết thúc">
+                            <input
+                                className="price-input"
+                                type="datetime-local"
+                                value={form.ngayKetThuc}
+                                onChange={(e) =>
+                                    handleChange("ngayKetThuc", e.target.value)
+                                }
+                            />
+                        </Field>
+
+                        <Field label="Trạng thái">
+                            <select
+                                className="price-input"
+                                value={form.trangThai}
+                                onChange={(e) =>
+                                    handleChange("trangThai", e.target.value)
+                                }
+                            >
+                                <option value="HOAT_DONG">Hoạt động</option>
+                                <option value="NGUNG_HOAT_DONG">
+                                    Ngừng hoạt động
+                                </option>
+                            </select>
+                        </Field>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            gap: 10,
+                            marginTop: 24,
+                        }}
+                    >
+                        <button
+                            type="button"
+                            onClick={closeModal}
+                            disabled={saving}
                             style={{
-                                display: "grid",
-                                gridTemplateColumns: "1fr 1fr",
-                                gap: 14,
+                                padding: "10px 20px",
+                                border: "1px solid #ddd",
+                                borderRadius: 8,
+                                background: "#fff",
+                                cursor: "pointer",
                             }}
                         >
-                            {/* ⭐ ID — chỉ hiển thị, không cho sửa */}
-                            {editing && (
-                                <Field label="ID">
-                                    <input
-                                        className="price-input"
-                                        type="text"
-                                        value={editing.id || "tự động sinh "}
-                                        disabled
-                                        style={{
-                                            background: "#f5f5f5",
-                                            color: "#666",
-                                            cursor: "not-allowed",
-                                        }}
-                                    />
-                                </Field>
-                            )}
-                            <Field label="Mã voucher *">
-                                <input
-                                    className="price-input"
-                                    value={form.maVoucher}
-                                    onChange={(e) =>
-                                        handleChange(
-                                            "maVoucher",
-                                            e.target.value.toUpperCase()
-                                        )
-                                    }
-                                    placeholder="VD: SALE10"
-                                />
-                            </Field>
-
-                            <Field label="Tên voucher *">
-                                <input
-                                    className="price-input"
-                                    value={form.tenVoucher}
-                                    onChange={(e) =>
-                                        handleChange("tenVoucher", e.target.value)
-                                    }
-                                    placeholder="VD: Giảm 10% đơn hàng"
-                                />
-                            </Field>
-
-                            <Field label="Loại giảm">
-                                <select
-                                    className="price-input"
-                                    value={form.loaiGiam}
-                                    onChange={(e) =>
-                                        handleChange("loaiGiam", e.target.value)
-                                    }
-                                >
-                                    <option value="PHAN_TRAM">Phần trăm (%)</option>
-                                    <option value="SO_TIEN">Số tiền (đ)</option>
-                                </select>
-                            </Field>
-
-                            <Field label="Giá trị giảm *">
-                                <input
-                                    className="price-input"
-                                    type="number"
-                                    value={form.giaTriGiam}
-                                    onChange={(e) =>
-                                        handleChange("giaTriGiam", e.target.value)
-                                    }
-                                    placeholder={
-                                        form.loaiGiam === "PHAN_TRAM"
-                                            ? "VD: 10"
-                                            : "VD: 50000"
-                                    }
-                                />
-                            </Field>
-
-                            <Field label="Giảm tối đa (đ)">
-                                <input
-                                    className="price-input"
-                                    type="text"
-                                    value={formatSoTienInput(form.giamToiDa)}
-                                    onChange={(e) =>
-                                        handleChange("giamToiDa", parseSoTienInput(e.target.value))
-                                    }
-                                    placeholder="VD: 200.000"
-                                />
-                            </Field>
-
-                            <Field label="Đơn tối thiểu (đ)">
-                                <input
-                                    className="price-input"
-                                    type="text"
-                                    value={formatSoTienInput(form.donToiThieu)}
-                                    onChange={(e) =>
-                                        handleChange("donToiThieu", parseSoTienInput(e.target.value))
-                                    }
-                                    placeholder="VD: 500.000"
-                                />
-                            </Field>
-
-                            <Field label="Số lượng *">
-                                <input
-                                    className="price-input"
-                                    type="number"
-                                    value={form.soLuong}
-                                    onChange={(e) =>
-                                        handleChange("soLuong", e.target.value)
-                                    }
-                                    placeholder="VD: 100"
-                                />
-                            </Field>
-                            <Field label="Ngày bắt đầu">
-                                <input
-                                    className="price-input"
-                                    type="datetime-local"
-                                    value={form.ngayBatDau}
-                                    onChange={(e) =>
-                                        handleChange("ngayBatDau", e.target.value)
-                                    }
-                                />
-                            </Field>
-
-                            <Field label="Ngày kết thúc">
-                                <input
-                                    className="price-input"
-                                    type="datetime-local"
-                                    value={form.ngayKetThuc}
-                                    onChange={(e) =>
-                                        handleChange("ngayKetThuc", e.target.value)
-                                    }
-                                />
-                            </Field>
-
-                            <Field label="Trạng thái">
-                                <select
-                                    className="price-input"
-                                    value={form.trangThai}
-                                    onChange={(e) =>
-                                        handleChange("trangThai", e.target.value)
-                                    }
-                                >
-                                    <option value="HOAT_DONG">Hoạt động</option>
-                                    <option value="NGUNG_HOAT_DONG">
-                                        Ngừng hoạt động
-                                    </option>
-                                </select>
-                            </Field>
-                        </div>
-
-                        <div
+                            Hủy
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSave}
+                            disabled={saving}
                             style={{
-                                display: "flex",
-                                justifyContent: "flex-end",
-                                gap: 10,
-                                marginTop: 24,
+                                padding: "10px 20px",
+                                border: "none",
+                                borderRadius: 8,
+                                background: "#111",
+                                color: "#fff",
+                                cursor: "pointer",
+                                fontWeight: 700,
                             }}
                         >
-                            <button
-                                type="button"
-                                onClick={closeModal}
-                                disabled={saving}
-                                style={{
-                                    padding: "10px 20px",
-                                    border: "1px solid #ddd",
-                                    borderRadius: 8,
-                                    background: "#fff",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleSave}
-                                disabled={saving}
-                                style={{
-                                    padding: "10px 20px",
-                                    border: "none",
-                                    borderRadius: 8,
-                                    background: "#111",
-                                    color: "#fff",
-                                    cursor: "pointer",
-                                    fontWeight: 700,
-                                }}
-                            >
-                                {saving
-                                    ? "Đang lưu..."
-                                    : editing
-                                        ? "Cập nhật"
-                                        : "Tạo mới"}
-                            </button>
-                        </div>
+                            {saving
+                                ? "Đang lưu..."
+                                : editing
+                                    ? "Cập nhật"
+                                    : "Tạo mới"}
+                        </button>
                     </div>
                 </div>
-            )}
-        </div>
-    );
+            </div>
+        )}
+    </div>
+);
 }
 
 function Field({ label, children }) {
