@@ -80,6 +80,9 @@ function AdminMauSac() {
     const [showForm, setShowForm] = useState(false);
     const [loading, setLoading] = useState(true);
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
+
     const taiDuLieu = async () => {
         try {
             const res = await fetch(`${API}/mau-sac`);
@@ -102,6 +105,26 @@ function AdminMauSac() {
         `${item.tenMau} ${item.maMau || ""} ${item.trangThai}`
             .toLowerCase()
             .includes(search.toLowerCase())
+    );
+
+    const totalPages = Math.max(
+        1,
+        Math.ceil(danhSach.length / itemsPerPage)
+    );
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
+
+    useEffect(() => {
+        setCurrentPage((page) =>
+            Math.min(page, totalPages)
+        );
+    }, [totalPages]);
+
+    const currentItems = danhSach.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
     );
     const moThem = () => {
         setEditing(null);
@@ -256,7 +279,7 @@ function AdminMauSac() {
                                 </td>
                             </tr>
                         ) : danhSach.length ? (
-                            danhSach.map((item) => (
+                            currentItems.map((item) => (
                                 <tr key={item.id}>
                                     <td>
                                         #{item.id}
@@ -337,6 +360,98 @@ function AdminMauSac() {
                         )}
                         </tbody>
                     </table>
+
+                    {danhSach.length > 0 && (
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "center",
+                                alignItems: "center",
+                                gap: "8px",
+                                padding: "18px 0"
+                            }}
+                        >
+                            <button
+                                type="button"
+                                disabled={currentPage === 1}
+                                onClick={() =>
+                                    setCurrentPage(
+                                        (page) => page - 1
+                                    )
+                                }
+                                style={{
+                                    minWidth: "38px",
+                                    height: "38px",
+                                    border: "1px solid #ddd",
+                                    borderRadius: "8px",
+                                    background: "#fff",
+                                    cursor:
+                                        currentPage === 1
+                                            ? "not-allowed"
+                                            : "pointer"
+                                }}
+                            >
+                                ←
+                            </button>
+
+                            {Array.from(
+                                { length: totalPages },
+                                (_, index) => index + 1
+                            ).map((page) => (
+                                <button
+                                    key={page}
+                                    type="button"
+                                    onClick={() =>
+                                        setCurrentPage(page)
+                                    }
+                                    style={{
+                                        minWidth: "38px",
+                                        height: "38px",
+                                        border: "1px solid #ddd",
+                                        borderRadius: "8px",
+                                        background:
+                                            currentPage === page
+                                                ? "#d94b3f"
+                                                : "#fff",
+                                        color:
+                                            currentPage === page
+                                                ? "#fff"
+                                                : "#222",
+                                        cursor: "pointer",
+                                        fontWeight:
+                                            currentPage === page
+                                                ? 600
+                                                : 400
+                                    }}
+                                >
+                                    {page}
+                                </button>
+                            ))}
+
+                            <button
+                                type="button"
+                                disabled={currentPage === totalPages}
+                                onClick={() =>
+                                    setCurrentPage(
+                                        (page) => page + 1
+                                    )
+                                }
+                                style={{
+                                    minWidth: "38px",
+                                    height: "38px",
+                                    border: "1px solid #ddd",
+                                    borderRadius: "8px",
+                                    background: "#fff",
+                                    cursor:
+                                        currentPage === totalPages
+                                            ? "not-allowed"
+                                            : "pointer"
+                                }}
+                            >
+                                →
+                            </button>
+                        </div>
+                    )}
                 </div>
             </section>
 
