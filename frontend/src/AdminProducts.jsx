@@ -172,9 +172,33 @@ function AdminProducts() {
         setShowModal(true);
     };
 
-    const openDetail = (sp) => {
-        setSelectedProduct(sp);
+    // ⭐ SỬA — thêm async
+    const openDetail = async (sp) => {
+        setSelectedProduct({
+            ...sp,
+            chiTiets: [],
+            loadingChiTiet: true,
+        });
         setShowDetail(true);
+
+        try {
+            const res = await fetch(`${API}/san-pham/${sp.id}/chi-tiet`);
+            const data = res.ok ? await res.json() : [];
+            const chiTiets = Array.isArray(data) ? data : [];
+
+            setSelectedProduct({
+                ...sp,
+                chiTiets,
+                loadingChiTiet: false,
+            });
+        } catch (err) {
+            console.error("Lỗi tải chi tiết:", err);
+            setSelectedProduct({
+                ...sp,
+                chiTiets: [],
+                loadingChiTiet: false,
+            });
+        }
     };
 
     const closeDetail = () => {
@@ -268,6 +292,12 @@ function AdminProducts() {
         setCategoryFilter("");
         setBrandFilter("");
         setStatusFilter("");
+    };
+
+    // ⭐ Format tiền
+    const formatGia = (gia) => {
+        if (!gia && gia !== 0) return "—";
+        return Number(gia).toLocaleString("vi-VN") + "đ";
     };
 
     return (
@@ -879,7 +909,7 @@ function AdminProducts() {
                 </div>
             )}
 
-            {/* ⭐ MODAL XEM CHI TIẾT SẢN PHẨM */}
+            {/* ⭐ MODAL XEM CHI TIẾT SẢN PHẨM — CÓ BẢNG BIẾN THỂ */}
             {showDetail && selectedProduct && (
                 <div
                     className="modal-overlay"
@@ -888,11 +918,12 @@ function AdminProducts() {
                     <div
                         className="product-modal"
                         onMouseDown={(e) => e.stopPropagation()}
+                        style={{ width: "min(1000px, 100%)" }}
                     >
                         <div className="modal-header">
                             <div>
                                 <h2>Chi tiết sản phẩm</h2>
-                                <p>Thông tin chi tiết sản phẩm</p>
+                                <p>Thông tin sản phẩm và các biến thể</p>
                             </div>
                             <button
                                 className="modal-close"
@@ -903,11 +934,13 @@ function AdminProducts() {
                         </div>
 
                         <div style={{ padding: 24 }}>
+                            {/* ===== THÔNG TIN SẢN PHẨM ===== */}
                             <div
                                 style={{
                                     display: "grid",
                                     gridTemplateColumns: "220px 1fr",
                                     gap: 24,
+                                    marginBottom: 28,
                                 }}
                             >
                                 <img
@@ -1030,6 +1063,160 @@ function AdminProducts() {
                                 </div>
                             </div>
 
+                            {/* ===== BẢNG BIẾN THỂ ===== */}
+                            <div>
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        marginBottom: 12,
+                                    }}
+                                >
+                                    <h3 style={{ margin: 0, fontSize: 18 }}>
+                                        Biến thể sản phẩm
+                                    </h3>
+                                    <span style={{ fontSize: 13, color: "#888" }}>
+                                        {selectedProduct.chiTiets?.length || 0} biến thể
+                                    </span>
+                                </div>
+
+                                {selectedProduct.loadingChiTiet ? (
+                                    <div
+                                        style={{
+                                            textAlign: "center",
+                                            padding: 40,
+                                            color: "#888",
+                                        }}
+                                    >
+                                        Đang tải biến thể...
+                                    </div>
+                                ) : !selectedProduct.chiTiets ||
+                                  selectedProduct.chiTiets.length === 0 ? (
+                                    <div
+                                        style={{
+                                            textAlign: "center",
+                                            padding: 40,
+                                            background: "#fafafa",
+                                            borderRadius: 10,
+                                            color: "#888",
+                                        }}
+                                    >
+                                        Sản phẩm chưa có biến thể nào
+                                    </div>
+                                ) : (
+                                    <div
+                                        style={{
+                                            border: "1px solid #eee",
+                                            borderRadius: 10,
+                                            overflow: "hidden",
+                                        }}
+                                    >
+                                        <table
+                                            style={{
+                                                width: "100%",
+                                                borderCollapse: "collapse",
+                                                fontSize: 13,
+                                            }}
+                                        >
+                                            <thead>
+                                            <tr
+                                                style={{
+                                                    background: "#fafafa",
+                                                    textAlign: "left",
+                                                }}
+                                            >
+                                                <th style={{ padding: "12px 14px", color: "#666", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                                                    SKU
+                                                </th>
+                                                <th style={{ padding: "12px 14px", color: "#666", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                                                    Size
+                                                </th>
+                                                <th style={{ padding: "12px 14px", color: "#666", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                                                    Màu
+                                                </th>
+                                                <th style={{ padding: "12px 14px", color: "#666", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", textAlign: "right" }}>
+                                                    Giá bán
+                                                </th>
+                                                <th style={{ padding: "12px 14px", color: "#666", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", textAlign: "center" }}>
+                                                    Tồn kho
+                                                </th>
+                                                <th style={{ padding: "12px 14px", color: "#666", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", textAlign: "center" }}>
+                                                    Tối thiểu
+                                                </th>
+                                                <th style={{ padding: "12px 14px", color: "#666", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                                                    Trạng thái
+                                                </th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            {selectedProduct.chiTiets.map((ct) => {
+                                                const tonKho = Number(ct.soLuongTon ?? 0);
+                                                const toiThieu = Number(ct.soLuongToiThieu ?? 0);
+                                                const sapHet = tonKho <= toiThieu && tonKho > 0;
+                                                const hetHang = tonKho === 0;
+
+                                                return (
+                                                    <tr
+                                                        key={ct.id}
+                                                        style={{
+                                                            borderTop: "1px solid #f0f0f0",
+                                                        }}
+                                                    >
+                                                        <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 600 }}>
+                                                            {ct.maSku || "—"}
+                                                        </td>
+                                                        <td style={{ padding: "12px 14px" }}>
+                                                            <strong>
+                                                                {ct.kichCo?.tenKichCo || "—"}
+                                                            </strong>
+                                                        </td>
+                                                        <td style={{ padding: "12px 14px" }}>
+                                                            {ct.mauSac?.tenMau || "—"}
+                                                        </td>
+                                                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, color: "#e53935" }}>
+                                                            {formatGia(ct.giaBan)}
+                                                        </td>
+                                                        <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                                                                <span
+                                                                    style={{
+                                                                        fontWeight: 700,
+                                                                        color: hetHang
+                                                                            ? "#e74c3c"
+                                                                            : sapHet
+                                                                                ? "#f39c12"
+                                                                                : "#27ae60",
+                                                                    }}
+                                                                >
+                                                                    {tonKho}
+                                                                </span>
+                                                        </td>
+                                                        <td style={{ padding: "12px 14px", textAlign: "center", color: "#888" }}>
+                                                            {toiThieu}
+                                                        </td>
+                                                        <td style={{ padding: "12px 14px" }}>
+                                                                <span
+                                                                    className={
+                                                                        ct.trangThai === "HOAT_DONG"
+                                                                            ? "status active"
+                                                                            : "status inactive"
+                                                                    }
+                                                                >
+                                                                    {ct.trangThai === "HOAT_DONG"
+                                                                        ? "Hoạt động"
+                                                                        : "Ngừng"}
+                                                                </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ===== NÚT ===== */}
                             <div
                                 style={{
                                     marginTop: 24,
