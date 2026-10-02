@@ -176,8 +176,9 @@ export default function AdminVoucher() {
             maVoucher: v.maVoucher || "",
             tenVoucher: v.tenVoucher || "",
             loaiGiam: v.loaiGiam || "PHAN_TRAM",
-            giaTriGiam: v.giaTriGiam ?? "",
-            giamToiDa: v.giamToiDa ?? "",
+            // ⭐ Với FREESHIP thì để trống, không hiển thị giá trị giảm
+            giaTriGiam: v.loaiGiam === "FREESHIP" ? "" : (v.giaTriGiam ?? ""),
+            giamToiDa: v.loaiGiam === "FREESHIP" ? "" : (v.giamToiDa ?? ""),
             donToiThieu: v.donToiThieu ?? "",
             soLuong: v.soLuong ?? "",
             soLuongDaDung: v.soLuongDaDung ?? 0,
@@ -206,10 +207,15 @@ export default function AdminVoucher() {
         if (!/^[A-Z0-9_]+$/.test(form.maVoucher.trim().toUpperCase()))
             return "Mã chỉ dùng chữ HOA, số và dấu gạch dưới";
         if (!form.tenVoucher.trim()) return "Vui lòng nhập tên voucher";
-        if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0)
-            return "Giá trị giảm phải lớn hơn 0";
-        if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 100)
-            return "Giảm % không được vượt quá 100";
+
+        // ⭐ FREESHIP không cần giá trị giảm
+        if (form.loaiGiam !== "FREESHIP") {
+            if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0)
+                return "Giá trị giảm phải lớn hơn 0";
+            if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 100)
+                return "Giảm % không được vượt quá 100";
+        }
+
         if (!form.soLuong || Number(form.soLuong) <= 0)
             return "Số lượng phải lớn hơn 0";
         return "";
@@ -226,12 +232,17 @@ export default function AdminVoucher() {
         setFormError("");
 
         try {
+            // ⭐ Nếu là FREESHIP thì giaTriGiam = 0, giamToiDa = null
+            const laFreeship = form.loaiGiam === "FREESHIP";
+
             const body = {
                 maVoucher: form.maVoucher.trim().toUpperCase(),
                 tenVoucher: form.tenVoucher.trim(),
                 loaiGiam: form.loaiGiam,
-                giaTriGiam: Number(form.giaTriGiam),
-                giamToiDa: form.giamToiDa ? Number(form.giamToiDa) : null,
+                giaTriGiam: laFreeship ? 0 : Number(form.giaTriGiam),
+                giamToiDa: laFreeship
+                    ? null
+                    : (form.giamToiDa ? Number(form.giamToiDa) : null),
                 donToiThieu: form.donToiThieu ? Number(form.donToiThieu) : null,
                 soLuong: Number(form.soLuong),
                 soLuongDaDung: Number(form.soLuongDaDung) || 0,
@@ -446,15 +457,29 @@ export default function AdminVoucher() {
                                 </td>
                                 <td>{v.tenVoucher}</td>
                                 <td>
-                                    {v.loaiGiam === "PHAN_TRAM"
-                                        ? "Phần trăm"
-                                        : "Số tiền"}
+                                    {v.loaiGiam === "PHAN_TRAM" && "Phần trăm"}
+                                    {v.loaiGiam === "SO_TIEN" && "Số tiền"}
+                                    {v.loaiGiam === "FREESHIP" && (
+                                        <span
+                                            style={{
+                                                padding: "4px 10px",
+                                                background: "#eaf7ed",
+                                                color: "#24833b",
+                                                borderRadius: 999,
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            🚚 FREESHIP
+                                        </span>
+                                    )}
                                 </td>
 
                                 <td>
-                                    {v.loaiGiam === "PHAN_TRAM"
-                                        ? `${v.giaTriGiam}%`
-                                        : formatGia(v.giaTriGiam)}
+                                    {v.loaiGiam === "PHAN_TRAM" && `${v.giaTriGiam}%`}
+                                    {v.loaiGiam === "SO_TIEN" && formatGia(v.giaTriGiam)}
+                                    {v.loaiGiam === "FREESHIP" && "—"}
                                 </td>
                                 <td>
                                     {v.giamToiDa
@@ -701,42 +726,73 @@ export default function AdminVoucher() {
                                 <select
                                     className="price-input"
                                     value={form.loaiGiam}
-                                    onChange={(e) =>
-                                        handleChange("loaiGiam", e.target.value)
-                                    }
+                                    onChange={(e) => {
+                                        const loai = e.target.value;
+                                        // ⭐ Reset giá trị khi chuyển sang FREESHIP
+                                        setForm((old) => ({
+                                            ...old,
+                                            loaiGiam: loai,
+                                            giaTriGiam: loai === "FREESHIP" ? "" : old.giaTriGiam,
+                                            giamToiDa: loai === "FREESHIP" ? "" : old.giamToiDa,
+                                        }));
+                                    }}
                                 >
                                     <option value="PHAN_TRAM">Phần trăm (%)</option>
                                     <option value="SO_TIEN">Số tiền (đ)</option>
+                                    <option value="FREESHIP">🚚 Miễn phí vận chuyển (FREESHIP)</option>
                                 </select>
                             </Field>
 
-                            <Field label="Giá trị giảm *">
-                                <input
-                                    className="price-input"
-                                    type="number"
-                                    value={form.giaTriGiam}
-                                    onChange={(e) =>
-                                        handleChange("giaTriGiam", e.target.value)
-                                    }
-                                    placeholder={
-                                        form.loaiGiam === "PHAN_TRAM"
-                                            ? "VD: 10"
-                                            : "VD: 50000"
-                                    }
-                                />
-                            </Field>
+                            {/* ⭐ Chỉ hiện khi KHÔNG phải FREESHIP */}
+                            {form.loaiGiam !== "FREESHIP" && (
+                                <>
+                                    <Field label="Giá trị giảm *">
+                                        <input
+                                            className="price-input"
+                                            type="number"
+                                            value={form.giaTriGiam}
+                                            onChange={(e) =>
+                                                handleChange("giaTriGiam", e.target.value)
+                                            }
+                                            placeholder={
+                                                form.loaiGiam === "PHAN_TRAM"
+                                                    ? "VD: 10"
+                                                    : "VD: 50000"
+                                            }
+                                        />
+                                    </Field>
 
-                            <Field label="Giảm tối đa (đ)">
-                                <input
-                                    className="price-input"
-                                    type="text"
-                                    value={formatSoTienInput(form.giamToiDa)}
-                                    onChange={(e) =>
-                                        handleChange("giamToiDa", parseSoTienInput(e.target.value))
-                                    }
-                                    placeholder="VD: 200.000"
-                                />
-                            </Field>
+                                    <Field label="Giảm tối đa (đ)">
+                                        <input
+                                            className="price-input"
+                                            type="text"
+                                            value={formatSoTienInput(form.giamToiDa)}
+                                            onChange={(e) =>
+                                                handleChange("giamToiDa", parseSoTienInput(e.target.value))
+                                            }
+                                            placeholder="VD: 200.000"
+                                        />
+                                    </Field>
+                                </>
+                            )}
+
+                            {/* ⭐ Thông báo khi chọn FREESHIP */}
+                            {form.loaiGiam === "FREESHIP" && (
+                                <div
+                                    style={{
+                                        gridColumn: "1 / -1",
+                                        padding: "12px 14px",
+                                        background: "#eaf7ed",
+                                        color: "#24833b",
+                                        borderRadius: 8,
+                                        fontSize: 13,
+                                        border: "1px solid #c3e6cb",
+                                    }}
+                                >
+                                    🚚 Voucher này sẽ <strong>miễn phí vận chuyển</strong> cho khách hàng.
+                                    Không giảm tiền hàng.
+                                </div>
+                            )}
 
                             <Field label="Đơn tối thiểu (đ)">
                                 <input

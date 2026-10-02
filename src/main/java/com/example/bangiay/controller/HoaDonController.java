@@ -110,14 +110,18 @@ public class HoaDonController {
     @PostMapping("/dat-hang/{gioHangId}")
     public ResponseEntity<HoaDon> datHang(
             @PathVariable Long gioHangId,
-
             @RequestBody DatHangRequest request
     ) {
+        // ⭐ Voucher giảm giá (có thể null)
         Long voucherId = request.getVoucherId();
+
+        // ⭐ Voucher freeship (có thể null)
+        Long voucherFreeshipId = request.getVoucherFreeshipId();
         return ResponseEntity.ok(
                 hoaDonService.datHang(
                         gioHangId,
                         voucherId,
+                        voucherFreeshipId,
                         request
                 )
         );

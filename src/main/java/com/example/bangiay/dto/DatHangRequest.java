@@ -19,4 +19,9 @@ public class DatHangRequest {
     private Long voucherId;
     private String maVoucher;
     private BigDecimal tienGiam;
+    private Double phiVanChuyen;
+
+    private Long voucherFreeshipId;
+    private String maVoucherFreeship;
+
 }

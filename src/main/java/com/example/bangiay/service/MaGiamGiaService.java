@@ -152,9 +152,17 @@ public class MaGiamGiaService {
             );
         }
 
+        // ⭐ Biến cờ xác định voucher có phải FREESHIP không
+        boolean laFreeship = "FREESHIP".equalsIgnoreCase(voucher.getLoaiGiam());
+
         BigDecimal tienGiam;
 
-        if ("PHAN_TRAM".equalsIgnoreCase(voucher.getLoaiGiam())) {
+        if (laFreeship) {
+
+            // ⭐ FREESHIP: không giảm tiền hàng, chỉ bật cờ miễn phí ship
+            tienGiam = BigDecimal.ZERO;
+
+        } else if ("PHAN_TRAM".equalsIgnoreCase(voucher.getLoaiGiam())) {
 
             tienGiam = tongTien
                     .multiply(voucher.getGiaTriGiam())
@@ -170,9 +178,11 @@ public class MaGiamGiaService {
             }
 
         } else {
+            // Mặc định là SO_TIEN
             tienGiam = voucher.getGiaTriGiam();
         }
 
+        // Không cho giảm quá tổng tiền hàng
         if (tienGiam.compareTo(tongTien) > 0) {
             tienGiam = tongTien;
         }
@@ -187,7 +197,14 @@ public class MaGiamGiaService {
         result.put("giaTriGiam", voucher.getGiaTriGiam());
         result.put("tienGiam", tienGiam);
         result.put("tongTienSauGiam", tongTienSauGiam);
-        result.put("message", "Áp dụng mã giảm giá thành công");
+
+        // ⭐ THÊM 2 TRƯỜNG QUAN TRỌNG CHO FRONTEND
+        result.put("freeship", laFreeship);
+        result.put("message",
+                laFreeship
+                        ? "Áp dụng mã thành công! Đơn hàng được miễn phí vận chuyển."
+                        : "Áp dụng mã giảm giá thành công"
+        );
 
         return result;
     }

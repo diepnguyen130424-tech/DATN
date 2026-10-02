@@ -115,6 +115,7 @@ public class HoaDonService {
     public HoaDon datHang(
             Long gioHangId,
             Long voucherId,
+            Long voucherFreeshipId,
             DatHangRequest request
     ) {
 
@@ -187,18 +188,6 @@ public class HoaDonService {
         // -----------------------------------------------------
         // 4. CẬP NHẬT THÔNG TIN KHÁCH HÀNG
         // -----------------------------------------------------
-        /*
-         * Khi khách đặt hàng:
-         *
-         * Họ tên
-         * Số điện thoại
-         *
-         * sẽ được cập nhật vào bảng khach_hang.
-         *
-         * Nhờ vậy Admin -> Khách hàng
-         * sẽ hiển thị đúng tên khách thay vì
-         * "Khách hàng mới".
-         */
 
         KhachHang khachHang =
                 gioHang.getKhachHang();
@@ -348,7 +337,7 @@ public class HoaDonService {
 
 
         // -----------------------------------------------------
-        // 7. XỬ LÝ VOUCHER
+        // 7. XỬ LÝ VOUCHER GIẢM GIÁ (VOUCHER CHÍNH)
         // -----------------------------------------------------
 
         MaGiamGia voucher = null;
@@ -367,6 +356,7 @@ public class HoaDonService {
                                             "Không tìm thấy voucher"
                                     )
                             );
+
             if ("PHAN_TRAM".equalsIgnoreCase(voucher.getLoaiGiam())) {
 
                 tienGiam = tongTienHang
@@ -394,13 +384,48 @@ public class HoaDonService {
         }
 
 
+        // -----------------------------------------------------
+        // 7.5. XỬ LÝ VOUCHER FREESHIP (VOUCHER PHỤ)
+        // -----------------------------------------------------
+
+        MaGiamGia voucherFreeship = null;
+
+        if (voucherFreeshipId != null) {
+
+            voucherFreeship =
+                    maGiamGiaRepository
+                            .findById(voucherFreeshipId)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Không tìm thấy voucher FREESHIP"
+                                    )
+                            );
+
+            // ⭐ Kiểm tra đúng loại FREESHIP
+            if (!"FREESHIP".equalsIgnoreCase(voucherFreeship.getLoaiGiam())) {
+                throw new RuntimeException(
+                        "Voucher này không phải là FREESHIP"
+                );
+            }
+        }
+
 
         // -----------------------------------------------------
-        // 8. PHÍ VẬN CHUYỂN
+        // 8. PHÍ VẬN CHUYỄN
         // -----------------------------------------------------
 
-        BigDecimal phiVanChuyen =
-                BigDecimal.ZERO;
+        BigDecimal phiVanChuyen = BigDecimal.ZERO;
+
+        // ⭐ Nếu có voucher FREESHIP → miễn phí ship
+        if (voucherFreeship != null) {
+            phiVanChuyen = BigDecimal.ZERO;
+        } else if (request.getPhiVanChuyen() != null) {
+            // Nếu FE gửi phí ship cụ thể (khi không có freeship)
+            phiVanChuyen = BigDecimal.valueOf(request.getPhiVanChuyen());
+        } else {
+            // Mặc định 30.000đ
+            phiVanChuyen = BigDecimal.valueOf(30000);
+        }
 
 
         // -----------------------------------------------------
@@ -470,9 +495,15 @@ public class HoaDonService {
         );
 
 
+        // ⭐ GÁN VOUCHER GIẢM GIÁ
         hoaDon.setVoucher(
                 voucher
         );
+
+        // ⭐ GÁN VOUCHER FREESHIP (NẾU CÓ)
+        // Lưu ý: Nếu Entity HoaDon chưa có field voucherFreeship,
+        // bạn cần thêm vào trước (xem hướng dẫn bên dưới)
+        // hoaDon.setVoucherFreeship(voucherFreeship);
 
 
         hoaDon.setLoaiHoaDon(
@@ -526,9 +557,11 @@ public class HoaDonService {
                 );
 
 
-        // ⭐ 11.5 TRỪ LƯỢT VOUCHER — MỚI
+        // -----------------------------------------------------
+        // 11.5. TRỪ LƯỢT VOUCHER
         // -----------------------------------------------------
 
+        // ⭐ Trừ lượt voucher giảm giá
         if (voucher != null) {
             try {
                 int daDung = voucher.getSoLuongDaDung() != null
@@ -546,6 +579,27 @@ public class HoaDonService {
                 System.err.println("❌ Lỗi trừ lượt voucher: " + e.getMessage());
             }
         }
+
+        // ⭐ Trừ lượt voucher FREESHIP
+        if (voucherFreeship != null) {
+            try {
+                int daDung = voucherFreeship.getSoLuongDaDung() != null
+                        ? voucherFreeship.getSoLuongDaDung()
+                        : 0;
+
+                voucherFreeship.setSoLuongDaDung(daDung + 1);
+                maGiamGiaRepository.save(voucherFreeship);
+
+                System.out.println("✅ Đã trừ 1 lượt voucher FREESHIP: "
+                        + voucherFreeship.getMaVoucher()
+                        + " (" + (daDung + 1) + "/" + voucherFreeship.getSoLuong() + ")");
+
+            } catch (Exception e) {
+                System.err.println("❌ Lỗi trừ lượt voucher FREESHIP: " + e.getMessage());
+            }
+        }
+
+
         // -----------------------------------------------------
         // 12. TẠO CHI TIẾT HÓA ĐƠN
         // -----------------------------------------------------

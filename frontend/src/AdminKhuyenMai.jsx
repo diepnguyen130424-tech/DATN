@@ -1,4 +1,3 @@
-
 /* eslint-disable react-hooks/set-state-in-effect, no-empty */
 import { useEffect, useRef, useState } from "react";
 
@@ -344,6 +343,7 @@ export default function AdminKhuyenMai() {
                     <table className="admin-table">
                         <thead>
                         <tr>
+                            <th>ID</th>
                             <th>Tên chương trình</th>
                             <th>Loại giảm</th>
                             <th>Giá trị</th>
@@ -356,7 +356,7 @@ export default function AdminKhuyenMai() {
                         <tbody>
                         {[1, 2, 3, 4, 5].map((i) => (
                             <tr key={i} className="skeleton-row">
-                                {Array.from({ length: 7 }).map((_, j) => (
+                                {Array.from({ length: 8 }).map((_, j) => (
                                     <td key={j}>
                                         <div className="skeleton-bar" />
                                     </td>
@@ -386,6 +386,7 @@ export default function AdminKhuyenMai() {
                     <table className="admin-table">
                         <thead>
                         <tr>
+                            <th>ID</th>
                             <th>Tên chương trình</th>
                             <th>Loại giảm</th>
                             <th>Giá trị</th>
@@ -398,6 +399,9 @@ export default function AdminKhuyenMai() {
                         <tbody>
                         {currentItems.map((v) => (
                             <tr key={v.id}>
+                                <td>
+                                    <strong>#{v.id}</strong>
+                                </td>
                                 <td>
                                     <strong>{v.tenChuongTrinh}</strong>
                                 </td>
@@ -442,7 +446,7 @@ export default function AdminKhuyenMai() {
                         ))}
                         {filtered.length === 0 && (
                             <tr>
-                                <td colSpan={7} className="admin-empty">
+                                <td colSpan={8} className="admin-empty">
                                     Không có chương trình nào
                                 </td>
                             </tr>
@@ -450,7 +454,7 @@ export default function AdminKhuyenMai() {
 
                         <tr>
                             <td
-                                colSpan={7}
+                                colSpan={8}
                                 style={{
                                     textAlign: "center",
                                     padding: "12px"
@@ -596,6 +600,33 @@ export default function AdminKhuyenMai() {
                                 gap: 14,
                             }}
                         >
+                            {/* ⭐ ID — CHỈ HIỂN THỊ KHI SỬA */}
+                            {editing && (
+                                <div style={{ gridColumn: "1 / -1" }}>
+                                    <label
+                                        style={{
+                                            display: "block",
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                            marginBottom: 6,
+                                        }}
+                                    >
+                                        ID
+                                    </label>
+                                    <input
+                                        className="price-input"
+                                        type="text"
+                                        value={editing.id || ""}
+                                        disabled
+                                        style={{
+                                            background: "#f5f5f5",
+                                            color: "#666",
+                                            cursor: "not-allowed",
+                                        }}
+                                    />
+                                </div>
+                            )}
+
                             <div style={{ gridColumn: "1 / -1" }}>
                                 <label
                                     style={{
