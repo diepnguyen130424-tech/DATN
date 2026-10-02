@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import "./AdminDashboard.css";
 import AdminProducts from "./AdminProducts";
@@ -9,6 +8,7 @@ import AdminDanhMuc from "./AdminDanhMuc";
 import AdminThuongHieu from "./AdminThuongHieu";
 import AdminKichCo from "./AdminKichCo";
 import AdminMauSac from "./AdminMauSac";
+import AdminSettings from "./AdminSettings";
 const API = "http://localhost:8080/api";
 const adminDataCache = {
     hoaDons: null,
@@ -26,35 +26,35 @@ async function getHoaDons(force = false) {
         return adminDataCache.hoaDonsPromise;
     }
     const promise = fetch(`${API}/hoa-don`)
-    .then(async (response) => {
-        const text = await response.text();
-        let data;
-        try {
-            data = text ? JSON.parse(text) : null;
-        }
-        catch {
-            data = null;
-        }
-        if (!response.ok) {
-            throw new Error(data?.message ||
-                data?.error ||
-                text ||
-                "Không thể tải danh sách hóa đơn");
-        }
-        const danhSach = Array.isArray(data) ? data : [];
-        danhSach.sort((a, b) => {
-            const ngayA = new Date(a?.ngayLap || a?.ngayTao || 0).getTime();
-            const ngayB = new Date(b?.ngayLap || b?.ngayTao || 0).getTime();
-            return ngayB - ngayA;
+        .then(async (response) => {
+            const text = await response.text();
+            let data;
+            try {
+                data = text ? JSON.parse(text) : null;
+            }
+            catch {
+                data = null;
+            }
+            if (!response.ok) {
+                throw new Error(data?.message ||
+                    data?.error ||
+                    text ||
+                    "Không thể tải danh sách hóa đơn");
+            }
+            const danhSach = Array.isArray(data) ? data : [];
+            danhSach.sort((a, b) => {
+                const ngayA = new Date(a?.ngayLap || a?.ngayTao || 0).getTime();
+                const ngayB = new Date(b?.ngayLap || b?.ngayTao || 0).getTime();
+                return ngayB - ngayA;
+            });
+            adminDataCache.hoaDons = danhSach;
+            return danhSach;
+        })
+        .finally(() => {
+            adminDataCache.hoaDonsPromise = null;
         });
-        adminDataCache.hoaDons = danhSach;
-        return danhSach;
-    })
-    .finally(() => {
-        adminDataCache.hoaDonsPromise = null;
-    });
-adminDataCache.hoaDonsPromise = promise;
-return promise;
+    adminDataCache.hoaDonsPromise = promise;
+    return promise;
 }
 async function getKhachHangs(force = false) {
     if (!force && adminDataCache.khachHangs) {
@@ -180,6 +180,44 @@ function tenTrangThaiHoaDon(trangThai) {
         trangThai ||
         "-");
 }
+function getTrangThaiDonHangStyle(trangThai) {
+    const styles = {
+        CHO_XAC_NHAN: {
+            background: "#fff3e0",
+            color: "#ef6c00",
+        },
+        DA_XAC_NHAN: {
+            background: "#e8f5e9",
+            color: "#2e7d32",
+        },
+        DANG_CHUAN_BI: {
+            background: "#ffebee",
+            color: "#e53935",
+        },
+        DANG_GIAO: {
+            background: "#f3e5f5",
+            color: "#7e57c2",
+        },
+        DA_GIAO: {
+            background: "#e8f5e9",
+            color: "#2e9d5b",
+        },
+        DA_THANH_TOAN: {
+            background: "#e8f5e9",
+            color: "#2e7d32",
+        },
+        DA_HUY: {
+            background: "#ffebee",
+            color: "#c62828",
+        },
+    };
+
+    return styles[trangThai] || {
+        background: "#f5f5f5",
+        color: "#666",
+    };
+}
+
 function tenTrangThaiThanhToan(trangThai) {
     const map = {
         CHO_THANH_TOAN: "Chờ thanh toán",
@@ -388,7 +426,25 @@ function DashboardContent({ onViewAll }) {
                                 "Khách lẻ"}
                         </td>
                         <td><strong>{formatTien(hoaDon.tongThanhToan)}</strong></td>
-                        <td><span className="order-status">{tenTrangThaiHoaDon(hoaDon.trangThai)}</span></td>
+                        <td>
+                            <span
+                                className="order-status"
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    padding: "6px 12px",
+                                    borderRadius: "999px",
+                                    fontSize: "12px",
+                                    fontWeight: 700,
+                                    whiteSpace: "nowrap",
+                                    ...getTrangThaiDonHangStyle(hoaDon.trangThai),
+                                }}
+                            >
+                                {hoaDon.trangThai === "DA_THANH_TOAN" && "✓ "}
+                                {tenTrangThaiHoaDon(hoaDon.trangThai)}
+                            </span>
+                        </td>
                     </tr>))}
                     </tbody>
                 </table>)}
@@ -567,10 +623,12 @@ function HoaDonContent() {
     );
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage(1);
     }, [search, filterTrangThai, filterLoai]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage((page) =>
             Math.min(page, totalPages)
         );
@@ -785,10 +843,10 @@ function HoaDonContent() {
 
                     <tbody>
 
-                    {currentItems.map((hoaDon, index) => (<tr key={hoaDon.id}>
+                    {currentItems.map((hoaDon) => (<tr key={hoaDon.id}>
 
                         <td>
-                            #{(currentPage - 1) * itemsPerPage + index + 1}
+                            #{hoaDon.khachHang?.id || "-"}
                         </td>
 
                         <td>
@@ -1497,10 +1555,12 @@ function ThanhToanContent() {
     );
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage(1);
     }, [search, filterTrangThai]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage((page) =>
             Math.min(page, totalPages)
         );
@@ -1688,12 +1748,12 @@ function ThanhToanContent() {
 
                     <tbody>
 
-                    {currentItems.map((hoaDon, index) => {
+                    {currentItems.map((hoaDon) => {
                         const payment = thanhToans[hoaDon.id];
                         return (<tr key={hoaDon.id}>
 
                             <td>
-                                #{(currentPage - 1) * itemsPerPage + index + 1}
+                                #{payment?.id || "-"}
                             </td>
 
                             <td>
@@ -1994,9 +2054,21 @@ function CustomerContent() {
     // 2. Nếu cùng thời gian thì ID lớn hơn lên trước
     // 3. Khách chưa có đơn thì ID lớn hơn lên trước
     // Không sort lại theo ID ở đây vì sẽ làm mất thứ tự khách mới nhất.
-    const filtered = customers.filter((item) => `${item.hoTen || ""} ${item.taiKhoan?.tenDangNhap || ""} ${item.soDienThoai || ""}`
-        .toLowerCase()
-        .includes(search.trim().toLowerCase()));
+    const filtered = [...customers]
+        .filter((item) => {
+            const keyword = search.trim().toLowerCase();
+            const hoTen = String(item?.hoTen || "").toLowerCase();
+            const tenDangNhap = String(item?.taiKhoan?.tenDangNhap || "").toLowerCase();
+            const soDienThoai = String(item?.soDienThoai || "").toLowerCase();
+
+            return (
+                !keyword ||
+                hoTen.includes(keyword) ||
+                tenDangNhap.includes(keyword) ||
+                soDienThoai.includes(keyword)
+            );
+        })
+        .sort((a, b) => Number(a?.id || 0) - Number(b?.id || 0));
 
     const totalPages = Math.max(
         1,
@@ -2009,10 +2081,12 @@ function CustomerContent() {
     );
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage(1);
     }, [search]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage((page) =>
             Math.min(page, totalPages)
         );
@@ -2079,8 +2153,8 @@ function CustomerContent() {
                         <td colSpan="7" className="customer-empty">
                             Đang tải khách hàng...
                         </td>
-                    </tr>) : filtered.length ? (currentItems.map((item, index) => (<tr key={item.id}>
-                        <td>#{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    </tr>) : filtered.length ? (currentItems.map((item) => (<tr key={item.id}>
+                        <td>#{item.id}</td>
                         <td><strong>{item.hoTen}</strong></td>
                         <td>{item.taiKhoan?.tenDangNhap || "-"}</td>
                         <td>{item.soDienThoai || "-"}</td>
@@ -2340,10 +2414,12 @@ function EmployeeContent() {
     );
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage(1);
     }, [search]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage((page) =>
             Math.min(page, totalPages)
         );
@@ -3015,9 +3091,11 @@ function ComingSoon({ title, }) {
 }
 export default function AdminDashboard({ dangXuat, }) {
     const [activeMenu, setActiveMenu] = useState("dashboard");
-    const activeLabel = menuItems.find((item) => item.id ===
-            activeMenu)?.label ||
-        "Tổng quan";
+    const activeLabel =
+        activeMenu === "cai-dat"
+            ? "Cài đặt"
+            : menuItems.find((item) => item.id === activeMenu)?.label ||
+            "Tổng quan";
     useEffect(() => {
         // Preload ngay khi mở Admin để click vào 3 màn này hiện dữ liệu gần như tức thì.
         prefetchAdminData();
@@ -3073,7 +3151,11 @@ export default function AdminDashboard({ dangXuat, }) {
 
             <div className="admin-sidebar-footer">
 
-                <button type="button">
+                <button
+                    type="button"
+                    className={activeMenu === "cai-dat" ? "active" : ""}
+                    onClick={() => setActiveMenu("cai-dat")}
+                >
                         <span>
                             ⚙
                         </span>
@@ -3156,7 +3238,8 @@ export default function AdminDashboard({ dangXuat, }) {
                 "hoa-don" ? (<HoaDonContent />) : activeMenu ===
                 "thanh-toan" ? (<ThanhToanContent />) : activeMenu === "san-pham" ? (<AdminProducts />) : activeMenu === "danh-muc" ? (<AdminDanhMuc />) : activeMenu === "thuong-hieu" ? (<AdminThuongHieu />) : activeMenu === "kich-co" ? (<AdminKichCo />) : activeMenu === "mau-sac" ? (<AdminMauSac />) : activeMenu === "kho" ? (<AdminKho />) : activeMenu === "voucher" ? (<AdminVoucher />) : activeMenu === "khuyen-mai" ? (<AdminKhuyenMai />) : activeMenu ===
                 "khach-hang" ? (<CustomerContent />) : activeMenu ===
-                "nhan-vien" ? (<EmployeeContent />) : (<ComingSoon title={activeLabel}/>)}
+                "nhan-vien" ? (<EmployeeContent />) : activeMenu ===
+                "cai-dat" ? (<AdminSettings />) : (<ComingSoon title={activeLabel}/>)}
 
             </div>
 
