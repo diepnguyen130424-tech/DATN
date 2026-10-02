@@ -93,6 +93,8 @@ export default function AdminVoucher() {
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
 
     const abortRef = useRef(null);
     const isMountedRef = useRef(true);
@@ -315,6 +317,26 @@ export default function AdminVoucher() {
         return matchKw && matchTT;
     });
 
+    const totalPages = Math.max(
+        1,
+        Math.ceil(filtered.length / itemsPerPage)
+    );
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, filterTrangThai]);
+
+    useEffect(() => {
+        setCurrentPage((page) =>
+            Math.min(page, totalPages)
+        );
+    }, [totalPages]);
+
+    const currentItems = filtered.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
     const showSkeleton = loading && danhSach.length === 0;
 
     return (
@@ -377,6 +399,7 @@ export default function AdminVoucher() {
                             </tr>
                         ))}
                         </tbody>
+
                     </table>
                 </div>
             )}
@@ -413,7 +436,7 @@ export default function AdminVoucher() {
                         </tr>
                         </thead>
                         <tbody>
-                        {filtered.map((v) => (
+                        {currentItems.map((v) => (
                             <tr key={v.id}>
                                 <td>
                                     <strong>#{v.id}</strong>
@@ -484,6 +507,98 @@ export default function AdminVoucher() {
                                 </td>
                             </tr>
                         )}
+
+                        <tr>
+                            <td
+                                colSpan={12}
+                                style={{
+                                    textAlign: "center",
+                                    padding: "12px"
+                                }}
+                            >
+                                {filtered.length > 0 && (
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            justifyContent: "center",
+                                            alignItems: "center",
+                                            gap: "8px"
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setCurrentPage((page) =>
+                                                    Math.max(1, page - 1)
+                                                )
+                                            }
+                                            disabled={currentPage === 1}
+                                            style={{
+                                                width: 56,
+                                                height: 56,
+                                                border: "1px solid #ddd",
+                                                borderRadius: 10,
+                                                background: "#fff",
+                                                fontSize: 22,
+                                                color: currentPage === 1 ? "#ccc" : "#222",
+                                                cursor: currentPage === 1 ? "default" : "pointer"
+                                            }}
+                                        >
+                                            ←
+                                        </button>
+
+                                        {Array.from(
+                                            { length: totalPages },
+                                            (_, index) => index + 1
+                                        ).map((page) => (
+                                            <button
+                                                key={page}
+                                                type="button"
+                                                onClick={() => setCurrentPage(page)}
+                                                style={{
+                                                    width: 56,
+                                                    height: 56,
+                                                    border: currentPage === page
+                                                        ? "1px solid #d94b3f"
+                                                        : "1px solid #ddd",
+                                                    borderRadius: 10,
+                                                    background: currentPage === page
+                                                        ? "#d94b3f"
+                                                        : "#fff",
+                                                    color: currentPage === page ? "#fff" : "#222",
+                                                    fontWeight: currentPage === page ? 700 : 500,
+                                                    cursor: "pointer"
+                                                }}
+                                            >
+                                                {page}
+                                            </button>
+                                        ))}
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setCurrentPage((page) =>
+                                                    Math.min(totalPages, page + 1)
+                                                )
+                                            }
+                                            disabled={currentPage === totalPages}
+                                            style={{
+                                                width: 56,
+                                                height: 56,
+                                                border: "1px solid #ddd",
+                                                borderRadius: 10,
+                                                background: "#fff",
+                                                fontSize: 22,
+                                                color: currentPage === totalPages ? "#ccc" : "#222",
+                                                cursor: currentPage === totalPages ? "default" : "pointer"
+                                            }}
+                                        >
+                                            →
+                                        </button>
+                                    </div>
+                                )}
+                            </td>
+                        </tr>
                         </tbody>
                     </table>
                 </div>
