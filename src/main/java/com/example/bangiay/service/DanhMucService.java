@@ -51,6 +51,7 @@ public class DanhMucService {
                 .maDanhMuc(taoMaMoi())
                 .tenDanhMuc(ten)
                 .moTa(chuanHoaMoTa(input.getMoTa()))
+                .hinhAnh(chuanHoaMoTa(input.getHinhAnh()))
                 .trangThai(chuanHoaTrangThai(input.getTrangThai()))
                 .ngayTao(LocalDateTime.now())
                 .build();
@@ -68,6 +69,11 @@ public class DanhMucService {
 
         danhMuc.setTenDanhMuc(ten);
         danhMuc.setMoTa(chuanHoaMoTa(input.getMoTa()));
+
+        // null = giữ nguyên ảnh cũ; chuỗi rỗng = xóa ảnh
+        if (input.getHinhAnh() != null) {
+            danhMuc.setHinhAnh(chuanHoaMoTa(input.getHinhAnh()));
+        }
 
         if (input.getTrangThai() != null) {
             danhMuc.setTrangThai(chuanHoaTrangThai(input.getTrangThai()));

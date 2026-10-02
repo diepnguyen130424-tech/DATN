@@ -28,6 +28,10 @@ public class DanhMuc {
     @Column(name = "mo_ta", columnDefinition = "TEXT")
     private String moTa;
 
+    /** Đường dẫn/URL ảnh (logo thương hiệu, ảnh danh mục) */
+    @Column(name = "hinh_anh", columnDefinition = "TEXT")
+    private String hinhAnh;
+
     @Column(name = "trang_thai", nullable = false)
     private String trangThai;
 

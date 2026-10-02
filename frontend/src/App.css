@@ -3793,3 +3793,131 @@ a {
   margin-top: 0;
   margin-bottom: 15px;
 }
+
+/* ===== MEGA MENU: Danh mục / Thương hiệu ===== */
+.navigation {
+  position: relative;
+}
+
+.navigation a.nav-open {
+  color: #f5d76e;
+}
+
+.mega-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 900;
+  background: #fff;
+  color: #111;
+  border-bottom: 1px solid #e5e5e5;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.12);
+  max-height: 70vh;
+  overflow-y: auto;
+  animation: megaFade 0.18s ease;
+}
+
+@keyframes megaFade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mega-menu .container {
+  padding: 18px 0 26px;
+}
+
+.mega-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px 24px;
+}
+
+.mega-empty {
+  margin: 20px 0;
+  color: #888;
+  text-align: center;
+}
+
+.mega-brand {
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.mega-brand:hover {
+  background: #f5f5f5;
+  transform: translateY(-1px);
+}
+
+.mega-brand img {
+  max-width: 150px;
+  max-height: 38px;
+  object-fit: contain;
+}
+
+.mega-brand-text {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #111;
+  text-align: center;
+}
+
+.mega-category {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.mega-category:hover {
+  background: #f5f5f5;
+}
+
+.mega-category-img {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #f1f1f1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  font-size: 22px;
+}
+
+.mega-category-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mega-category-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111;
+}
+
+@media (max-width: 1000px) {
+  .mega-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .mega-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

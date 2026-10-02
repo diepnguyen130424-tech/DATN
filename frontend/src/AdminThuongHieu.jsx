@@ -7,7 +7,7 @@ const CONFIG = {
     codeLabel: "Mã thương hiệu",
     breadcrumb: "Thương hiệu",
     title: "Thương hiệu",
-    subtitle: "Quản lý các thương hiệu giày đang kinh doanh tại cửa hàng.",
+    subtitle: "Quản lý thương hiệu (kèm logo) hiển thị ở menu Thương hiệu trên trang cửa hàng.",
     singular: "thương hiệu",
     icon: "◇",
     namePlaceholder: "VD: Nike",

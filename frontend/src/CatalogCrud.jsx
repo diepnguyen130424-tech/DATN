@@ -4,6 +4,13 @@ import "./AdminProducts.css";
 import "./CatalogCrud.css";
 
 const API = "http://localhost:8080/api";
+const API_ORIGIN = "http://localhost:8080";
+
+/** Ảnh lưu dạng "/uploads/..." (upload) hoặc URL đầy đủ (dán link) */
+export function anhUrl(path) {
+    if (!path) return "";
+    return /^(https?:|data:)/i.test(path) ? path : `${API_ORIGIN}${path}`;
+}
 const CACHE_TTL = 60 * 1000;
 const PAGE_SIZE = 5;
 
@@ -75,6 +82,7 @@ export default function CatalogCrud({ config }) {
         extraField,
         breadcrumb,
         codeLabel = "Mã",
+        uploadFolder = endpoint,
     } = config;
 
     const cache = useMemo(() => makeCache(`admin_${endpoint}_cache`), [endpoint]);
@@ -84,6 +92,7 @@ export default function CatalogCrud({ config }) {
             [nameField]: "",
             ...(extraField ? { [extraField.key]: "" } : {}),
             moTa: "",
+            hinhAnh: "",
             trangThai: "HOAT_DONG",
         }),
         [nameField, extraField]
@@ -99,6 +108,7 @@ export default function CatalogCrud({ config }) {
     const [form, setForm] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState("");
+    const [uploading, setUploading] = useState(false);
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
@@ -211,6 +221,7 @@ export default function CatalogCrud({ config }) {
             [nameField]: item[nameField] || "",
             ...(extraField ? { [extraField.key]: item[extraField.key] || "" } : {}),
             moTa: item.moTa || "",
+            hinhAnh: item.hinhAnh || "",
             trangThai: isActive(item.trangThai) ? "HOAT_DONG" : "NGUNG_HOAT_DONG",
         });
         setFormError("");
@@ -235,6 +246,36 @@ export default function CatalogCrud({ config }) {
 
     const handleChange = (field, value) => setForm((old) => ({ ...old, [field]: value }));
 
+    const handleUpload = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+            setFormError("Vui lòng chọn file ảnh");
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            setFormError("Ảnh tối đa 5MB");
+            return;
+        }
+
+        setUploading(true);
+        setFormError("");
+        try {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("folder", uploadFolder);
+            const res = await fetch(`${API}/upload`, { method: "POST", body: fd });
+            if (!res.ok) throw new Error(await docLoi(res, "Upload ảnh thất bại"));
+            const data = await res.json();
+            handleChange("hinhAnh", data.url);
+        } catch (err) {
+            setFormError(err.message === "Failed to fetch" ? "Không kết nối được tới máy chủ" : err.message);
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const validate = () => {
         const ten = String(form[nameField] || "").trim().replace(/\s+/g, " ");
         if (!ten) return `Vui lòng nhập tên ${singular}`;
@@ -251,7 +292,7 @@ export default function CatalogCrud({ config }) {
     };
 
     const handleSave = async () => {
-        if (saving) return;
+        if (saving || uploading) return;
         const err = validate();
         if (err) {
             setFormError(err);
@@ -266,6 +307,8 @@ export default function CatalogCrud({ config }) {
                 [nameField]: form[nameField].trim().replace(/\s+/g, " "),
                 ...(extraField ? { [extraField.key]: (form[extraField.key] || "").trim() || null } : {}),
                 moTa: form.moTa.trim() || null,
+                // "" = xóa ảnh, có giá trị = đổi ảnh
+                hinhAnh: (form.hinhAnh || "").trim(),
                 trangThai: form.trangThai,
             };
 
@@ -305,6 +348,7 @@ export default function CatalogCrud({ config }) {
             [nameField]: item[nameField],
             ...(extraField ? { [extraField.key]: item[extraField.key] } : {}),
             moTa: item.moTa,
+            hinhAnh: item.hinhAnh || "",
             trangThai: trangThaiMoi,
         };
         const res = await fetch(`${API}/${endpoint}/${item.id}`, {
@@ -522,6 +566,7 @@ export default function CatalogCrud({ config }) {
                                         {codeLabel} {sortDir === "asc" ? "▲" : "▼"}
                                     </button>
                                 </th>
+                                <th>Ảnh</th>
                                 <th>{cap(singular)}</th>
                                 {extraField && <th>{extraField.column}</th>}
                                 <th>Mô tả</th>
@@ -543,6 +588,18 @@ export default function CatalogCrud({ config }) {
 
                                         <td>
                                             <strong>{item[codeField] || "-"}</strong>
+                                        </td>
+
+                                        <td>
+                                            {item.hinhAnh ? (
+                                                <img
+                                                    className="catalog-thumb"
+                                                    src={anhUrl(item.hinhAnh)}
+                                                    alt={item[nameField]}
+                                                />
+                                            ) : (
+                                                <span className="catalog-thumb empty">—</span>
+                                            )}
                                         </td>
 
                                         <td>
@@ -820,6 +877,45 @@ export default function CatalogCrud({ config }) {
                                 </div>
 
                                 <div className="form-group full">
+                                    <label>{`Ảnh ${singular}`}</label>
+                                    <div className="catalog-image-field">
+                                        <div className="catalog-image-preview">
+                                            {form.hinhAnh ? (
+                                                <img src={anhUrl(form.hinhAnh)} alt="Xem trước" />
+                                            ) : (
+                                                <span>Chưa có ảnh</span>
+                                            )}
+                                        </div>
+                                        <div className="catalog-image-controls">
+                                            <label className="btn-upload">
+                                                {uploading ? "Đang tải ảnh..." : "Chọn ảnh từ máy"}
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    hidden
+                                                    disabled={uploading}
+                                                    onChange={handleUpload}
+                                                />
+                                            </label>
+                                            <input
+                                                value={form.hinhAnh}
+                                                onChange={(e) => handleChange("hinhAnh", e.target.value)}
+                                                placeholder="hoặc dán link ảnh (https://...)"
+                                            />
+                                            {form.hinhAnh && (
+                                                <button
+                                                    type="button"
+                                                    className="btn-reset"
+                                                    onClick={() => handleChange("hinhAnh", "")}
+                                                >
+                                                    Xóa ảnh
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="form-group full">
                                     <label>Mô tả</label>
                                     <textarea
                                         rows={3}
@@ -834,7 +930,7 @@ export default function CatalogCrud({ config }) {
                                 <button type="button" className="btn-cancel" onClick={closeModal} disabled={saving}>
                                     Hủy
                                 </button>
-                                <button type="submit" className="btn-primary" disabled={saving}>
+                                <button type="submit" className="btn-primary" disabled={saving || uploading}>
                                     {saving ? "Đang lưu..." : editing ? "Cập nhật" : "Tạo mới"}
                                 </button>
                             </div>

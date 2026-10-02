@@ -7,7 +7,7 @@ const CONFIG = {
     codeLabel: "Mã danh mục",
     breadcrumb: "Danh mục",
     title: "Danh mục sản phẩm",
-    subtitle: "Quản lý các danh mục dùng để phân loại sản phẩm trong cửa hàng.",
+    subtitle: "Quản lý danh mục (kèm ảnh) hiển thị ở menu Danh mục trên trang cửa hàng.",
     singular: "danh mục",
     icon: "▤",
     namePlaceholder: "VD: Giày chạy bộ",

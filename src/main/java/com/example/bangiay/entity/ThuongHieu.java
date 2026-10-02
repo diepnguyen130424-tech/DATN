@@ -31,6 +31,10 @@ public class ThuongHieu {
     @Column(name = "quoc_gia_thuong_hieu")
     private String quocGiaThuongHieu;
 
+    /** Đường dẫn/URL ảnh (logo thương hiệu, ảnh danh mục) */
+    @Column(name = "hinh_anh", columnDefinition = "TEXT")
+    private String hinhAnh;
+
     @Column(name = "trang_thai", nullable = false)
     private String trangThai;
 

@@ -52,6 +52,7 @@ public class ThuongHieuService {
                 .tenThuongHieu(ten)
                 .quocGiaThuongHieu(chuanHoaChuoi(input.getQuocGiaThuongHieu(), 100, "Quốc gia"))
                 .moTa(chuanHoaChuoi(input.getMoTa(), Integer.MAX_VALUE, "Mô tả"))
+                .hinhAnh(chuanHoaChuoi(input.getHinhAnh(), Integer.MAX_VALUE, "Hình ảnh"))
                 .trangThai(chuanHoaTrangThai(input.getTrangThai()))
                 .ngayTao(LocalDateTime.now())
                 .build();
@@ -71,6 +72,11 @@ public class ThuongHieuService {
         thuongHieu.setQuocGiaThuongHieu(
                 chuanHoaChuoi(input.getQuocGiaThuongHieu(), 100, "Quốc gia"));
         thuongHieu.setMoTa(chuanHoaChuoi(input.getMoTa(), Integer.MAX_VALUE, "Mô tả"));
+
+        // null = giữ nguyên ảnh cũ; chuỗi rỗng = xóa ảnh
+        if (input.getHinhAnh() != null) {
+            thuongHieu.setHinhAnh(chuanHoaChuoi(input.getHinhAnh(), Integer.MAX_VALUE, "Hình ảnh"));
+        }
 
         if (input.getTrangThai() != null) {
             thuongHieu.setTrangThai(chuanHoaTrangThai(input.getTrangThai()));
