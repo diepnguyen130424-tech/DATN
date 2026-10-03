@@ -45,24 +45,44 @@ function layTenThuongHieu(sanPham) { return String(
     "" )
     .trim() .toLowerCase();
 }
-function layAnhTheoMau(sanPham, mau) { const tenThuongHieu = layTenThuongHieu(sanPham);
-    const mauChuanHoa = String(mau || "").trim().toLowerCase();
-    let anhThuongHieu = null;
-    if (tenThuongHieu.includes("nike")) { anhThuongHieu = ANH_THUONG_HIEU.nike;
-    } else if (tenThuongHieu.includes("adidas")) { anhThuongHieu = ANH_THUONG_HIEU.adidas;
-    } else if (tenThuongHieu.includes("puma")) { anhThuongHieu = ANH_THUONG_HIEU.puma;
-    } else if (tenThuongHieu.includes("converse")) { anhThuongHieu = ANH_THUONG_HIEU.converse;
-    }
-    if (anhThuongHieu) {
-        if (mauChuanHoa.includes("đen") || mauChuanHoa.includes("den") || mauChuanHoa.includes("black")) {
-            return anhThuongHieu.den;
-        }
-        if (mauChuanHoa.includes("trắng") || mauChuanHoa.includes("trang") || mauChuanHoa.includes("white")) {
-            return anhThuongHieu.trang;
-        }
-    }
-    return sanPham?.hinhAnh || anhThuongHieu?.den ||
-        "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=900&q=85";
+function layAnhTheoMau(sanPham, mau) {
+    const variant = Array.isArray(sanPham?.chiTiets)
+        ? sanPham.chiTiets.find((item) =>
+            String(item?.mauSac?.tenMau || "").trim().toLowerCase() ===
+            String(mau || "").trim().toLowerCase() &&
+            (item?.hinhAnh || item?.anh || item?.urlAnh || item?.hinhAnhSanPham)
+        )
+        : null;
+
+    const anhTuDuLieu =
+        variant?.hinhAnh || variant?.anh || variant?.urlAnh || variant?.hinhAnhSanPham ||
+        sanPham?.hinhAnh || sanPham?.anh || sanPham?.urlAnh || sanPham?.hinhAnhSanPham;
+
+    if (anhTuDuLieu) return anhUrl(anhTuDuLieu);
+
+    const ten = String(sanPham?.tenSanPham || "").toLowerCase();
+    const thuongHieu = layTenThuongHieu(sanPham);
+
+    // Bộ ảnh fallback để giao diện luôn giống mẫu FShop ngay cả khi DB chưa có ảnh.
+    const fallback = [
+        { match: /converse.*chuck|converse(?!.*sp008)/i, url: "https://www.converse.sg/media/catalog/product/0/8/0883-CONM7650COPT013-1.jpg" },
+        { match: /nike.*(air force|sp005)/i, url: "https://en-sa.sssports.com/dw/image/v2/BDVB_PRD/on/demandware.static/-/Sites-akeneo-master-catalog/default/dwe4ed894d/sss/SSS2/N/K/F/Q/4/SSS2_NKFQ4296_101_197593621351_1.jpg" },
+        { match: /adidas.*(samba|sp006)/i, url: "https://www.sneaker10.cy/3043431-product_large/adidas-originals-samba-og.jpg" },
+        { match: /puma.*(rs-x|sp007)/i, url: "https://amazingred.ru/upload/iblock/2ec/twujd09m9djh11nybacuc0kplq7h8278.jpg" },
+        { match: /converse.*sp008|converse.*low/i, url: "https://www.privatesneakers.com/cdn/shop/products/167493F_A_107X1_d1e924cf-d67f-41fd-9348-1ba5f88d759c_1080x.jpg?v=1659422326" },
+        { match: /nike.*pegasus/i, url: "https://images.all4running.be/catalog/product/e/4/7/a/e47a854424e8d0952c4c4bc16e046b4a88350e90_FD2722_108_0.jpg?auto=format&cb_ts=1675675617&fit=fill&h=500&s=c741465f0f70249ecb4f17170949b8ff&w=500" },
+        { match: /adidas.*ultra/i, url: "https://cdn.idealo.com/folder/Product/202665/4/202665495/s1_produktbild_max/adidas-ultraboost-1-0-women-cloud-white-cloud-white-cloud-white-hq4207.jpg" },
+        { match: /puma.*suede/i, url: "https://item-shopping.c.yimg.jp/i/n/lowtex_384852-01_3" },
+    ];
+    const matched = fallback.find((item) => item.match.test(ten));
+    if (matched) return matched.url;
+
+    if (thuongHieu.includes("nike")) return "https://en-sa.sssports.com/dw/image/v2/BDVB_PRD/on/demandware.static/-/Sites-akeneo-master-catalog/default/dwe4ed894d/sss/SSS2/N/K/F/Q/4/SSS2_NKFQ4296_101_197593621351_1.jpg";
+    if (thuongHieu.includes("adidas")) return "https://www.sneaker10.cy/3043431-product_large/adidas-originals-samba-og.jpg";
+    if (thuongHieu.includes("puma")) return "https://amazingred.ru/upload/iblock/2ec/twujd09m9djh11nybacuc0kplq7h8278.jpg";
+    if (thuongHieu.includes("converse")) return "https://www.converse.sg/media/catalog/product/0/8/0883-CONM7650COPT013-1.jpg";
+
+    return "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=900&q=85";
 }
 function layAnhSanPham(sanPham) { const variant = sanPham?.chiTiets?.find(
     isVariantHoatDong );
@@ -531,6 +551,10 @@ function App() { const taiKhoanDaLuu = (() => {
             setPage={setPage}
             taiKhoan={taiKhoan}
         /> )}
+        {page === "orders" && ( <OrderHistory
+            taiKhoan={taiKhoan}
+            setPage={setPage}
+        /> )}
         {page === "khuyen-mai" && ( <KhuyenMai setPage={setPage} />
         )}
         {page === "checkout" && ( <Checkout
@@ -547,214 +571,265 @@ function App() { const taiKhoanDaLuu = (() => {
         </div> )}
     </div> );
 }
-function Header({ page,
-                    setPage, search,
-                    setSearch, tongSoLuong,
-                    taiKhoan, dangXuat,
-                    thuongHieuList = [], danhMucList = [],
-                    chonThuongHieu, chonDanhMuc,
-                }) { const [menuMo, setMenuMo] = useState(null); // "danhmuc" | "thuonghieu" | null
-    const submitSearch = () => { setPage("products");
+function Header({
+                    page,
+                    setPage,
+                    search,
+                    setSearch,
+                    tongSoLuong,
+                    taiKhoan,
+                    dangXuat,
+                    thuongHieuList = [],
+                    danhMucList = [],
+                    chonThuongHieu,
+                    chonDanhMuc,
+                }) {
+    const [menuMo, setMenuMo] = useState(null);
+
+    const submitSearch = () => {
+        setPage("products");
+        setMenuMo(null);
     };
-    return ( <>
-        <header className="top-header">
-            <div className="container header-container">
-                <div
-                    className="logo" onClick={() => setPage("home")}
+
+    const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
+
+    return (
+        <header className="site-header" onMouseLeave={() => setMenuMo(null)}>
+            <div className="container site-header-inner">
+                <button
+                    type="button"
+                    className="site-logo"
+                    onClick={() => setPage("home")}
+                    aria-label="FShop - Trang chủ"
                 >
-                    <div className="logo-box">F</div>
-                    <div>
-                        <div className="logo-name">FShop</div>
-                        <div className="logo-sub">
-                            Giày nam chính hãng
-                        </div>
-                    </div>
-                </div>
-                <div className="search-wrapper">
+                    <span className="site-logo-box">F</span>
+                    <span className="site-logo-name">FShop</span>
+                </button>
+
+                <nav className="site-nav">
+                    <button
+                        type="button"
+                        className={page === "home" ? "site-nav-link active" : "site-nav-link"}
+                        onClick={() => setPage("home")}
+                    >
+                        Trang chủ
+                    </button>
+                    <button
+                        type="button"
+                        className={page === "products" ? "site-nav-link active" : "site-nav-link"}
+                        onClick={() => setPage("products")}
+                    >
+                        Sản phẩm
+                    </button>
+                    <button
+                        type="button"
+                        className={menuMo === "danhmuc" ? "site-nav-link active" : "site-nav-link"}
+                        onClick={() => setMenuMo(menuMo === "danhmuc" ? null : "danhmuc")}
+                    >
+                        Danh mục <span className="nav-chevron">⌄</span>
+                    </button>
+                    <button
+                        type="button"
+                        className={menuMo === "thuonghieu" ? "site-nav-link active" : "site-nav-link"}
+                        onClick={() => setMenuMo(menuMo === "thuonghieu" ? null : "thuonghieu")}
+                    >
+                        Thương hiệu
+                    </button>
+                    <button
+                        type="button"
+                        className={page === "khuyen-mai" ? "site-nav-link active" : "site-nav-link"}
+                        onClick={() => setPage("khuyen-mai")}
+                    >
+                        Khuyến mãi
+                    </button>
+                    <button
+                        type="button"
+                        className="site-nav-link"
+                        onClick={() => setMenuMo(null)}
+                    >
+                        Liên hệ
+                    </button>
+                </nav>
+
+                <form
+                    className="site-search"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        submitSearch();
+                    }}
+                >
                     <input
                         type="text"
                         placeholder="Tìm kiếm sản phẩm, thương hiệu, danh mục..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)
-                        }
-                        onKeyDown={(e) => { if (e.key === "Enter") {
-                            submitSearch();
-                        }
-                        }}
+                        onChange={(e) => setSearch(e.target.value)}
                     />
-                    <button onClick={submitSearch}>
-                        🔍
-                    </button>
-                </div>
-                {String(taiKhoan?.vaiTro || "").toUpperCase() === "QUAN_TRI" && ( <button
-                    className="admin-entry-button" onClick={() => setPage("admin")}
-                >
-                    Admin
-                </button> )}
-                {(String(taiKhoan?.vaiTro || "").toUpperCase() === "NHAN_VIEN"
-                    || String(taiKhoan?.vaiTro || "").toUpperCase() === "NHÂN_VIÊN") && (
-                    <button
-                        className="admin-entry-button"
-                        onClick={() => setPage("employee")}
-                    >
-                        Nhân viên
-                    </button> )}
-                <div className="header-right">
+                    <button type="submit" aria-label="Tìm kiếm">⌕</button>
+                </form>
+
+                <div className="site-actions">
+                    {vaiTro === "QUAN_TRI" && (
+                        <button
+                            type="button"
+                            className="site-action admin"
+                            onClick={() => setPage("admin")}
+                        >
+                            Admin
+                        </button>
+                    )}
+
+                    {(vaiTro === "NHAN_VIEN" || vaiTro === "NHÂN_VIÊN") && (
+                        <button
+                            type="button"
+                            className="site-action admin"
+                            onClick={() => setPage("employee")}
+                        >
+                            Nhân viên
+                        </button>
+                    )}
+
                     {!taiKhoan ? (
-                        <div className="header-auth-buttons" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <>
                             <button
-                                type="button" className="header-login-button"
-                                style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid #111", background: "#fff", color: "#111", fontWeight: 700, cursor: "pointer" }}
+                                type="button"
+                                className="site-action login"
                                 onClick={() => setPage("login")}
                             >
                                 Đăng nhập
                             </button>
                             <button
-                                type="button" className="header-register-button"
-                                style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid #111", background: "#111", color: "#fff", fontWeight: 700, cursor: "pointer" }}
+                                type="button"
+                                className="site-action register"
                                 onClick={() => setPage("register")}
                             >
                                 Đăng ký
                             </button>
-                        </div> ) : (
+                        </>
+                    ) : (
                         <>
-                            <div className="header-item account-header">
-                                <span className="header-icon">♙</span>
-                                <div>
+                            <div className="site-user">
+                                <span className="site-user-icon">♙</span>
+                                <span>
                                     <small>Tài khoản</small>
                                     <strong>{taiKhoan.tenDangNhap}</strong>
-                                </div>
+                                </span>
                             </div>
                             <button
-                                type="button" className="logout-button"
+                                type="button"
+                                className="site-action logout"
                                 onClick={dangXuat}
                             >
                                 Đăng xuất
                             </button>
-                        </> )}
-                    <div className="header-item">
-              <span className="header-icon">
-                ♡
-              </span>
-                        <div>
+                        </>
+                    )}
+
+                    <button
+                        type="button"
+                        className="site-action mini-action"
+                        onClick={() => {}}
+                    >
+                        <span className="mini-icon">♡</span>
+                        <span>
                             <small>Yêu thích</small>
                             <strong>0 sản phẩm</strong>
-                        </div>
-                    </div>
-                    <div
-                        className="header-item cart-item"
+                        </span>
+                    </button>
+
+                    {vaiTro === "KHACH_HANG" && (
+                        <button
+                            type="button"
+                            className={`site-action mini-action order-action ${page === "orders" ? "active" : ""}`}
+                            onClick={() => setPage("orders")}
+                        >
+                            <span className="mini-icon">📦</span>
+                            <span>
+                                <small>Đơn hàng</small>
+                                <strong>Trạng thái</strong>
+                            </span>
+                        </button>
+                    )}
+
+                    <button
+                        type="button"
+                        className="site-action mini-action cart-action"
                         onClick={() => setPage("cart")}
                     >
-                        <div className="cart-icon">
+                        <span className="mini-icon cart-mini-icon">
                             🛒
-                            {tongSoLuong > 0 && ( <span className="cart-count">
-                    {tongSoLuong}
-</span> )}
-                        </div>
-                        <div>
+                            {tongSoLuong > 0 && <b>{tongSoLuong}</b>}
+                        </span>
+                        <span>
                             <small>Giỏ hàng</small>
-                            <strong>
-                                {tongSoLuong} sản phẩm
-                            </strong>
-                        </div>
-                    </div>
+                            <strong>{tongSoLuong} sản phẩm</strong>
+                        </span>
+                    </button>
                 </div>
             </div>
-        </header>
-        <nav className="navigation" onMouseLeave={() => setMenuMo(null)}>
-            <div className="container navigation-container">
-                <a
-                    className={page === "home" ? "nav-active" : ""}
-                    onMouseEnter={() => setMenuMo(null)}
-                    onClick={() => setPage("home")}
-                >
-                    🏠 Trang chủ
-                </a>
-                <a
-                    className={page === "products" ? "nav-active" : ""}
-                    onMouseEnter={() => setMenuMo(null)}
-                    onClick={() => setPage("products")}
-                >
-                    Sản phẩm
-                </a>
-                <a
-                    className={menuMo === "danhmuc" ? "nav-open" : ""}
-                    onMouseEnter={() => setMenuMo("danhmuc")}
-                    onClick={() => setMenuMo(menuMo === "danhmuc" ? null : "danhmuc")}
-                >
-                    Danh mục ⌄
-                </a>
-                <a
-                    className={menuMo === "thuonghieu" ? "nav-open" : ""}
-                    onMouseEnter={() => setMenuMo("thuonghieu")}
-                    onClick={() => setMenuMo(menuMo === "thuonghieu" ? null : "thuonghieu")}
-                >
-                    Thương hiệu
-                </a>
-                <a
-                    className={page === "khuyen-mai" ? "nav-active" : ""}
-                    onMouseEnter={() => setMenuMo(null)}
-                    onClick={() => setPage("khuyen-mai")}
-                >
-                    Khuyến mãi
-                </a>
-                <a onMouseEnter={() => setMenuMo(null)}>
-                    Liên hệ
-                </a>
-            </div>
+
             {menuMo && (
-                <div className={`mega-menu mega-${menuMo}`}>
+                <div className="site-mega-menu">
                     <div className="container">
                         {menuMo === "thuonghieu" && (
                             thuongHieuList.length === 0 ? (
                                 <p className="mega-empty">Chưa có thương hiệu nào.</p>
-                            ) : ( <div className="mega-grid mega-brand-grid">
-                                {thuongHieuList.map((th) => (
-                                    <button
-                                        type="button"
-                                        key={th.id}
-                                        className="mega-brand"
-                                        title={th.tenThuongHieu}
-                                        onClick={() => {
-                                            setMenuMo(null);
-                                            chonThuongHieu(th.tenThuongHieu);
-                                        }}
-                                    >
-                                        {th.hinhAnh ? (
-                                            <img src={anhUrl(th.hinhAnh)} alt={th.tenThuongHieu} />
-                                        ) : (
-                                            <span className="mega-brand-text">{th.tenThuongHieu}</span>
-                                        )}
-                                    </button> ))}
-                            </div> )
+                            ) : (
+                                <div className="mega-grid mega-brand-grid">
+                                    {thuongHieuList.map((th) => (
+                                        <button
+                                            type="button"
+                                            key={th.id}
+                                            className="mega-brand"
+                                            title={th.tenThuongHieu}
+                                            onClick={() => {
+                                                setMenuMo(null);
+                                                chonThuongHieu(th.tenThuongHieu);
+                                            }}
+                                        >
+                                            {th.hinhAnh ? (
+                                                <img src={anhUrl(th.hinhAnh)} alt={th.tenThuongHieu} />
+                                            ) : (
+                                                <span className="mega-brand-text">{th.tenThuongHieu}</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )
                         )}
-                        {menuMo === "danhmuc" && ( danhMucList.length === 0 ? (
+
+                        {menuMo === "danhmuc" && (
+                            danhMucList.length === 0 ? (
                                 <p className="mega-empty">Chưa có danh mục nào.</p>
-                            ) : ( <div className="mega-grid mega-category-grid">
-                                {danhMucList.map((dm) => ( <button
-                                    type="button"
-                                    key={dm.id}
-                                    className="mega-category"
-                                    onClick={() => {
-                                        setMenuMo(null);
-                                        chonDanhMuc(dm.tenDanhMuc);
-                                    }}
-                                >
-                                                <span className="mega-category-img">
-                                                    {dm.hinhAnh ? (
-                                                        <img src={anhUrl(dm.hinhAnh)} alt={dm.tenDanhMuc} />
-                                                    ) : (
-                                                        <span>▤</span>
-                                                    )}
-                                                </span>
-                                    <span className="mega-category-name">{dm.tenDanhMuc}</span>
-                                </button> ))}
-                            </div> )
+                            ) : (
+                                <div className="mega-grid mega-category-grid">
+                                    {danhMucList.map((dm) => (
+                                        <button
+                                            type="button"
+                                            key={dm.id}
+                                            className="mega-category"
+                                            onClick={() => {
+                                                setMenuMo(null);
+                                                chonDanhMuc(dm.tenDanhMuc);
+                                            }}
+                                        >
+                                            <span className="mega-category-img">
+                                                {dm.hinhAnh ? (
+                                                    <img src={anhUrl(dm.hinhAnh)} alt={dm.tenDanhMuc} />
+                                                ) : (
+                                                    <span>▤</span>
+                                                )}
+                                            </span>
+                                            <span className="mega-category-name">{dm.tenDanhMuc}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )
                         )}
                     </div>
-                </div> )}
-        </nav>
-    </> );
+                </div>
+            )}
+        </header>
+    );
 }
 function Home({ sanPhams,
                   loading, xemSanPham,
@@ -883,7 +958,7 @@ function Home({ sanPhams,
                 </div>
                 {loading ? ( <Loading />
                 ) : ( <div className="product-grid">
-                    {sanPhams .slice(0, 12)
+                    {sanPhams .slice(0, 4)
                         .map((sp, index) => ( <ProductCard
                             key={sp.id}
                             sanPham={sp}
@@ -964,18 +1039,35 @@ function Home({ sanPhams,
                 <div className="brand-grid">
                     {(thuongHieuList.length > 0 ? thuongHieuList
                             : thuongHieu.map((ten) => ({ id: ten, tenThuongHieu: ten }))
-                    ).map((brand) => ( <div
-                        className="brand-card" key={brand.id}
-                        onClick={() => chonThuongHieu(brand.tenThuongHieu)}
-                        style={{ cursor: "pointer" }}
-                    >
-                        {brand.hinhAnh ? ( <img
-                            src={anhUrl(brand.hinhAnh)}
-                            alt={brand.tenThuongHieu}
-                            style={{ maxWidth: "80%", maxHeight: "44px", objectFit: "contain" }}
-                        /> ) : (
-                            brand.tenThuongHieu )}
-                    </div> ))}
+                    ).map((brand) => {
+                        const tenHienThi =
+                            String(brand.tenThuongHieu || "").trim().toLowerCase() === "post"
+                                ? "Adidas"
+                                : brand.tenThuongHieu;
+
+                        return (
+                            <div
+                                className="brand-card"
+                                key={brand.id}
+                                onClick={() => chonThuongHieu(brand.tenThuongHieu)}
+                                style={{ cursor: "pointer" }}
+                            >
+                                {brand.hinhAnh ? (
+                                    <img
+                                        src={anhUrl(brand.hinhAnh)}
+                                        alt={tenHienThi}
+                                        style={{
+                                            maxWidth: "80%",
+                                            maxHeight: "44px",
+                                            objectFit: "contain"
+                                        }}
+                                    />
+                                ) : (
+                                    tenHienThi
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </section>
@@ -985,73 +1077,63 @@ function ProductCard({ sanPham,
                          index, xemSanPham,
                          themVaoGio, selectedColor = "",
                          selectedSize = "", }) {
-    const chiTiets = Array.isArray(sanPham?.chiTiets) ? sanPham.chiTiets.filter(isVariantHoatDong)
+    const chiTiets = Array.isArray(sanPham?.chiTiets)
+        ? sanPham.chiTiets.filter(isVariantHoatDong)
         : [];
     const normalize = (value) => String(value || "").trim().toLowerCase();
     const variant = chiTiets.find((item) => {
         const mau = normalize(item?.mauSac?.tenMau);
         const size = String(item?.kichCo?.tenKichCo || "");
-        return ( (!selectedColor || mau === normalize(selectedColor)) &&
-            (!selectedSize || size === String(selectedSize)) );
+        return ((!selectedColor || mau === normalize(selectedColor)) &&
+            (!selectedSize || size === String(selectedSize)));
     }) || chiTiets[0] || null;
-    const mauHienThi = selectedColor ||
-        variant?.mauSac?.tenMau || "";
-    const anhHienThi = mauHienThi ? layAnhTheoMau(sanPham, mauHienThi)
+    const mauHienThi = selectedColor || variant?.mauSac?.tenMau || "";
+    const anhHienThi = mauHienThi
+        ? layAnhTheoMau(sanPham, mauHienThi)
         : layAnhSanPham(sanPham);
-    return ( <div className="product-card">
-        <div
-            className="product-image" onClick={() => xemSanPham(sanPham)}
-        >
-            <img
-                src={anhHienThi}
-                alt={sanPham.tenSanPham}
-            />
-            <span className="discount">
-          -{10 + (index % 5) * 2}%
-        </span>
-            <button
-                className="favorite" onClick={(e) => e.stopPropagation()}
-            >
-                ♡
-            </button>
-        </div>
-        <div className="product-content">
-            <div className="product-brand">
-                {sanPham.thuongHieu?.tenThuongHieu || "FShop"}
+    const gia = variant?.giaBan ?? sanPham.giaBan ?? 0;
+    const rating = (4.6 + (index % 4) * 0.1).toFixed(1);
+    const reviewCount = 20 + index * 13;
+    const sold = [1200, 856, 931, 1400, 640, 720, 1100, 950][index % 8];
+    const soldText = sold >= 1000 ? `${(sold / 1000).toFixed(1).replace(".0", "")}k` : sold;
+    return (
+        <article className={`product-card ${index === 0 ? "is-featured" : ""}`}>
+            <div className="product-image" onClick={() => xemSanPham(sanPham)}>
+                <img
+                    src={anhHienThi}
+                    alt={sanPham.tenSanPham}
+                    loading="lazy"
+                    onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1000&q=90";
+                    }}
+                />
+                {index === 0 && <span className="best-seller-badge">🔥 Bán chạy</span>}
+                <button type="button" className="favorite" onClick={(e) => e.stopPropagation()} aria-label="Yêu thích">♡</button>
             </div>
-            <h3>
-                {sanPham.tenSanPham}
-            </h3>
-            <div className="rating">
-                <span>★</span>
-                4.{6 + (index % 4)}
-                <small>
-                    ({20 + index * 13})
-                </small>
+            <div className="product-content">
+                <div className="product-brand">{sanPham.thuongHieu?.tenThuongHieu || "FShop"}</div>
+                <h3>{sanPham.tenSanPham}</h3>
+                <div className="rating">
+                    <span>★</span> {rating}
+                    <small>({reviewCount})</small>
+                    <i>|</i>
+                    <small>Đã bán {soldText}</small>
+                </div>
+                <div className="price-row">
+                    <strong>{formatGia(gia)}</strong>
+                </div>
+                <div className="product-buttons">
+                    <button type="button" className="detail-button" onClick={() => xemSanPham(sanPham)}>
+                        ◉&nbsp; Xem chi tiết
+                    </button>
+                    <button type="button" className="add-cart" onClick={() => themVaoGio(sanPham, variant)}>
+                        🛒&nbsp; Thêm vào giỏ
+                    </button>
+                </div>
             </div>
-            <div className="price-row">
-                <strong>
-                    {formatGia(variant?.giaBan ?? sanPham.giaBan ?? 0)}
-                </strong>
-            </div>
-            <div className="product-buttons">
-                <button
-                    className="add-cart" onClick={() =>
-                    themVaoGio( sanPham,
-                        variant )
-                }
-                >
-                    🛒 Thêm vào giỏ
-                </button>
-                <button
-                    className="detail-button" onClick={() =>
-                    xemSanPham(sanPham) }
-                >
-                    Xem
-                </button>
-            </div>
-        </div>
-    </div> );
+        </article>
+    );
 }
 function ProductList({ sanPhams,
                          loading, search,
@@ -1170,15 +1252,18 @@ function ProductList({ sanPhams,
             </div>
             <div className="product-list-heading">
                 <div>
-                    <span className="section-label">FSHOP</span>
+                    <div className="product-list-breadcrumb-title">
+                        <span>Trang chủ</span><b>›</b><span>Sản phẩm</span><b>›</b><strong>Giày nam</strong>
+                    </div>
                     <h1>
                         {brand !== "Tất cả"
                             ? `Giày ${brand}`
                             : danhMucLoc !== "Tất cả" ? danhMucLoc
                                 : "Giày nam"}
                     </h1>
-                    <p>{products.length} sản phẩm</p>
+                    <p>Khám phá bộ sưu tập giày nam phong cách, chất lượng tại FShop.</p>
                 </div>
+                <strong className="product-list-count">{products.length} sản phẩm</strong>
             </div>
             <div className="product-layout">
                 <aside className="filter-sidebar">
@@ -1204,15 +1289,30 @@ function ProductList({ sanPhams,
                             <span>Tất cả</span>
                         </label>
                         {(thuongHieuList.length > 0
-                            ? thuongHieuList.map((x) => x.tenThuongHieu)
-                            : thuongHieu ).map((item) => (
-                            <label key={item}>
-                                <input
-                                    type="radio" checked={brand === item}
-                                    onChange={() => setBrand(item)}
-                                />
-                                <span>{item}</span>
-                            </label> ))}
+                                ? thuongHieuList.map((x) => x.tenThuongHieu)
+                                : thuongHieu
+                        ).map((item) => {
+                            const tenHienThi =
+                                String(item).trim().toLowerCase() === "post"
+                                    ? "Adidas"
+                                    : item;
+
+                            const giaTriLoc =
+                                String(item).trim().toLowerCase() === "post"
+                                    ? "Adidas"
+                                    : item;
+
+                            return (
+                                <label key={item}>
+                                    <input
+                                        type="radio"
+                                        checked={brand === giaTriLoc}
+                                        onChange={() => setBrand(giaTriLoc)}
+                                    />
+                                    <span>{tenHienThi}</span>
+                                </label>
+                            );
+                        })}
                     </div>
                     {danhMucList.length > 0 && ( <div className="filter-group">
                         <h4>Danh mục</h4>
@@ -1530,6 +1630,51 @@ function ProductDetail({ sanPham,
                                 />
                             </button> ))}
                         </div>
+                        {/* ================= MÔ TẢ - NGAY DƯỚI ẢNH ================= */}
+                        <div className="detail-description">
+                            <div className="description-tabs">
+                                <button className="active">
+                                    Mô tả sản phẩm
+                                </button>
+                                <button>
+                                    Thông tin sản phẩm
+                                </button>
+                                <button>
+                                    Đánh giá
+                                </button>
+                            </div>
+                            <div className="description-content">
+                                <h2>
+                                    {sanPham.tenSanPham}
+                                </h2>
+                                <p>
+                                    {sanPham.moTa ||
+                                        "Sản phẩm giày nam được thiết kế theo phong cách hiện đại, phù hợp sử dụng hàng ngày, đi làm, đi chơi và luyện tập thể thao."}
+                                </p>
+                                <div className="specifications">
+                                    <div>
+                                        <span>Chất liệu</span>
+                                        <strong>
+                                            {sanPham.chatLieu ||
+                                                "Đang cập nhật"}
+                                        </strong>
+                                    </div>
+                                    <div>
+                                        <span>Kiểu dáng</span>
+                                        <strong>
+                                            {sanPham.kieuDang ||
+                                                "Đang cập nhật"}
+                                        </strong>
+                                    </div>
+                                    <div>
+                                        <span>Xuất xứ</span>
+                                        <strong>
+                                            {sanPham.xuatXu || "Đang cập nhật"}
+                                        </strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div className="detail-info">
                         <div className="detail-brand">
@@ -1737,50 +1882,6 @@ function ProductDetail({ sanPham,
                                 <span>
                                     Kiểm tra hàng trước khi nhận
                                 </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div className="detail-description">
-                    <div className="description-tabs">
-                        <button className="active">
-                            Mô tả sản phẩm
-                        </button>
-                        <button>
-                            Thông tin sản phẩm
-                        </button>
-                        <button>
-                            Đánh giá
-                        </button>
-                    </div>
-                    <div className="description-content">
-                        <h2>
-                            {sanPham.tenSanPham}
-                        </h2>
-                        <p>
-                            {sanPham.moTa ||
-                                "Sản phẩm giày nam được thiết kế theo phong cách hiện đại, phù hợp sử dụng hàng ngày, đi làm, đi chơi và luyện tập thể thao."}
-                        </p>
-                        <div className="specifications">
-                            <div>
-                                <span>Chất liệu</span>
-                                <strong>
-                                    {sanPham.chatLieu ||
-                                        "Đang cập nhật"}
-                                </strong>
-                            </div>
-                            <div>
-                                <span>Kiểu dáng</span>
-                                <strong>
-                                    {sanPham.kieuDang ||
-                                        "Đang cập nhật"}
-                                </strong>
-                            </div>
-                            <div>
-                                <span>Xuất xứ</span>
-                                <strong>
-                                    {sanPham.xuatXu || "Đang cập nhật"}
-                                </strong>
                             </div>
                         </div>
                     </div>
@@ -3493,6 +3594,355 @@ function Loading() { return (
         <p>Đang tải sản phẩm...</p>
     </div> );
 }
+
+function OrderHistory({ taiKhoan, setPage }) {
+    const [orders, setOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailError, setDetailError] = useState("");
+
+    const khachHangId = taiKhoan?.khachHangId;
+
+    const statusMap = {
+        CHO_XAC_NHAN: { label: "Chờ xác nhận", step: 1, className: "waiting" },
+        DA_XAC_NHAN: { label: "Đã xác nhận", step: 2, className: "confirmed" },
+        DANG_CHUAN_BI: { label: "Đang chuẩn bị", step: 3, className: "preparing" },
+        DANG_GIAO: { label: "Đang giao", step: 4, className: "shipping" },
+        DA_GIAO: { label: "Đã giao", step: 5, className: "delivered" },
+        DA_HUY: { label: "Đã hủy", step: 0, className: "cancelled" },
+    };
+
+    const normalizeStatus = (value) =>
+        String(value || "")
+            .trim()
+            .toUpperCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[\s-]+/g, "_");
+
+    const getStatus = (order) => {
+        const raw = order?.trangThai || order?.trangThaiDonHang || order?.trangThaiHoaDon;
+        const key = normalizeStatus(raw);
+        return statusMap[key] || {
+            label: raw || "Chưa cập nhật",
+            step: 1,
+            className: "unknown",
+        };
+    };
+
+    const getOrderId = (order) => order?.id ?? order?.hoaDonId ?? order?.maHoaDon;
+    const getOrderCode = (order) => order?.maHoaDon || `#${order?.id ?? ""}`;
+    const getTotal = (order) =>
+        Number(order?.tongThanhToan ?? order?.tongTienSauGiam ?? order?.tongTienHang ?? 0);
+
+    const formatDate = (value) => {
+        if (!value) return "Chưa cập nhật";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return String(value);
+        return date.toLocaleString("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    };
+
+    const loadOrders = async (keepSelected = false) => {
+        if (!khachHangId) {
+            setOrders([]);
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        setError("");
+        try {
+            const response = await fetch(`${API}/hoa-don/khach-hang/${khachHangId}`);
+            if (!response.ok) {
+                throw new Error("Không thể tải danh sách đơn hàng");
+            }
+
+            const data = await response.json();
+            const list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
+            list.sort((a, b) => {
+                const da = new Date(a?.ngayLap || a?.ngayTao || 0).getTime();
+                const db = new Date(b?.ngayLap || b?.ngayTao || 0).getTime();
+                return db - da;
+            });
+            setOrders(list);
+
+            if (keepSelected && selectedOrder) {
+                const selectedId = getOrderId(selectedOrder);
+                const fresh = list.find((item) => String(getOrderId(item)) === String(selectedId));
+                if (fresh) {
+                    await openOrder(fresh);
+                }
+            }
+        } catch (err) {
+            console.error("Lỗi tải đơn hàng:", err);
+            setError(err.message || "Không thể tải đơn hàng");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const openOrder = async (order) => {
+        setSelectedOrder({ ...order, __chiTiet: order.__chiTiet || [], __lichSu: order.__lichSu || [] });
+        setDetailLoading(true);
+        setDetailError("");
+
+        const id = getOrderId(order);
+        if (!id) {
+            setDetailLoading(false);
+            return;
+        }
+
+        try {
+            const [detailResponse, historyResponse] = await Promise.all([
+                fetch(`${API}/hoa-don/${id}/chi-tiet`),
+                fetch(`${API}/hoa-don/${id}/lich-su`),
+            ]);
+
+            const detailData = detailResponse.ok ? await detailResponse.json() : [];
+            const historyData = historyResponse.ok ? await historyResponse.json() : [];
+
+            setSelectedOrder({
+                ...order,
+                __chiTiet: Array.isArray(detailData) ? detailData : [],
+                __lichSu: Array.isArray(historyData) ? historyData : [],
+            });
+        } catch (err) {
+            console.error("Lỗi tải chi tiết đơn hàng:", err);
+            setDetailError("Không tải được chi tiết đơn hàng. Bạn vẫn có thể xem trạng thái hiện tại.");
+        } finally {
+            setDetailLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadOrders();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [khachHangId]);
+
+    const steps = [
+        ["CHO_XAC_NHAN", "Chờ xác nhận"],
+        ["DA_XAC_NHAN", "Đã xác nhận"],
+        ["DANG_CHUAN_BI", "Đang chuẩn bị"],
+        ["DANG_GIAO", "Đang giao"],
+        ["DA_GIAO", "Đã giao"],
+    ];
+
+    return (
+        <main className="order-history-page">
+            <div className="container">
+                <div className="order-history-heading">
+                    <div>
+                        <span className="section-kicker">FShop</span>
+                        <h1>Đơn hàng của tôi</h1>
+                        <p>Theo dõi trạng thái và xem lại chi tiết các đơn hàng bạn đã đặt.</p>
+                    </div>
+                    <button
+                        type="button"
+                        className="order-refresh-btn"
+                        onClick={() => loadOrders(true)}
+                        disabled={loading}
+                    >
+                        ↻ {loading ? "Đang tải..." : "Làm mới"}
+                    </button>
+                </div>
+
+                {loading && orders.length === 0 ? (
+                    <div className="order-state-card">
+                        <div className="order-loading-spinner" />
+                        <h3>Đang tải đơn hàng...</h3>
+                        <p>Vui lòng chờ một chút.</p>
+                    </div>
+                ) : error ? (
+                    <div className="order-state-card order-error-card">
+                        <div className="order-state-icon">!</div>
+                        <h3>Không tải được đơn hàng</h3>
+                        <p>{error}</p>
+                        <button type="button" onClick={() => loadOrders()}>Thử lại</button>
+                    </div>
+                ) : orders.length === 0 ? (
+                    <div className="order-state-card">
+                        <div className="order-state-icon">📦</div>
+                        <h3>Bạn chưa có đơn hàng nào</h3>
+                        <p>Hãy chọn sản phẩm và đặt hàng, đơn hàng của bạn sẽ xuất hiện tại đây.</p>
+                        <button type="button" onClick={() => setPage("products")}>Mua sắm ngay</button>
+                    </div>
+                ) : (
+                    <div className="order-history-layout">
+                        <section className="order-list">
+                            {orders.map((order) => {
+                                const status = getStatus(order);
+                                const selected = String(getOrderId(selectedOrder)) === String(getOrderId(order));
+                                return (
+                                    <button
+                                        type="button"
+                                        key={getOrderId(order) || getOrderCode(order)}
+                                        className={`order-card ${selected ? "selected" : ""}`}
+                                        onClick={() => openOrder(order)}
+                                    >
+                                        <div className="order-card-top">
+                                            <div>
+                                                <span className="order-code">{getOrderCode(order)}</span>
+                                                <span className="order-date">{formatDate(order.ngayLap || order.ngayTao)}</span>
+                                            </div>
+                                            <span className={`order-status-badge ${status.className}`}>{status.label}</span>
+                                        </div>
+                                        <div className="order-card-bottom">
+                                            <strong>{formatGia(getTotal(order))}</strong>
+                                            <span>Xem chi tiết →</span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </section>
+
+                        <section className="order-detail-card">
+                            {!selectedOrder ? (
+                                <div className="order-detail-empty">
+                                    <div>📋</div>
+                                    <h3>Chọn một đơn hàng</h3>
+                                    <p>Chọn đơn hàng bên trái để xem tiến trình giao hàng và chi tiết.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="order-detail-header">
+                                        <div>
+                                            <span className="section-kicker">Chi tiết đơn hàng</span>
+                                            <h2>{getOrderCode(selectedOrder)}</h2>
+                                            <p>Đặt lúc {formatDate(selectedOrder.ngayLap || selectedOrder.ngayTao)}</p>
+                                        </div>
+                                        <span className={`order-status-badge ${getStatus(selectedOrder).className}`}>
+                                            {getStatus(selectedOrder).label}
+                                        </span>
+                                    </div>
+
+                                    {detailError && <div className="order-inline-error">{detailError}</div>}
+
+                                    <div className={`order-progress ${getStatus(selectedOrder).className}`}>
+                                        {steps.map(([key, label], index) => {
+                                            const currentStep = getStatus(selectedOrder).step;
+                                            const done = currentStep > index + 1;
+                                            const current = currentStep === index + 1;
+                                            return (
+                                                <div className={`order-step ${done ? "done" : ""} ${current ? "current" : ""}`} key={key}>
+                                                    <span className="order-step-dot">{done ? "✓" : index + 1}</span>
+                                                    <span>{label}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {getStatus(selectedOrder).className === "cancelled" && (
+                                        <div className="order-cancel-note">
+                                            Đơn hàng đã được hủy. Nếu cần hỗ trợ, vui lòng liên hệ cửa hàng.
+                                        </div>
+                                    )}
+
+                                    <div className="order-info-grid">
+                                        <div>
+                                            <span>Người nhận</span>
+                                            <strong>{selectedOrder.khachHang?.hoTen || "Chưa cập nhật"}</strong>
+                                        </div>
+                                        <div>
+                                            <span>Số điện thoại</span>
+                                            <strong>{selectedOrder.khachHang?.soDienThoai || "Chưa cập nhật"}</strong>
+                                        </div>
+                                        <div>
+                                            <span>Địa chỉ</span>
+                                            <strong>
+                                                {selectedOrder.diaChi?.diaChi ||
+                                                    selectedOrder.diaChi?.diaChiChiTiet ||
+                                                    selectedOrder.diaChi?.chiTiet ||
+                                                    selectedOrder.ghiChu ||
+                                                    "Địa chỉ giao hàng đã lưu"}
+                                            </strong>
+                                        </div>
+                                        <div>
+                                            <span>Phương thức</span>
+                                            <strong>{selectedOrder.loaiHoaDon || "Đơn hàng online"}</strong>
+                                        </div>
+                                    </div>
+
+                                    <div className="order-section-block">
+                                        <div className="order-section-title">
+                                            <h3>Sản phẩm</h3>
+                                            {detailLoading && <span>Đang tải...</span>}
+                                        </div>
+                                        {selectedOrder.__chiTiet?.length ? (
+                                            <div className="order-item-list">
+                                                {selectedOrder.__chiTiet.map((item, index) => {
+                                                    const spct = item?.sanPhamChiTiet || {};
+                                                    const sp = spct?.sanPham || {};
+                                                    const size = spct?.kichCo?.tenKichCo || spct?.kichCo?.ten || spct?.kichCo?.size;
+                                                    const color = spct?.mauSac?.tenMauSac || spct?.mauSac?.ten;
+                                                    return (
+                                                        <div className="order-item-row" key={item?.id || index}>
+                                                            <div className="order-item-image">
+                                                                {sp?.hinhAnh ? <img src={anhUrl(sp.hinhAnh)} alt={sp.tenSanPham || "Sản phẩm"} /> : <span>👟</span>}
+                                                            </div>
+                                                            <div className="order-item-main">
+                                                                <strong>{sp?.tenSanPham || spct?.maSku || "Sản phẩm"}</strong>
+                                                                <span>
+                                                                    {[size && `Size ${size}`, color && `Màu ${color}`].filter(Boolean).join(" · ") || "Chi tiết sản phẩm"}
+                                                                </span>
+                                                                <small>x{item?.soLuong || 0}</small>
+                                                            </div>
+                                                            <strong>{formatGia(item?.thanhTien ?? (Number(item?.donGia || 0) * Number(item?.soLuong || 0)))}</strong>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p className="order-muted">Chưa có dữ liệu chi tiết sản phẩm.</p>
+                                        )}
+                                    </div>
+
+                                    <div className="order-total-box">
+                                        <div><span>Tiền hàng</span><strong>{formatGia(selectedOrder.tongTienHang || 0)}</strong></div>
+                                        <div><span>Giảm giá</span><strong>-{formatGia(selectedOrder.tienGiam || 0)}</strong></div>
+                                        <div><span>Phí vận chuyển</span><strong>{formatGia(selectedOrder.phiVanChuyen || 0)}</strong></div>
+                                        <div className="grand"><span>Tổng thanh toán</span><strong>{formatGia(getTotal(selectedOrder))}</strong></div>
+                                    </div>
+
+                                    {selectedOrder.__lichSu?.length > 0 && (
+                                        <div className="order-section-block order-history-log">
+                                            <div className="order-section-title"><h3>Lịch sử trạng thái</h3></div>
+                                            <div className="order-log-list">
+                                                {[...selectedOrder.__lichSu]
+                                                    .sort((a, b) => new Date(b?.thoiGian || 0) - new Date(a?.thoiGian || 0))
+                                                    .map((item, index) => {
+                                                        const st = getStatus({ trangThai: item?.trangThai });
+                                                        return (
+                                                            <div className="order-log-item" key={item?.id || index}>
+                                                                <span className="order-log-dot" />
+                                                                <div>
+                                                                    <strong>{st.label}</strong>
+                                                                    <span>{formatDate(item?.thoiGian)}</span>
+                                                                    {item?.ghiChu && <p>{item.ghiChu}</p>}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </section>
+                    </div>
+                )}
+            </div>
+        </main>
+    );
+}
+
 function Footer() { return (
     <footer className="footer">
         <div className="container footer-grid">

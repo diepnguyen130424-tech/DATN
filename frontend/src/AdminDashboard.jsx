@@ -273,185 +273,747 @@ function layTenSanPham(chiTiet) {
         chiTiet?.sanPham?.tenSanPham ||
         "Sản phẩm");
 }
-const stats = [
-    {
-        label: "Tổng sản phẩm",
-        value: "128",
-        icon: "□",
-        note: "+12%",
-    },
-    {
-        label: "Đơn hàng",
-        value: "56",
-        icon: "▧",
-        note: "+12%",
-    },
-    {
-        label: "Khách hàng",
-        value: "320",
-        icon: "◎",
-        note: "+12%",
-    },
-    {
-        label: "Doanh thu",
-        value: "48.500.000đ",
-        icon: "₫",
-        note: "+12%",
-    },
-];
+function formatChartMoney(value) {
+    const number = Number(value || 0);
+
+    if (number >= 1000000) {
+        const million = number / 1000000;
+        return `${Number.isInteger(million) ? million : million.toFixed(1)}tr`;
+    }
+
+    if (number >= 1000) {
+        const thousand = number / 1000;
+        return `${Number.isInteger(thousand) ? thousand : thousand.toFixed(1)}k`;
+    }
+
+    return `${number.toLocaleString("vi-VN")}`;
+}
+
+function isRevenueOrder(hoaDon) {
+    const status = String(hoaDon?.trangThai || "").toUpperCase();
+
+    return (
+        status === "DA_GIAO" ||
+        status === "DA_THANH_TOAN"
+    );
+}
+
+function getHoaDonDate(hoaDon) {
+    const value =
+        hoaDon?.ngayLap ||
+        hoaDon?.ngayTao ||
+        hoaDon?.ngayCapNhat;
+
+    if (!value) return null;
+
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime())
+        ? null
+        : date;
+}
+
+function isSameDay(dateA, dateB) {
+    if (!dateA || !dateB) return false;
+
+    return (
+        dateA.getFullYear() === dateB.getFullYear() &&
+        dateA.getMonth() === dateB.getMonth() &&
+        dateA.getDate() === dateB.getDate()
+    );
+}
+
 function DashboardContent({ onViewAll }) {
-    const [hoaDons, setHoaDons] = useState(adminDataCache.hoaDons || []);
-    const [loadingOrders, setLoadingOrders] = useState(!adminDataCache.hoaDons);
+    // Mỗi loại dữ liệu có state riêng.
+    // API nào trả về trước thì giao diện cập nhật trước,
+    // không chờ tất cả API xong mới hiển thị.
+    const [productCount, setProductCount] = useState(null);
+    const [customerCount, setCustomerCount] = useState(
+        adminDataCache.khachHangs?.length ?? null
+    );
+    const [hoaDons, setHoaDons] = useState(
+        adminDataCache.hoaDons || []
+    );
+
+    const [loadingOrders, setLoadingOrders] = useState(
+        !adminDataCache.hoaDons
+    );
+
+    const [loadingProducts, setLoadingProducts] = useState(
+        true
+    );
+
+    const [loadingCustomers, setLoadingCustomers] = useState(
+        !adminDataCache.khachHangs
+    );
+
+    const [dashboardError, setDashboardError] =
+        useState("");
+
+    // Tải sản phẩm độc lập.
     useEffect(() => {
         let mounted = true;
-        getHoaDons()
-            .then((danhSach) => {
-                if (!mounted)
-                    return;
-                setHoaDons(danhSach);
+
+        fetch(`${API}/san-pham`)
+            .then(async (response) => {
+                const text = await response.text();
+
+                let data = [];
+
+                try {
+                    data = text ? JSON.parse(text) : [];
+                } catch {
+                    data = [];
+                }
+
+                if (!response.ok) {
+                    throw new Error(
+                        data?.message ||
+                        data?.error ||
+                        text ||
+                        "Không thể tải sản phẩm"
+                    );
+                }
+
+                return Array.isArray(data)
+                    ? data
+                    : [];
+            })
+            .then((data) => {
+                if (!mounted) return;
+
+                setProductCount(data.length);
             })
             .catch((err) => {
-                console.error("Lỗi tải đơn hàng tổng quan:", err);
+                console.error(
+                    "Lỗi tải sản phẩm Dashboard:",
+                    err
+                );
+
+                if (mounted) {
+                    setDashboardError(
+                        (old) =>
+                            old ||
+                            "Không thể tải dữ liệu sản phẩm."
+                    );
+                }
             })
             .finally(() => {
-                if (mounted)
-                    setLoadingOrders(false);
+                if (mounted) {
+                    setLoadingProducts(false);
+                }
             });
+
         return () => {
             mounted = false;
         };
     }, []);
+
+    // Tải khách hàng độc lập.
+    useEffect(() => {
+        let mounted = true;
+
+        if (adminDataCache.khachHangs) {
+            setCustomerCount(
+                adminDataCache.khachHangs.length
+            );
+            setLoadingCustomers(false);
+            return () => {
+                mounted = false;
+            };
+        }
+
+        getKhachHangs()
+            .then((data) => {
+                if (!mounted) return;
+
+                setCustomerCount(data.length);
+            })
+            .catch((err) => {
+                console.error(
+                    "Lỗi tải khách hàng Dashboard:",
+                    err
+                );
+
+                if (mounted) {
+                    setDashboardError(
+                        (old) =>
+                            old ||
+                            "Không thể tải dữ liệu khách hàng."
+                    );
+                }
+            })
+            .finally(() => {
+                if (mounted) {
+                    setLoadingCustomers(false);
+                }
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    // Tải hóa đơn độc lập.
+    useEffect(() => {
+        let mounted = true;
+
+        getHoaDons()
+            .then((data) => {
+                if (!mounted) return;
+
+                setHoaDons(data);
+            })
+            .catch((err) => {
+                console.error(
+                    "Lỗi tải đơn hàng Dashboard:",
+                    err
+                );
+
+                if (mounted) {
+                    setDashboardError(
+                        (old) =>
+                            old ||
+                            "Không thể tải dữ liệu đơn hàng."
+                    );
+                }
+            })
+            .finally(() => {
+                if (mounted) {
+                    setLoadingOrders(false);
+                }
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const totalRevenue = hoaDons
+        .filter(isRevenueOrder)
+        .reduce(
+            (sum, hoaDon) =>
+                sum +
+                Number(
+                    hoaDon?.tongThanhToan || 0
+                ),
+            0
+        );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const revenueByDay = Array.from(
+        { length: 7 },
+        (_, index) => {
+            const date = new Date(today);
+
+            date.setDate(
+                today.getDate() -
+                (6 - index)
+            );
+
+            const revenue = hoaDons
+                .filter(
+                    (hoaDon) =>
+                        isRevenueOrder(hoaDon) &&
+                        isSameDay(
+                            getHoaDonDate(hoaDon),
+                            date
+                        )
+                )
+                .reduce(
+                    (sum, hoaDon) =>
+                        sum +
+                        Number(
+                            hoaDon?.tongThanhToan ||
+                            0
+                        ),
+                    0
+                );
+
+            return {
+                date,
+                revenue,
+                label: date.toLocaleDateString(
+                    "vi-VN",
+                    {
+                        weekday: "short",
+                    }
+                ),
+            };
+        }
+    );
+
+    const maxRevenue = Math.max(
+        ...revenueByDay.map(
+            (item) => item.revenue
+        ),
+        1
+    );
+
+    const statusCounts = {
+        pending: hoaDons.filter(
+            (hoaDon) =>
+                hoaDon?.trangThai ===
+                "CHO_XAC_NHAN"
+        ).length,
+
+        processing: hoaDons.filter(
+            (hoaDon) =>
+                hoaDon?.trangThai ===
+                "DA_XAC_NHAN" ||
+                hoaDon?.trangThai ===
+                "DANG_CHUAN_BI"
+        ).length,
+
+        shipping: hoaDons.filter(
+            (hoaDon) =>
+                hoaDon?.trangThai ===
+                "DANG_GIAO"
+        ).length,
+
+        done: hoaDons.filter(
+            (hoaDon) =>
+                hoaDon?.trangThai ===
+                "DA_GIAO"
+        ).length,
+    };
+
     const recentOrders = hoaDons.slice(0, 4);
-    return (<div className="admin-dashboard-content">
-        <div className="admin-page-heading">
-            <div>
-                <div className="admin-eyebrow">FSHOP ADMIN</div>
-                <h1>Tổng quan</h1>
-                <p>Theo dõi hoạt động kinh doanh của cửa hàng.</p>
+
+    return (
+        <div className="admin-dashboard-content">
+            <div className="admin-page-heading">
+                <div>
+                    <div className="admin-eyebrow">
+                        FSHOP ADMIN
+                    </div>
+
+                    <h1>Tổng quan</h1>
+
+                    <p>
+                        Theo dõi hoạt động kinh doanh
+                        thực tế của cửa hàng.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    className="admin-date-button"
+                >
+                    <span>▣</span>
+                    Tháng{" "}
+                    {String(
+                        today.getMonth() + 1
+                    ).padStart(2, "0")}
+                    /{today.getFullYear()}
+                </button>
             </div>
 
-            <button type="button" className="admin-date-button">
-                <span>▣</span>
-                Tháng 09/2026
-            </button>
-        </div>
-
-        <div className="admin-stats">
-            {stats.map((item) => (<div className="admin-stat-card" key={item.label}>
-                <div className="admin-stat-top">
-                    <div className="admin-stat-icon">{item.icon}</div>
-                    <span className="admin-growth">{item.note}</span>
+            {dashboardError ? (
+                <div
+                    className="admin-card"
+                    style={{
+                        marginBottom: "20px",
+                        color: "#c62828",
+                    }}
+                >
+                    {dashboardError}
                 </div>
-                <div className="admin-stat-value">{item.value}</div>
-                <div className="admin-stat-label">{item.label}</div>
-            </div>))}
-        </div>
+            ) : null}
 
-        <div className="admin-dashboard-grid">
-            <section className="admin-card revenue-card">
-                <div className="admin-card-heading">
-                    <div>
-                        <h2>Doanh thu</h2>
-                        <p>Doanh thu trong 7 ngày gần nhất</p>
-                    </div>
-                    <strong>48.500.000đ</strong>
-                </div>
-
-                <div className="revenue-chart">
-                    <div className="chart-labels">
-                        <span>10tr</span><span>8tr</span><span>6tr</span>
-                        <span>4tr</span><span>2tr</span><span>0</span>
-                    </div>
-                    <div className="chart-main">
-                        <div className="chart-grid-lines">
-                            <i /><i /><i /><i /><i />
+            <div className="admin-stats">
+                <div className="admin-stat-card">
+                    <div className="admin-stat-top">
+                        <div className="admin-stat-icon">
+                            □
                         </div>
-                        <div className="chart-bars">
-                            {[35, 52, 42, 72, 58, 88, 76].map((height, index) => (<div className="chart-bar-wrap" key={index}>
-                                <div className="chart-bar" style={{ height: `${height}%` }}/>
-                                <span>{["T2", "T3", "T4", "T5", "T6", "T7", "CN"][index]}</span>
-                            </div>))}
-                        </div>
+
+                        <span className="admin-growth">
+                            Database
+                        </span>
+                    </div>
+
+                    <div className="admin-stat-value">
+                        {loadingProducts
+                            ? "..."
+                            : productCount.toLocaleString(
+                                "vi-VN"
+                            )}
+                    </div>
+
+                    <div className="admin-stat-label">
+                        Tổng sản phẩm
                     </div>
                 </div>
-            </section>
+
+                <div className="admin-stat-card">
+                    <div className="admin-stat-top">
+                        <div className="admin-stat-icon">
+                            ▧
+                        </div>
+
+                        <span className="admin-growth">
+                            Database
+                        </span>
+                    </div>
+
+                    <div className="admin-stat-value">
+                        {loadingOrders
+                            ? "..."
+                            : hoaDons.length.toLocaleString(
+                                "vi-VN"
+                            )}
+                    </div>
+
+                    <div className="admin-stat-label">
+                        Đơn hàng
+                    </div>
+                </div>
+
+                <div className="admin-stat-card">
+                    <div className="admin-stat-top">
+                        <div className="admin-stat-icon">
+                            ◎
+                        </div>
+
+                        <span className="admin-growth">
+                            Database
+                        </span>
+                    </div>
+
+                    <div className="admin-stat-value">
+                        {loadingCustomers
+                            ? "..."
+                            : customerCount.toLocaleString(
+                                "vi-VN"
+                            )}
+                    </div>
+
+                    <div className="admin-stat-label">
+                        Khách hàng
+                    </div>
+                </div>
+
+                <div className="admin-stat-card">
+                    <div className="admin-stat-top">
+                        <div className="admin-stat-icon">
+                            ₫
+                        </div>
+
+                        <span className="admin-growth">
+                            Đã giao / đã thanh toán
+                        </span>
+                    </div>
+
+                    <div className="admin-stat-value">
+                        {loadingOrders
+                            ? "..."
+                            : formatTien(totalRevenue)}
+                    </div>
+
+                    <div className="admin-stat-label">
+                        Doanh thu
+                    </div>
+                </div>
+            </div>
+
+            <div className="admin-dashboard-grid">
+                <section className="admin-card revenue-card">
+                    <div className="admin-card-heading">
+                        <div>
+                            <h2>Doanh thu</h2>
+
+                            <p>
+                                Doanh thu thực tế trong
+                                7 ngày gần nhất
+                            </p>
+                        </div>
+
+                        <strong>
+                            {loadingOrders
+                                ? "Đang tải..."
+                                : formatTien(
+                                    totalRevenue
+                                )}
+                        </strong>
+                    </div>
+
+                    <div className="revenue-chart">
+                        <div className="chart-labels">
+                            {[
+                                5,
+                                4,
+                                3,
+                                2,
+                                1,
+                                0,
+                            ].map((level) => (
+                                <span key={level}>
+                                    {formatChartMoney(
+                                        (maxRevenue /
+                                            5) *
+                                        level
+                                    )}
+                                </span>
+                            ))}
+                        </div>
+
+                        <div className="chart-main">
+                            <div className="chart-grid-lines">
+                                <i />
+                                <i />
+                                <i />
+                                <i />
+                                <i />
+                            </div>
+
+                            <div className="chart-bars">
+                                {revenueByDay.map(
+                                    (item) => (
+                                        <div
+                                            className="chart-bar-wrap"
+                                            key={item.date.toISOString()}
+                                            title={`${item.date.toLocaleDateString(
+                                                "vi-VN"
+                                            )}: ${formatTien(
+                                                item.revenue
+                                            )}`}
+                                        >
+                                            <div
+                                                className="chart-bar"
+                                                style={{
+                                                    height:
+                                                        item.revenue >
+                                                        0
+                                                            ? `${Math.max(
+                                                                4,
+                                                                (item.revenue /
+                                                                    maxRevenue) *
+                                                                100
+                                                            )}%`
+                                                            : "0%",
+                                                }}
+                                            />
+
+                                            <span>
+                                                {item.label}
+                                            </span>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="admin-card">
+                    <div className="admin-card-heading">
+                        <div>
+                            <h2>
+                                Trạng thái đơn hàng
+                            </h2>
+
+                            <p>
+                                Số lượng thực tế từ
+                                database
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="order-status-list">
+                        <div>
+                            <span className="status-dot pending" />
+                            <span>
+                                Chờ xác nhận
+                            </span>
+                            <strong>
+                                {loadingOrders
+                                    ? "..."
+                                    : statusCounts.pending}
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span className="status-dot processing" />
+                            <span>
+                                Đang xử lý
+                            </span>
+                            <strong>
+                                {loadingOrders
+                                    ? "..."
+                                    : statusCounts.processing}
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span className="status-dot shipping" />
+                            <span>
+                                Đang giao
+                            </span>
+                            <strong>
+                                {loadingOrders
+                                    ? "..."
+                                    : statusCounts.shipping}
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span className="status-dot done" />
+                            <span>
+                                Đã giao
+                            </span>
+                            <strong>
+                                {loadingOrders
+                                    ? "..."
+                                    : statusCounts.done}
+                            </strong>
+                        </div>
+                    </div>
+                </section>
+            </div>
 
             <section className="admin-card">
                 <div className="admin-card-heading">
                     <div>
-                        <h2>Trạng thái đơn hàng</h2>
-                        <p>Tổng quan đơn hàng</p>
+                        <h2>Đơn hàng gần đây</h2>
+
+                        <p>
+                            4 đơn hàng mới nhất
+                        </p>
                     </div>
+
+                    <button
+                        type="button"
+                        className="admin-link-button"
+                        onClick={onViewAll}
+                    >
+                        Xem tất cả →
+                    </button>
                 </div>
-                <div className="order-status-list">
-                    <div><span className="status-dot pending"/><span>Chờ xác nhận</span><strong>12</strong></div>
-                    <div><span className="status-dot processing"/><span>Đang xử lý</span><strong>18</strong></div>
-                    <div><span className="status-dot shipping"/><span>Đang giao</span><strong>15</strong></div>
-                    <div><span className="status-dot done"/><span>Đã giao</span><strong>11</strong></div>
+
+                <div className="admin-table-scroll">
+                    {loadingOrders ? (
+                        <div
+                            style={{
+                                padding: "40px",
+                                textAlign: "center",
+                                color: "#777",
+                            }}
+                        >
+                            Đang tải đơn hàng...
+                        </div>
+                    ) : recentOrders.length === 0 ? (
+                        <div
+                            style={{
+                                padding: "40px",
+                                textAlign: "center",
+                                color: "#777",
+                            }}
+                        >
+                            Chưa có đơn hàng.
+                        </div>
+                    ) : (
+                        <table className="admin-table">
+                            <thead>
+                            <tr>
+                                <th>
+                                    Mã hóa đơn
+                                </th>
+
+                                <th>
+                                    Khách hàng
+                                </th>
+
+                                <th>
+                                    Tổng tiền
+                                </th>
+
+                                <th>
+                                    Trạng thái
+                                </th>
+                            </tr>
+                            </thead>
+
+                            <tbody>
+                            {recentOrders.map(
+                                (hoaDon) => (
+                                    <tr
+                                        key={
+                                            hoaDon.id
+                                        }
+                                    >
+                                        <td>
+                                            <strong>
+                                                {hoaDon.maHoaDon ||
+                                                    `HD${hoaDon.id}`}
+                                            </strong>
+                                        </td>
+
+                                        <td>
+                                            {hoaDon
+                                                    ?.khachHang
+                                                    ?.hoTen ||
+                                                hoaDon
+                                                    ?.diaChi
+                                                    ?.tenNguoiNhan ||
+                                                "Khách lẻ"}
+                                        </td>
+
+                                        <td>
+                                            <strong>
+                                                {formatTien(
+                                                    hoaDon.tongThanhToan
+                                                )}
+                                            </strong>
+                                        </td>
+
+                                        <td>
+                                            <span
+                                                className="order-status"
+                                                style={{
+                                                    display:
+                                                        "inline-flex",
+                                                    alignItems:
+                                                        "center",
+                                                    justifyContent:
+                                                        "center",
+                                                    padding:
+                                                        "6px 12px",
+                                                    borderRadius:
+                                                        "999px",
+                                                    fontSize:
+                                                        "12px",
+                                                    fontWeight:
+                                                        700,
+                                                    whiteSpace:
+                                                        "nowrap",
+                                                    ...getTrangThaiDonHangStyle(
+                                                        hoaDon.trangThai
+                                                    ),
+                                                }}
+                                            >
+                                                {hoaDon.trangThai ===
+                                                    "DA_THANH_TOAN" &&
+                                                    "✓ "}
+                                                {tenTrangThaiHoaDon(
+                                                    hoaDon.trangThai
+                                                )}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                )
+                            )}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </section>
         </div>
-
-        <section className="admin-card">
-            <div className="admin-card-heading">
-                <div>
-                    <h2>Đơn hàng gần đây</h2>
-                    <p>4 đơn hàng mới nhất</p>
-                </div>
-                <button type="button" className="admin-link-button" onClick={onViewAll}>
-                    Xem tất cả →
-                </button>
-            </div>
-
-            <div className="admin-table-scroll">
-                {loadingOrders ? (<div style={{ padding: "40px", textAlign: "center", color: "#777" }}>
-                    Đang tải đơn hàng...
-                </div>) : recentOrders.length === 0 ? (<div style={{ padding: "40px", textAlign: "center", color: "#777" }}>
-                    Chưa có đơn hàng.
-                </div>) : (<table className="admin-table">
-                    <thead>
-                    <tr>
-                        <th>Mã hóa đơn</th>
-                        <th>Khách hàng</th>
-                        <th>Tổng tiền</th>
-                        <th>Trạng thái</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {recentOrders.map((hoaDon) => (<tr key={hoaDon.id}>
-                        <td><strong>{hoaDon.maHoaDon || `HD${hoaDon.id}`}</strong></td>
-                        <td>
-                            {hoaDon?.khachHang?.hoTen ||
-                                hoaDon?.diaChi?.tenNguoiNhan ||
-                                "Khách lẻ"}
-                        </td>
-                        <td><strong>{formatTien(hoaDon.tongThanhToan)}</strong></td>
-                        <td>
-                            <span
-                                className="order-status"
-                                style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    padding: "6px 12px",
-                                    borderRadius: "999px",
-                                    fontSize: "12px",
-                                    fontWeight: 700,
-                                    whiteSpace: "nowrap",
-                                    ...getTrangThaiDonHangStyle(hoaDon.trangThai),
-                                }}
-                            >
-                                {hoaDon.trangThai === "DA_THANH_TOAN" && "✓ "}
-                                {tenTrangThaiHoaDon(hoaDon.trangThai)}
-                            </span>
-                        </td>
-                    </tr>))}
-                    </tbody>
-                </table>)}
-            </div>
-        </section>
-    </div>);
+    );
 }
+
 function HoaDonContent() {
     const [hoaDons, setHoaDons] = useState([]);
     const [loading, setLoading] = useState(true);
