@@ -467,6 +467,7 @@ function App() { const taiKhoanDaLuu = (() => {
         return ( <EmployeeDashboard
             taiKhoan={taiKhoan}
             dangXuat={dangXuat}
+            onBackToShop={() => setPage("home")}
         /> );
     }
     if (page === "login") { return (
