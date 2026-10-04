@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react";
 import "./EmployeeDashboard.css";
+import {EmployeeOverview, ProductsPage} from "./EmployeeOverviewProducts.jsx";
 
 const API = "http://localhost:8080/api";
 
@@ -41,17 +42,6 @@ function formatDate(value) {
     return new Date(value).toLocaleString("vi-VN");
 }
 
-function isToday(value) {
-    if (!value) return false;
-    const d = new Date(value);
-    const now = new Date();
-    return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-    );
-}
-
 async function readJson(url, options) {
     const response = await fetch(url, options);
     const text = await response.text();
@@ -83,26 +73,6 @@ function StatusBadge({value}) {
     );
 }
 
-const PRODUCT_STATUS_LABEL = {
-    HOAT_DONG: "Hoạt động",
-    NGUNG_HOAT_DONG: "Ngừng hoạt động",
-};
-
-const PRODUCT_STATUS_CLASS = {
-    HOAT_DONG: "product-active",
-    NGUNG_HOAT_DONG: "product-inactive",
-};
-
-function ProductStatusBadge({value}) {
-    const key = String(value || "").trim().toUpperCase();
-    return (
-        <span className={`product-status-badge ${PRODUCT_STATUS_CLASS[key] || "product-unknown"}`}>
-            <span className="product-status-dot"/>
-            {PRODUCT_STATUS_LABEL[key] || value || "Chưa xác định"}
-        </span>
-    );
-}
-
 function PageHeading({eyebrow = "FSHOP NHÂN VIÊN", title, description, action}) {
     return (
         <div className="employee-heading">
@@ -112,206 +82,6 @@ function PageHeading({eyebrow = "FSHOP NHÂN VIÊN", title, description, action}
                 {description && <p>{description}</p>}
             </div>
             {action}
-        </div>
-    );
-}
-
-function EmployeeOverview({
-                              orders,
-                              customers,
-                              products,
-                              detailsCount,
-                              onMenu,
-                          }) {
-    const todayOrders = useMemo(
-        () => orders.filter((item) => isToday(item.ngayLap || item.ngayCapNhat)),
-        [orders]
-    );
-
-    const revenue = todayOrders
-        .filter((item) => !["DA_HUY"].includes(item.trangThai))
-        .reduce((sum, item) => sum + Number(item.tongThanhToan || 0), 0);
-
-    const customerIds = new Set(
-        todayOrders
-            .map((item) => item.khachHang?.id)
-            .filter(Boolean)
-    );
-
-    const paid = todayOrders.filter((item) =>
-        ["DA_THANH_TOAN", "DA_GIAO"].includes(item.trangThai)
-    ).length;
-    const waiting = todayOrders.filter((item) =>
-        ["CHO_XAC_NHAN", "CHO_THANH_TOAN"].includes(item.trangThai)
-    ).length;
-    const cancelled = todayOrders.filter((item) => item.trangThai === "DA_HUY").length;
-
-    const recent = [...orders]
-        .sort(
-            (a, b) =>
-                new Date(b.ngayLap || b.ngayCapNhat || 0) -
-                new Date(a.ngayLap || a.ngayCapNhat || 0)
-        )
-        .slice(0, 5);
-
-    return (
-        <div className="employee-content">
-            <PageHeading
-                title="Tổng quan"
-                description="Quản lý bán hàng và đơn hàng tại cửa hàng."
-                action={
-                    <button className="employee-date" type="button">
-                        ▣ Hôm nay
-                    </button>
-                }
-            />
-
-            <div className="employee-stats">
-                <div className="employee-stat-card">
-                    <div className="employee-stat-icon">🛒</div>
-                    <div>
-                        <span>Đơn hàng hôm nay</span>
-                        <strong>{todayOrders.length}</strong>
-                    </div>
-                </div>
-
-                <div className="employee-stat-card">
-                    <div className="employee-stat-icon">₫</div>
-                    <div>
-                        <span>Doanh thu hôm nay</span>
-                        <strong>{formatMoney(revenue)}</strong>
-                    </div>
-                </div>
-
-                <div className="employee-stat-card">
-                    <div className="employee-stat-icon">◎</div>
-                    <div>
-                        <span>Khách hàng hôm nay</span>
-                        <strong>{customerIds.size}</strong>
-                    </div>
-                </div>
-
-                <div className="employee-stat-card">
-                    <div className="employee-stat-icon">□</div>
-                    <div>
-                        <span>Sản phẩm đã bán</span>
-                        <strong>{detailsCount}</strong>
-                    </div>
-                </div>
-            </div>
-
-            <div className="employee-section-grid">
-                <section className="employee-card quick-card">
-                    <div className="employee-card-heading">
-                        <div>
-                            <h2>Thao tác nhanh</h2>
-                            <p>Các chức năng thường sử dụng</p>
-                        </div>
-                    </div>
-
-                    <div className="quick-actions">
-                        <button type="button" onClick={() => onMenu("ban-hang")}>
-                            <span>🛒</span>
-                            <div>
-                                <strong>Bán hàng tại quầy</strong>
-                                <small>Tạo hóa đơn mới</small>
-                            </div>
-                        </button>
-                        <button type="button" onClick={() => onMenu("don-online")}>
-                            <span>▤</span>
-                            <div>
-                                <strong>Đơn online</strong>
-                                <small>Xác nhận và xử lý đơn</small>
-                            </div>
-                        </button>
-                        <button type="button" onClick={() => onMenu("khach-hang")}>
-                            <span>◎</span>
-                            <div>
-                                <strong>Khách hàng</strong>
-                                <small>Tra cứu khách hàng</small>
-                            </div>
-                        </button>
-                        <button type="button" onClick={() => onMenu("san-pham")}>
-                            <span>□</span>
-                            <div>
-                                <strong>Sản phẩm</strong>
-                                <small>Xem sản phẩm và tồn kho</small>
-                            </div>
-                        </button>
-                    </div>
-                </section>
-
-                <section className="employee-card">
-                    <div className="employee-card-heading">
-                        <div>
-                            <h2>Tình hình hôm nay</h2>
-                            <p>Tổng quan hoạt động từ database</p>
-                        </div>
-                    </div>
-
-                    <div className="employee-summary">
-                        <div><span>Đã thanh toán</span><strong>{paid}</strong></div>
-                        <div><span>Chờ xử lý</span><strong>{waiting}</strong></div>
-                        <div><span>Đã hủy</span><strong>{cancelled}</strong></div>
-                    </div>
-
-                    <div className="employee-mini-info">
-                        <span>Sản phẩm đang quản lý</span>
-                        <strong>{products.length}</strong>
-                        <span>Khách hàng</span>
-                        <strong>{customers.length}</strong>
-                    </div>
-                </section>
-            </div>
-
-            <section className="employee-card employee-orders">
-                <div className="employee-card-heading">
-                    <div>
-                        <h2>Hóa đơn gần đây</h2>
-                        <p>Các hóa đơn được tạo gần nhất</p>
-                    </div>
-                    <button
-                        className="employee-link"
-                        type="button"
-                        onClick={() => onMenu("hoa-don")}
-                    >
-                        Xem tất cả →
-                    </button>
-                </div>
-
-                <div className="employee-table-wrapper">
-                    <table className="employee-table">
-                        <thead>
-                        <tr>
-                            <th>Mã hóa đơn</th>
-                            <th>Khách hàng</th>
-                            <th>Loại</th>
-                            <th>Tổng tiền</th>
-                            <th>Trạng thái</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {recent.length ? (
-                            recent.map((order) => (
-                                <tr key={order.id}>
-                                    <td><strong>{order.maHoaDon || `HD${order.id}`}</strong></td>
-                                    <td>{order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</td>
-                                    <td><span
-                                        className="employee-type">{order.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}</span>
-                                    </td>
-                                    <td><strong>{formatMoney(order.tongThanhToan)}</strong></td>
-                                    <td><StatusBadge value={order.trangThai}/></td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan="5" className="employee-empty">Chưa có hóa đơn.</td>
-                            </tr>
-                        )}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
         </div>
     );
 }
@@ -1115,55 +885,6 @@ function CustomersPage({customers}) {
     );
 }
 
-function ProductsPage({products}) {
-    const [search, setSearch] = useState("");
-    const filtered = products.filter((item) => {
-        const keyword = search.trim().toLowerCase();
-        return (
-            !keyword ||
-            String(item.tenSanPham || "").toLowerCase().includes(keyword) ||
-            String(item.maSanPham || "").toLowerCase().includes(keyword) ||
-            String(item.thuongHieu?.tenThuongHieu || "").toLowerCase().includes(keyword)
-        );
-    });
-
-    return (
-        <div className="employee-content">
-            <PageHeading title="Sản phẩm" description="Danh sách sản phẩm và thông tin tồn kho."/>
-            <section className="employee-card">
-                <div className="employee-search-row">
-                    <input value={search} onChange={(e) => setSearch(e.target.value)}
-                           placeholder="⌕ Tìm sản phẩm, mã sản phẩm, thương hiệu..."/>
-                </div>
-                <div className="employee-table-wrapper">
-                    <table className="employee-table">
-                        <thead>
-                        <tr>
-                            <th>Mã</th>
-                            <th>Sản phẩm</th>
-                            <th>Thương hiệu</th>
-                            <th>Danh mục</th>
-                            <th>Trạng thái</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {filtered.map((item) => (
-                            <tr key={item.id}>
-                                <td><strong>{item.maSanPham || `SP${item.id}`}</strong></td>
-                                <td>{item.tenSanPham}</td>
-                                <td>{item.thuongHieu?.tenThuongHieu || "-"}</td>
-                                <td>{item.danhMuc?.tenDanhMuc || "-"}</td>
-                                <td><ProductStatusBadge value={item.trangThai}/></td>
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </div>
-    );
-}
-
 function OrderDetailModal({order, onClose}) {
     const [detail, setDetail] = useState([]);
     const [payment, setPayment] = useState(null);
@@ -1260,7 +981,8 @@ export default function EmployeeDashboard({
     const [orders, setOrders] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [products, setProducts] = useState([]);
-    const [soldCount, setSoldCount] = useState(0);
+    const [variants, setVariants] = useState([]);
+    const [productPreset, setProductPreset] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [error, setError] = useState("");
@@ -1275,17 +997,18 @@ export default function EmployeeDashboard({
         );
     }, [employees, taiKhoan]);
 
-    const loadData = async () => {
+    const loadData = async (silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             setError("");
 
-            const [employeeData, orderData, customerData, productData] =
+            const [employeeData, orderData, customerData, productData, variantData] =
                 await Promise.all([
                     readJson(`${API}/nhan-vien`),
                     readJson(`${API}/hoa-don`),
                     readJson(`${API}/khach-hang`),
                     readJson(`${API}/san-pham`),
+                    readJson(`${API}/san-pham-chi-tiet`).catch(() => []),
                 ]);
 
             setEmployees(Array.isArray(employeeData) ? employeeData : []);
@@ -1298,6 +1021,7 @@ export default function EmployeeDashboard({
             );
             setCustomers(Array.isArray(customerData) ? customerData : []);
             setProducts(Array.isArray(productData) ? productData : []);
+            setVariants(Array.isArray(variantData) ? variantData : []);
         } catch (err) {
             console.error(err);
             setError(err.message || "Không thể tải dữ liệu nhân viên.");
@@ -1309,39 +1033,6 @@ export default function EmployeeDashboard({
     useEffect(() => {
         loadData();
     }, []);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        const today = orders.filter((item) =>
-            isToday(item.ngayLap || item.ngayCapNhat)
-        );
-
-        Promise.all(
-            today.map((item) =>
-                readJson(`${API}/hoa-don/${item.id}/chi-tiet`).catch(() => [])
-            )
-        ).then((lists) => {
-            if (cancelled) return;
-            setSoldCount(
-                lists.reduce(
-                    (sum, list) =>
-                        sum +
-                        (Array.isArray(list)
-                            ? list.reduce(
-                                (n, row) => n + Number(row.soLuong || 0),
-                                0
-                            )
-                            : 0),
-                    0
-                )
-            );
-        });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [orders]);
 
     const updateOrderStatus = async (order, status) => {
         try {
@@ -1361,6 +1052,11 @@ export default function EmployeeDashboard({
         } catch (err) {
             alert(err.message || "Không thể cập nhật đơn hàng.");
         }
+    };
+
+    const goTo = (menu, preset = null) => {
+        setProductPreset(preset);
+        setActiveMenu(menu);
     };
 
     const activeLabel =
@@ -1385,7 +1081,7 @@ export default function EmployeeDashboard({
                             type="button"
                             key={item.id}
                             className={activeMenu === item.id ? "active" : ""}
-                            onClick={() => setActiveMenu(item.id)}
+                            onClick={() => goTo(item.id)}
                         >
                             <span className="employee-nav-icon">{item.icon}</span>
                             <span>{item.label}</span>
@@ -1432,7 +1128,7 @@ export default function EmployeeDashboard({
                     {error && (
                         <div className="employee-error">
                             {error}
-                            <button type="button" onClick={loadData}>Thử lại</button>
+                            <button type="button" onClick={() => loadData()}>Thử lại</button>
                         </div>
                     )}
 
@@ -1443,10 +1139,12 @@ export default function EmployeeDashboard({
                             {activeMenu === "dashboard" && (
                                 <EmployeeOverview
                                     orders={orders}
-                                    customers={customers}
                                     products={products}
-                                    detailsCount={soldCount}
-                                    onMenu={setActiveMenu}
+                                    variants={variants}
+                                    onMenu={goTo}
+                                    onOpenDetail={setSelectedOrder}
+                                    onUpdateOrder={updateOrderStatus}
+                                    onRefresh={() => loadData(true)}
                                 />
                             )}
 
@@ -1477,7 +1175,13 @@ export default function EmployeeDashboard({
                             )}
 
                             {activeMenu === "san-pham" && (
-                                <ProductsPage products={products}/>
+                                <ProductsPage
+                                    key={productPreset || "all"}
+                                    products={products}
+                                    variants={variants}
+                                    preset={productPreset}
+                                    onMenu={goTo}
+                                />
                             )}
                         </>
                     )}
