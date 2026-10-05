@@ -1,0 +1,155 @@
+/* =========================================================
+   EMPLOYEE CUSTOMERS — Trang quản lý khách hàng
+   ========================================================= */
+
+/* ---------- TOOLBAR ---------- */
+.emp-cus-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.emp-cus-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    flex: 1;
+    min-width: 260px;
+    max-width: 520px;
+    background: #fff;
+    transition: 0.15s;
+}
+
+.emp-cus-search:focus-within {
+    border-color: #e5502d;
+    box-shadow: 0 0 0 3px rgba(229, 80, 45, 0.08);
+}
+
+.emp-cus-search span {
+    color: #999;
+    font-size: 15px;
+}
+
+.emp-cus-search input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 13.5px;
+    background: transparent;
+    font-family: inherit;
+}
+
+.emp-cus-search input::placeholder {
+    color: #aaa;
+}
+
+.emp-cus-search button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: #999;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.emp-cus-search button:hover {
+    color: #e5502d;
+}
+
+/* ---------- SORT ---------- */
+.emp-cus-sort {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #666;
+}
+
+.emp-cus-sort > span {
+    font-weight: 600;
+    color: #555;
+    white-space: nowrap;
+}
+
+.emp-cus-sort-btn {
+    padding: 7px 14px;
+    background: #f8f8f8;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #555;
+    cursor: pointer;
+    transition: 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.emp-cus-sort-btn:hover {
+    background: #fff3f0;
+    border-color: #e5502d;
+    color: #e5502d;
+}
+
+.emp-cus-sort-btn.active {
+    background: #e5502d;
+    border-color: #e5502d;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(229, 80, 45, 0.25);
+}
+
+/* ---------- TABLE ---------- */
+.emp-cus-table {
+    table-layout: auto;
+    width: 100%;
+}
+
+.emp-cus-table th {
+    background: #f9fafb;
+    font-weight: 700;
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.emp-cus-table th.emp-cus-th-id {
+    cursor: pointer;
+    transition: 0.15s;
+    color: #e5502d;
+}
+
+.emp-cus-table th.emp-cus-th-id:hover {
+    background: #fff3f0;
+}
+
+.emp-cus-id {
+    color: #e5502d;
+    font-weight: 700;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 768px) {
+    .emp-cus-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .emp-cus-search {
+        max-width: 100%;
+    }
+
+    .emp-cus-sort {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+}
