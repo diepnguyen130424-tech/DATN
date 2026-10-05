@@ -1,155 +1,1412 @@
 /* =========================================================
-   EMPLOYEE CUSTOMERS — Trang quản lý khách hàng
+   EMPLOYEE COUNTER SALE (POS) — Bán hàng tại quầy
+   File CSS đầy đủ: layout POS + giỏ hàng + modal thanh toán + modal hóa đơn
    ========================================================= */
 
-/* ---------- TOOLBAR ---------- */
-.emp-cus-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
+/* =========================================================
+   1. LAYOUT CHÍNH (3 CỘT)
+   ========================================================= */
+
+.pos-layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) 380px;
+    gap: 18px;
+    align-items: start;
 }
 
-.emp-cus-search {
+/* =========================================================
+   2. CỘT DANH MỤC (BÊN TRÁI)
+   ========================================================= */
+
+.pos-category-panel {
+    padding: 18px 14px;
+    position: sticky;
+    top: 12px;
+}
+
+.pos-category-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 12px;
+}
+
+.pos-category-icon {
+    width: 34px;
+    height: 34px;
+    background: #fff3f0;
+    color: #e5502d;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.pos-category-heading h2 {
+    font-size: 15px;
+    margin: 0;
+}
+
+.pos-category-heading p {
+    font-size: 12px;
+    color: #888;
+    margin: 2px 0 0;
+}
+
+.pos-category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pos-category-list button {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 14px;
-    border: 1px solid #e5e5e5;
-    border-radius: 10px;
+    padding: 10px 12px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #333;
+    text-align: left;
+    transition: 0.15s;
+    width: 100%;
+    font-family: inherit;
+}
+
+.pos-category-list button:hover {
+    background: #f7f7f7;
+}
+
+.pos-category-list button.active {
+    background: #e5502d;
+    color: #fff;
+    font-weight: 600;
+}
+
+.pos-category-list button span:first-child {
+    font-size: 15px;
+}
+
+.pos-category-list button strong {
     flex: 1;
-    min-width: 260px;
-    max-width: 520px;
-    background: #fff;
+    font-weight: 500;
+}
+
+.pos-category-list button small {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+/* =========================================================
+   3. CỘT SẢN PHẨM (Ở GIỮA)
+   ========================================================= */
+
+.pos-products {
+    padding: 18px;
+}
+
+.pos-products-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.pos-products-head h2 {
+    font-size: 16px;
+    margin: 0;
+}
+
+.pos-products-head p {
+    font-size: 12px;
+    color: #888;
+    margin: 2px 0 0;
+}
+
+.pos-product-count {
+    font-size: 12px;
+    color: #666;
+    background: #f4f4f4;
+    padding: 4px 10px;
+    border-radius: 12px;
+}
+
+/* Search box */
+.pos-search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    margin-bottom: 14px;
     transition: 0.15s;
 }
 
-.emp-cus-search:focus-within {
+.pos-search-box:focus-within {
     border-color: #e5502d;
     box-shadow: 0 0 0 3px rgba(229, 80, 45, 0.08);
 }
 
-.emp-cus-search span {
-    color: #999;
-    font-size: 15px;
-}
-
-.emp-cus-search input {
+.pos-search-box input {
     flex: 1;
     border: none;
     outline: none;
-    font-size: 13.5px;
+    font-size: 13px;
     background: transparent;
     font-family: inherit;
 }
 
-.emp-cus-search input::placeholder {
-    color: #aaa;
-}
-
-.emp-cus-search button {
+.pos-search-box button {
     background: none;
     border: none;
     cursor: pointer;
     font-size: 18px;
     color: #999;
     padding: 0 4px;
-    line-height: 1;
 }
 
-.emp-cus-search button:hover {
+.pos-search-box button:hover {
     color: #e5502d;
 }
 
-/* ---------- SORT ---------- */
-.emp-cus-sort {
+/* Loading */
+.employee-loading-inline {
+    padding: 10px 14px;
+    background: #fff7ed;
+    color: #c2410c;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    text-align: center;
+    border: 1px solid #fed7aa;
+}
+
+/* Grid sản phẩm */
+.pos-product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.pos-product-card {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: 0.15s;
+    position: relative;
+    font-family: inherit;
+}
+
+.pos-product-card:hover {
+    border-color: #e5502d;
+    box-shadow: 0 4px 12px rgba(229, 80, 45, 0.08);
+    transform: translateY(-2px);
+}
+
+.pos-product-card.sold-out {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.pos-product-image {
+    position: relative;
+    background: #f8f8f8;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 130px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+}
+
+.pos-product-image img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.pos-product-add {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    background: #e5502d;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.pos-product-brand {
+    font-size: 11px;
+    color: #e5502d;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.pos-product-card > strong {
     font-size: 13px;
+    color: #222;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.pos-product-code {
+    font-size: 11px;
+    color: #999;
+}
+
+.pos-product-price {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e5502d;
+}
+
+.pos-product-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
     color: #666;
 }
 
-.emp-cus-sort > span {
-    font-weight: 600;
-    color: #555;
-    white-space: nowrap;
+.pos-stock-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    flex-shrink: 0;
 }
 
-.emp-cus-sort-btn {
-    padding: 7px 14px;
+.pos-stock-dot.low {
+    background: #f59e0b;
+}
+
+.pos-stock-dot.out {
+    background: #ef4444;
+}
+
+.pos-product-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #e5502d;
+    color: #fff;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 11px;
+    margin-top: 4px;
+    font-weight: 600;
+}
+
+.pos-no-products {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+.pos-no-products div {
+    font-size: 36px;
+    margin-bottom: 8px;
+}
+
+.pos-no-products strong {
+    display: block;
+    color: #555;
+    margin-bottom: 4px;
+}
+
+/* =========================================================
+   4. CỘT GIỎ HÀNG (BÊN PHẢI)
+   ========================================================= */
+
+.pos-cart {
+    padding: 18px;
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
+    display: flex;
+    flex-direction: column;
+}
+
+.pos-cart-list {
+    flex: 1;
+    overflow-y: auto;
+    margin: 10px 0;
+    min-height: 120px;
+    max-height: 340px;
+}
+
+.pos-cart-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.pos-cart-list::-webkit-scrollbar-thumb {
+    background: #ddd;
+    border-radius: 3px;
+}
+
+.pos-cart-item {
+    display: grid;
+    grid-template-columns: 54px 1fr 24px;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+    align-items: center;
+}
+
+.pos-cart-item:last-child {
+    border-bottom: none;
+}
+
+.pos-cart-item img {
+    width: 54px;
+    height: 54px;
+    object-fit: contain;
     background: #f8f8f8;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    font-size: 12.5px;
+    border-radius: 6px;
+}
+
+.pos-cart-info strong {
+    display: block;
+    font-size: 13px;
+    color: #222;
+    line-height: 1.3;
+}
+
+.pos-cart-info small {
+    display: block;
+    font-size: 11px;
+    color: #888;
+    margin: 2px 0;
+}
+
+.pos-cart-info b {
+    font-size: 13px;
+    color: #e5502d;
+}
+
+.quantity-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+.quantity-control button {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    color: #666;
+    padding: 2px 4px;
+    font-family: inherit;
+}
+
+.quantity-control button:hover {
+    color: #e5502d;
+}
+
+.quantity-control span {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 18px;
+    text-align: center;
+}
+
+.pos-remove {
+    background: none;
+    border: none;
+    color: #bbb;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+    font-family: inherit;
+}
+
+.pos-remove:hover {
+    color: #e5502d;
+}
+
+.pos-empty-cart {
+    text-align: center;
+    padding: 30px 10px;
+    color: #999;
+}
+
+.pos-empty-cart div {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.6;
+}
+
+.pos-empty-cart strong {
+    display: block;
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 4px;
+}
+
+.pos-empty-cart span {
+    font-size: 12px;
+}
+
+/* Tổng kết */
+.pos-summary {
+    border-top: 1px dashed #ddd;
+    padding-top: 10px;
+    font-size: 13px;
+}
+
+.pos-summary > div {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+}
+
+.pos-summary span {
+    color: #666;
+}
+
+.pos-summary .pos-total {
+    font-size: 15px;
+    font-weight: 700;
+    color: #e5502d;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+    margin-top: 6px;
+}
+
+.pos-summary .pos-total strong {
+    font-size: 18px;
+    font-weight: 800;
+}
+
+/* Phương thức thanh toán — 2 cột */
+.pos-payment-section {
+    margin: 14px 0 10px;
+}
+
+.pos-payment-title {
+    font-size: 12px;
     font-weight: 600;
     color: #555;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.pos-payment-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.pos-payment-option {
+    padding: 12px 8px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    transition: 0.15s;
+    font-family: inherit;
+    font-weight: 600;
+    color: #555;
+}
+
+.pos-payment-option:hover {
+    border-color: #e5502d;
+    color: #e5502d;
+}
+
+.pos-payment-option.active {
+    border-color: #e5502d;
+    background: #fff3f0;
+    color: #e5502d;
+    font-weight: 700;
+    box-shadow: 0 0 0 3px rgba(229, 80, 45, 0.08);
+}
+
+.pos-payment-icon {
+    font-size: 20px;
+}
+
+/* Nút thanh toán */
+.pos-pay-button {
+    width: 100%;
+    background: #e5502d;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
     cursor: pointer;
     transition: 0.15s;
     font-family: inherit;
-    white-space: nowrap;
+    font-weight: 600;
+    margin-top: 8px;
 }
 
-.emp-cus-sort-btn:hover {
+.pos-pay-button:hover:not(:disabled) {
+    background: #c74322;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(229, 80, 45, 0.3);
+}
+
+.pos-pay-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pos-pay-button strong {
+    flex: 1;
+    text-align: center;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.pos-pay-button b {
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.pos-note {
+    display: block;
+    text-align: center;
+    font-size: 11px;
+    color: #999;
+    margin-top: 8px;
+    font-style: italic;
+}
+
+/* =========================================================
+   5. MODAL THANH TOÁN (POS PAYMENT MODAL)
+   ========================================================= */
+
+.pos-pay-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    animation: posFadeIn 0.15s ease-out;
+}
+
+.pos-pay-modal {
+    background: #fff;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: posSlideUp 0.2s ease-out;
+}
+
+@keyframes posFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes posSlideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Header modal */
+.pos-pay-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.pos-pay-modal-head h2 {
+    margin: 6px 0 0;
+    font-size: 20px;
+    color: #222;
+    font-weight: 700;
+}
+
+.pos-pay-close {
+    background: none;
+    border: none;
+    font-size: 26px;
+    color: #999;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+    font-family: inherit;
+}
+
+.pos-pay-close:hover {
+    color: #e5502d;
+}
+
+/* Số tiền cần thanh toán */
+.pos-pay-amount {
+    padding: 18px 22px;
+    background: linear-gradient(135deg, #fff3f0, #fff);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.pos-pay-amount span {
+    font-size: 14px;
+    color: #666;
+}
+
+.pos-pay-amount strong {
+    font-size: 24px;
+    color: #e5502d;
+    font-weight: 800;
+}
+
+.pos-pay-body {
+    padding: 20px 22px;
+}
+
+/* ---------- TIỀN MẶT ---------- */
+.pos-pay-label {
+    display: block;
+    font-size: 13px;
+    color: #555;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.pos-pay-cash-input {
+    display: flex;
+    align-items: center;
+    border: 2px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 12px 16px;
+    transition: 0.15s;
+    background: #fff;
+}
+
+.pos-pay-cash-input:focus-within {
+    border-color: #e5502d;
+    box-shadow: 0 0 0 4px rgba(229, 80, 45, 0.08);
+}
+
+.pos-pay-cash-input input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 20px;
+    font-weight: 700;
+    color: #222;
+    background: transparent;
+    font-family: inherit;
+}
+
+.pos-pay-cash-input input::placeholder {
+    font-size: 15px;
+    font-weight: 500;
+    color: #bbb;
+}
+
+.pos-pay-cash-input span {
+    font-size: 18px;
+    color: #888;
+    font-weight: 600;
+}
+
+/* Nút chọn nhanh mệnh giá — 2 cột */
+.pos-quick-cash {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.pos-quick-cash button {
+    padding: 12px 8px;
+    background: #f8f8f8;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+    transition: 0.15s;
+    font-family: inherit;
+}
+
+.pos-quick-cash button:hover {
     background: #fff3f0;
     border-color: #e5502d;
     color: #e5502d;
 }
 
-.emp-cus-sort-btn.active {
+/* Nút "Đủ tiền" — trải full hàng */
+.pos-quick-cash button.exact {
+    grid-column: 1 / -1;
     background: #e5502d;
-    border-color: #e5502d;
     color: #fff;
-    box-shadow: 0 4px 12px rgba(229, 80, 45, 0.25);
-}
-
-/* ---------- TABLE ---------- */
-.emp-cus-table {
-    table-layout: auto;
-    width: 100%;
-}
-
-.emp-cus-table th {
-    background: #f9fafb;
+    border-color: #e5502d;
     font-weight: 700;
-    font-size: 12px;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    font-size: 14px;
+    padding: 13px;
 }
 
-.emp-cus-table th.emp-cus-th-id {
-    cursor: pointer;
+.pos-quick-cash button.exact:hover {
+    background: #c74322;
+    color: #fff;
+}
+
+/* Tiền thừa */
+.pos-change {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
     transition: 0.15s;
-    color: #222;
 }
 
-.emp-cus-table th.emp-cus-th-id:hover {
-    background: #f0f0f0;
+.pos-change.ok {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
 }
 
-.emp-cus-id {
+.pos-change.warn {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+}
+
+.pos-change strong {
+    font-size: 18px;
+    font-weight: 800;
+}
+
+/* ---------- QR CHUYỂN KHOẢN ---------- */
+.pos-pay-qr-body {
+    text-align: center;
+}
+
+.pos-qr-wrapper {
+    position: relative;
+    display: inline-block;
+    padding: 12px;
+    background: #fff;
+    border: 2px dashed #e5502d;
+    border-radius: 14px;
+    margin-bottom: 16px;
+}
+
+.pos-qr-image {
+    width: 260px;
+    height: 260px;
+    display: block;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.pos-qr-badge {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #e5502d;
+    color: #fff;
+    padding: 4px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 6px rgba(229, 80, 45, 0.3);
+}
+
+/* Thông tin ngân hàng */
+.pos-bank-info {
+    text-align: left;
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+.pos-bank-info > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px dashed #e5e5e5;
+    font-size: 13px;
+    gap: 12px;
+}
+
+.pos-bank-info > div:last-child {
+    border-bottom: none;
+}
+
+.pos-bank-info span {
+    color: #666;
+    flex-shrink: 0;
+}
+
+.pos-bank-info strong {
     color: #222;
     font-weight: 700;
+    text-align: right;
+    word-break: break-word;
+}
+
+.pos-bank-info strong.highlight {
+    color: #e5502d;
+    font-size: 15px;
+}
+
+.pos-bank-info strong.content {
+    color: #2563eb;
     font-family: "Courier New", monospace;
+    font-size: 12px;
+}
+
+/* Input ghi chú */
+.pos-pay-note-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    margin-bottom: 12px;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: 0.15s;
+}
+
+.pos-pay-note-input:focus {
+    border-color: #e5502d;
+    box-shadow: 0 0 0 4px rgba(229, 80, 45, 0.08);
+}
+
+/* Checkbox xác nhận */
+.pos-paid-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: #fff8e1;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 13px;
+    color: #78350f;
+    font-weight: 600;
+    transition: 0.15s;
+}
+
+.pos-paid-checkbox:hover {
+    background: #fef3c7;
+}
+
+.pos-paid-checkbox input {
+    width: 18px;
+    height: 18px;
+    accent-color: #e5502d;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* Footer modal */
+.pos-pay-modal-footer {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 10px;
+    padding: 16px 22px 20px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.pos-btn-cancel,
+.pos-btn-confirm {
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: 0.15s;
+    font-family: inherit;
+}
+
+.pos-btn-cancel {
+    background: #f4f4f4;
+    color: #555;
+}
+
+.pos-btn-cancel:hover:not(:disabled) {
+    background: #e8e8e8;
+}
+
+.pos-btn-confirm {
+    background: #e5502d;
+    color: #fff;
+}
+
+.pos-btn-confirm:hover:not(:disabled) {
+    background: #c74322;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(229, 80, 45, 0.3);
+}
+
+.pos-btn-confirm:disabled,
+.pos-btn-cancel:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* =========================================================
+   6. MODAL HÓA ĐƠN (INVOICE)
+   ========================================================= */
+
+.invoice-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+    animation: posFadeIn 0.15s ease-out;
+    overflow-y: auto;
+}
+
+.invoice-modal {
+    background: #fff;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 94vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    animation: posSlideUp 0.2s ease-out;
+}
+
+/* ---------- VÙNG IN ---------- */
+.invoice-print-area {
+    padding: 32px 36px 24px;
+    background: #fff;
+    color: #111;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
+/* Header cửa hàng */
+.invoice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #e5502d;
+    margin-bottom: 18px;
+}
+
+.invoice-logo {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.invoice-logo-mark {
+    width: 48px;
+    height: 48px;
+    background: #e5502d;
+    color: #fff;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.invoice-logo h1 {
+    margin: 0;
+    font-size: 20px;
+    color: #e5502d;
+    letter-spacing: 0.5px;
+}
+
+.invoice-logo p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: #555;
+}
+
+.invoice-title {
+    text-align: right;
+}
+
+.invoice-title h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #222;
+    letter-spacing: 1px;
+}
+
+.invoice-title span {
+    display: inline-block;
+    margin-top: 4px;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    color: #e5502d;
+    font-weight: 700;
+}
+
+/* Meta info */
+.invoice-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 24px;
+    padding: 12px 0 16px;
+    border-bottom: 1px dashed #ddd;
+    margin-bottom: 16px;
+}
+
+.invoice-meta > div {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    gap: 8px;
+}
+
+.invoice-meta span {
+    color: #666;
+}
+
+.invoice-meta strong {
+    color: #222;
+    font-weight: 600;
+    text-align: right;
+}
+
+.invoice-meta strong.invoice-paid {
+    color: #16a34a;
+}
+
+/* Bảng sản phẩm */
+.invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+}
+
+.invoice-table th {
+    background: #fff3f0;
+    color: #e5502d;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 2px solid #e5502d;
+}
+
+.invoice-table td {
+    padding: 10px 8px;
+    font-size: 13px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+}
+
+.invoice-table td strong {
+    display: block;
+    color: #222;
+    font-weight: 600;
+}
+
+.invoice-table td small {
+    display: block;
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+}
+
+/* Tổng kết */
+.invoice-total {
+    margin-left: auto;
+    width: 320px;
+    margin-bottom: 20px;
+}
+
+.invoice-total > div {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
     font-size: 13px;
 }
 
-/* ---------- RESPONSIVE ---------- */
-@media (max-width: 768px) {
-    .emp-cus-toolbar {
+.invoice-total span {
+    color: #666;
+}
+
+.invoice-total strong {
+    color: #222;
+    font-weight: 600;
+}
+
+.invoice-total-final {
+    border-top: 2px solid #e5502d;
+    margin-top: 6px;
+    padding-top: 10px !important;
+}
+
+.invoice-total-final span {
+    color: #e5502d;
+    font-weight: 700;
+    font-size: 14px;
+    text-transform: uppercase;
+}
+
+.invoice-total-final strong {
+    color: #e5502d;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+/* Footer hóa đơn */
+.invoice-footer {
+    text-align: center;
+    padding-top: 16px;
+    border-top: 1px dashed #ddd;
+    color: #666;
+}
+
+.invoice-footer p {
+    margin: 4px 0;
+    font-size: 12px;
+}
+
+.invoice-footer strong {
+    color: #e5502d;
+    font-size: 14px;
+}
+
+/* ---------- FOOTER MODAL ---------- */
+.invoice-modal-footer {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 10px;
+    padding: 16px 24px 20px;
+    border-top: 1px solid #f0f0f0;
+    background: #fafafa;
+}
+
+.invoice-btn-close,
+.invoice-btn-print {
+    padding: 13px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: 0.15s;
+    font-family: inherit;
+}
+
+.invoice-btn-close {
+    background: #f4f4f4;
+    color: #555;
+}
+
+.invoice-btn-close:hover {
+    background: #e8e8e8;
+}
+
+.invoice-btn-print {
+    background: #e5502d;
+    color: #fff;
+}
+
+.invoice-btn-print:hover {
+    background: #c74322;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(229, 80, 45, 0.3);
+}
+
+/* =========================================================
+   7. RESPONSIVE (MÀN HÌNH NHỎ)
+   ========================================================= */
+
+@media (max-width: 1280px) {
+    .pos-layout {
+        grid-template-columns: 200px minmax(0, 1fr) 340px;
+        gap: 12px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .pos-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .pos-category-panel,
+    .pos-cart {
+        position: static;
+        max-height: none;
+    }
+
+    .pos-cart-list {
+        max-height: 300px;
+    }
+
+    .pos-qr-image {
+        width: 220px;
+        height: 220px;
+    }
+}
+
+@media (max-width: 640px) {
+    .pos-quick-cash {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pos-pay-modal-footer,
+    .invoice-modal-footer {
+        grid-template-columns: 1fr;
+    }
+
+    .pos-payment-options {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pos-qr-image {
+        width: 200px;
+        height: 200px;
+    }
+
+    .invoice-print-area {
+        padding: 20px 18px;
+    }
+
+    .invoice-header {
         flex-direction: column;
-        align-items: stretch;
     }
 
-    .emp-cus-search {
-        max-width: 100%;
+    .invoice-title {
+        text-align: left;
     }
 
-    .emp-cus-sort {
-        justify-content: flex-start;
-        flex-wrap: wrap;
+    .invoice-meta {
+        grid-template-columns: 1fr;
+    }
+
+    .invoice-total {
+        width: 100%;
+    }
+}
+
+/* =========================================================
+   8. PRINT STYLES — CHỈ IN HÓA ĐƠN
+   ========================================================= */
+
+@media print {
+    /* Ẩn mọi thứ */
+    body * {
+        visibility: hidden;
+    }
+
+    /* Chỉ hiện vùng hóa đơn */
+    .invoice-modal-backdrop,
+    .invoice-modal-backdrop * {
+        visibility: visible;
+    }
+
+    /* Định vị hóa đơn ở đầu trang, bỏ backdrop che */
+    .invoice-modal-backdrop {
+        position: absolute !important;
+        inset: 0 !important;
+        background: #fff !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        display: block !important;
+        animation: none !important;
+    }
+
+    .invoice-modal {
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        max-width: 100% !important;
+        max-height: none !important;
+        overflow: visible !important;
+        animation: none !important;
+    }
+
+    .invoice-print-area {
+        padding: 0 !important;
+        page-break-inside: avoid;
+    }
+
+    /* Ẩn footer nút bấm khi in */
+    .no-print,
+    .invoice-modal-footer {
+        display: none !important;
+    }
+
+    /* Đảm bảo màu nền in ra */
+    .invoice-table th {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    @page {
+        margin: 12mm;
+        size: auto;
     }
 }

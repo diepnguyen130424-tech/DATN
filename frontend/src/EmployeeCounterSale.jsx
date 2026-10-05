@@ -11,18 +11,18 @@ const BANK_CONFIG = {
     bankId: "970436",                       // BIN ngân hàng (VCB)
     accountNo: "1234567890",                // Số tài khoản
     accountName: "CONG TY TNHH FSHOP",      // Tên chủ TK
-    template: "compact2",                   // compact | compact2 | qr_only
+    template: "compact2",
 };
 
-/* Danh sách bankId tham khảo:
-   - 970436  Vietcombank
-   - 970415  VietinBank
-   - 970407  Techcombank
-   - 970422  MB Bank
-   - 970416  ACB
-   - 970432  VPBank
-   - 970418  BIDV
-*/
+/* =========================================================
+   CẤU HÌNH CỬA HÀNG (in trên hóa đơn)
+   ========================================================= */
+const SHOP_CONFIG = {
+    ten: "FSHOP",
+    diaChi: "123 Đường ABC, Quận 1, TP.HCM",
+    dienThoai: "1900 1234",
+    website: "fshop.vn",
+};
 
 /* =========================================================
    HELPERS
@@ -33,14 +33,19 @@ function formatMoney(value) {
 }
 
 function parseMoneyInput(value) {
-    // "1.000.000" → 1000000
     return Number(String(value || "").replace(/[^\d]/g, "")) || 0;
 }
 
 function formatMoneyInput(value) {
-    // 1000000 → "1.000.000"
     const n = parseMoneyInput(value);
     return n ? n.toLocaleString("vi-VN") : "";
+}
+
+function formatDateTime(value) {
+    if (!value) return "-";
+    const d = new Date(value);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
 async function readJson(url, options) {
@@ -86,6 +91,168 @@ function buildVietQrUrl(amount, content) {
     return `${base}?${params.toString()}`;
 }
 
+function methodLabel(method) {
+    if (method === "TIEN_MAT") return "Tiền mặt";
+    if (method === "CHUYEN_KHOAN") return "Chuyển khoản";
+    return method;
+}
+
+/* =========================================================
+   MODAL HÓA ĐƠN — HIỂN THỊ + IN
+   ========================================================= */
+
+function InvoiceModal({invoice, onClose}) {
+    if (!invoice) return null;
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const subtotal = invoice.chiTiet.reduce(
+        (s, i) => s + Number(i.thanhTien || 0),
+        0
+    );
+
+    return (
+        <div className="invoice-modal-backdrop">
+            <div className="invoice-modal">
+                {/* ---------- VÙNG IN ---------- */}
+                <div className="invoice-print-area" id="invoice-print-area">
+                    {/* Header cửa hàng */}
+                    <div className="invoice-header">
+                        <div className="invoice-logo">
+                            <div className="invoice-logo-mark">F</div>
+                            <div>
+                                <h1>{SHOP_CONFIG.ten}</h1>
+                                <p>{SHOP_CONFIG.diaChi}</p>
+                                <p>
+                                    ĐT: {SHOP_CONFIG.dienThoai} ·{" "}
+                                    {SHOP_CONFIG.website}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="invoice-title">
+                            <h2>HÓA ĐƠN BÁN HÀNG</h2>
+                            <span>#{invoice.maHoaDon}</span>
+                        </div>
+                    </div>
+
+                    {/* Thông tin hóa đơn */}
+                    <div className="invoice-meta">
+                        <div>
+                            <span>Ngày lập</span>
+                            <strong>{formatDateTime(invoice.ngayLap)}</strong>
+                        </div>
+                        <div>
+                            <span>Phương thức</span>
+                            <strong>
+                                {methodLabel(invoice.phuongThucThanhToan)}
+                            </strong>
+                        </div>
+                        <div>
+                            <span>Thu ngân</span>
+                            <strong>{invoice.nhanVien || "Nhân viên"}</strong>
+                        </div>
+                        <div>
+                            <span>Trạng thái</span>
+                            <strong className="invoice-paid">
+                                ✓ Đã thanh toán
+                            </strong>
+                        </div>
+                    </div>
+
+                    {/* Bảng sản phẩm */}
+                    <table className="invoice-table">
+                        <thead>
+                        <tr>
+                            <th style={{width: "40px"}}>#</th>
+                            <th>Sản phẩm</th>
+                            <th style={{width: "70px"}}>SL</th>
+                            <th style={{width: "110px"}}>Đơn giá</th>
+                            <th style={{width: "120px"}}>Thành tiền</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {invoice.chiTiet.map((item, idx) => (
+                            <tr key={idx}>
+                                <td>{idx + 1}</td>
+                                <td>
+                                    <strong>{item.tenSanPham}</strong>
+                                    <small>
+                                        {item.maSanPham || ""}
+                                        {item.kichCo ? ` · Size ${item.kichCo}` : ""}
+                                        {item.mauSac ? ` · ${item.mauSac}` : ""}
+                                    </small>
+                                </td>
+                                <td style={{textAlign: "center"}}>
+                                    {item.soLuong}
+                                </td>
+                                <td style={{textAlign: "right"}}>
+                                    {formatMoney(item.donGia)}
+                                </td>
+                                <td style={{textAlign: "right"}}>
+                                    <strong>
+                                        {formatMoney(item.thanhTien)}
+                                    </strong>
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+
+                    {/* Tổng kết */}
+                    <div className="invoice-total">
+                        <div>
+                            <span>Tạm tính</span>
+                            <strong>{formatMoney(subtotal)}</strong>
+                        </div>
+                        <div>
+                            <span>Giảm giá</span>
+                            <strong>0đ</strong>
+                        </div>
+                        <div className="invoice-total-final">
+                            <span>TỔNG THANH TOÁN</span>
+                            <strong>
+                                {formatMoney(invoice.tongThanhToan)}
+                            </strong>
+                        </div>
+                    </div>
+
+                    {/* Lời cảm ơn */}
+                    <div className="invoice-footer">
+                        <p>
+                            <strong>Cảm ơn quý khách đã mua hàng!</strong>
+                        </p>
+                        <p>
+                            Hóa đơn chỉ có giá trị trong ngày. Vui lòng giữ
+                            hóa đơn để đổi trả trong vòng 7 ngày.
+                        </p>
+                    </div>
+                </div>
+
+                {/* ---------- FOOTER MODAL (không in) ---------- */}
+                <div className="invoice-modal-footer no-print">
+                    <button
+                        type="button"
+                        className="invoice-btn-close"
+                        onClick={onClose}
+                    >
+                        Đóng
+                    </button>
+                    <button
+                        type="button"
+                        className="invoice-btn-print"
+                        onClick={handlePrint}
+                    >
+                        🖨 In hóa đơn
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 /* =========================================================
    MODAL THANH TOÁN
    ========================================================= */
@@ -102,9 +269,6 @@ function PaymentModal({
     const [note, setNote] = useState("");
     const [paidConfirmed, setPaidConfirmed] = useState(false);
 
-    // -----------------------------------------------------
-    // RESET KHI MỞ MODAL
-    // -----------------------------------------------------
     useEffect(() => {
         if (open) {
             setCashReceived("");
@@ -113,9 +277,6 @@ function PaymentModal({
         }
     }, [open, method]);
 
-    // -----------------------------------------------------
-    // TÍNH TOÁN — ĐẶT TRƯỚC EARLY RETURN (Rules of Hooks)
-    // -----------------------------------------------------
     const received = parseMoneyInput(cashReceived);
     const change = received - total;
     const isCashEnough = received >= total;
@@ -131,13 +292,9 @@ function PaymentModal({
         [total, transferContent]
     );
 
-    // -----------------------------------------------------
-    // EARLY RETURN — SAU KHI ĐÃ GỌI HẾT HOOK
-    // -----------------------------------------------------
     if (!open) return null;
 
     const QUICK_CASH = [1500000, 2000000, 2500000, 3000000];
-
 
     const canConfirm =
         method === "TIEN_MAT" ? isCashEnough : paidConfirmed;
@@ -145,7 +302,6 @@ function PaymentModal({
     return (
         <div className="pos-pay-backdrop" onClick={onClose}>
             <div className="pos-pay-modal" onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div className="pos-pay-modal-head">
                     <div>
                         <span className="employee-eyebrow">
@@ -154,9 +310,7 @@ function PaymentModal({
                         <h2>
                             {method === "TIEN_MAT"
                                 ? "💵 Tiền mặt"
-                                : method === "CHUYEN_KHOAN"
-                                    ? "🏦 Chuyển khoản ngân hàng"
-                                    : "📱 Ví điện tử MoMo"}
+                                : "🏦 Chuyển khoản ngân hàng"}
                         </h2>
                     </div>
                     <button
@@ -168,13 +322,11 @@ function PaymentModal({
                     </button>
                 </div>
 
-                {/* Tổng tiền */}
                 <div className="pos-pay-amount">
                     <span>Số tiền cần thanh toán</span>
                     <strong>{formatMoney(total)}</strong>
                 </div>
 
-                {/* ============== TIỀN MẶT ============== */}
                 {method === "TIEN_MAT" && (
                     <div className="pos-pay-body">
                         <label className="pos-pay-label">
@@ -196,7 +348,6 @@ function PaymentModal({
                             <span>đ</span>
                         </div>
 
-                        {/* Nút chọn nhanh */}
                         <div className="pos-quick-cash">
                             {QUICK_CASH.map((amt) => (
                                 <button
@@ -224,7 +375,6 @@ function PaymentModal({
                             </button>
                         </div>
 
-                        {/* Tiền thừa */}
                         <div
                             className={`pos-change ${
                                 isCashEnough ? "ok" : "warn"
@@ -244,8 +394,7 @@ function PaymentModal({
                     </div>
                 )}
 
-                {/* ============== CHUYỂN KHOẢN / MOMO ============== */}
-                {(method === "CHUYEN_KHOAN" || method === "MOMO") && (
+                {method === "CHUYEN_KHOAN" && (
                     <div className="pos-pay-body pos-pay-qr-body">
                         <div className="pos-qr-wrapper">
                             <img
@@ -253,19 +402,13 @@ function PaymentModal({
                                 alt="QR thanh toán"
                                 className="pos-qr-image"
                             />
-                            <span className="pos-qr-badge">
-                                {method === "MOMO" ? "MoMo" : "VietQR"}
-                            </span>
+                            <span className="pos-qr-badge">VietQR</span>
                         </div>
 
                         <div className="pos-bank-info">
                             <div>
                                 <span>Ngân hàng</span>
-                                <strong>
-                                    {method === "MOMO"
-                                        ? "Ví MoMo"
-                                        : "Vietcombank"}
-                                </strong>
+                                <strong>Vietcombank</strong>
                             </div>
                             <div>
                                 <span>Số tài khoản</span>
@@ -313,7 +456,6 @@ function PaymentModal({
                     </div>
                 )}
 
-                {/* Footer */}
                 <div className="pos-pay-modal-footer">
                     <button
                         type="button"
@@ -350,6 +492,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
     const [paymentMethod, setPaymentMethod] = useState("TIEN_MAT");
     const [variantMap, setVariantMap] = useState({});
     const [showPayment, setShowPayment] = useState(false);
+    const [invoice, setInvoice] = useState(null);
 
     // -----------------------------------------------------
     // DANH MỤC
@@ -421,7 +564,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
     }, [products, search, category]);
 
     // -----------------------------------------------------
-    // THÊM SẢN PHẨM VÀO GIỎ
+    // THÊM SẢN PHẨM
     // -----------------------------------------------------
     const addProduct = async (product) => {
         try {
@@ -469,9 +612,6 @@ export default function EmployeeCounterSale({products, onRefresh}) {
         }
     };
 
-    // -----------------------------------------------------
-    // CẬP NHẬT SỐ LƯỢNG
-    // -----------------------------------------------------
     const updateQty = (variantId, delta) => {
         setCart((old) =>
             old
@@ -489,24 +629,18 @@ export default function EmployeeCounterSale({products, onRefresh}) {
         );
     };
 
-    // -----------------------------------------------------
-    // TÍNH TỔNG TIỀN
-    // -----------------------------------------------------
     const total = cart.reduce(
         (sum, item) => sum + Number(item.variant.giaBan || 0) * item.quantity,
         0
     );
 
-    // -----------------------------------------------------
-    // MỞ MODAL THANH TOÁN
-    // -----------------------------------------------------
     const openPaymentModal = () => {
         if (!cart.length) return;
         setShowPayment(true);
     };
 
     // -----------------------------------------------------
-    // XÁC NHẬN THANH TOÁN (gọi API tạo hóa đơn)
+    // XÁC NHẬN THANH TOÁN
     // -----------------------------------------------------
     const confirmPayment = async () => {
         if (loadingCheckout) return;
@@ -528,30 +662,49 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                 body: JSON.stringify(payload),
             });
 
-            const methodLabel =
-                paymentMethod === "TIEN_MAT"
-                    ? "Tiền mặt"
-                    : paymentMethod === "CHUYEN_KHOAN"
-                        ? "Chuyển khoản"
-                        : "MoMo";
-
-            alert(
-                `✅ Thanh toán thành công!\n` +
-                `Phương thức: ${methodLabel}\n` +
-                `Mã hóa đơn: ${result.maHoaDon}\n` +
-                `Tổng tiền: ${formatMoney(result.tongThanhToan)}`
-            );
+            // Snapshot giỏ hàng trước khi clear
+            const cartSnapshot = [...cart];
+            const totalPaid = Number(result?.tongThanhToan || total);
 
             setShowPayment(false);
+            setInvoice({
+                maHoaDon: result?.maHoaDon || `HD${Date.now()}`,
+                ngayLap: result?.ngayLap || new Date().toISOString(),
+                phuongThucThanhToan: paymentMethod,
+                tongThanhToan: totalPaid,
+                chiTiet: cartSnapshot.map((item) => ({
+                    tenSanPham: item.product.tenSanPham,
+                    maSanPham: item.product.maSanPham,
+                    kichCo: item.variant.kichCo?.tenKichCo,
+                    mauSac: item.variant.mauSac?.tenMau,
+                    soLuong: item.quantity,
+                    donGia: Number(item.variant.giaBan || 0),
+                    thanhTien:
+                        Number(item.variant.giaBan || 0) * item.quantity,
+                })),
+            });
+
             setCart([]);
             setVariantMap({});
-
-            if (onRefresh) await onRefresh();
         } catch (err) {
             console.error(err);
             alert(err.message || "Không thể tạo hóa đơn tại quầy.");
         } finally {
             setLoadingCheckout(false);
+        }
+    };
+
+    // -----------------------------------------------------
+    // ĐÓNG HÓA ĐƠN
+    // -----------------------------------------------------
+    const closeInvoice = async () => {
+        setInvoice(null);
+        if (onRefresh) {
+            try {
+                await onRefresh();
+            } catch (e) {
+                console.error(e);
+            }
         }
     };
 
@@ -572,7 +725,9 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                         <span className="pos-category-icon">☷</span>
                         <div>
                             <h2>Danh mục</h2>
-                            <p>{Math.max(categories.length - 1, 0)} danh mục</p>
+                            <p>
+                                {Math.max(categories.length - 1, 0)} danh mục
+                            </p>
                         </div>
                     </div>
 
@@ -782,15 +937,20 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                                         alt={item.product.tenSanPham}
                                     />
                                     <div className="pos-cart-info">
-                                        <strong>{item.product.tenSanPham}</strong>
+                                        <strong>
+                                            {item.product.tenSanPham}
+                                        </strong>
                                         <small>
                                             Size{" "}
                                             {item.variant.kichCo?.tenKichCo ||
                                                 "-"}{" "}
                                             ·{" "}
-                                            {item.variant.mauSac?.tenMau || "-"}
+                                            {item.variant.mauSac?.tenMau ||
+                                                "-"}
                                         </small>
-                                        <b>{formatMoney(item.variant.giaBan)}</b>
+                                        <b>
+                                            {formatMoney(item.variant.giaBan)}
+                                        </b>
 
                                         <div className="quantity-control">
                                             <button
@@ -869,7 +1029,6 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                             {[
                                 ["TIEN_MAT", "💵", "Tiền mặt"],
                                 ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"],
-                                ["MOMO", "📱", "MoMo"],
                             ].map(([value, icon, label]) => (
                                 <button
                                     type="button"
@@ -913,6 +1072,12 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                 total={total}
                 loading={loadingCheckout}
                 onConfirm={confirmPayment}
+            />
+
+            {/* MODAL HÓA ĐƠN */}
+            <InvoiceModal
+                invoice={invoice}
+                onClose={closeInvoice}
             />
         </div>
     );
