@@ -8,6 +8,7 @@ import Login from "./Login";
 import Register from "./Register";
 import KhuyenMai from "./KhuyenMai";
 import AIDoSize from "./ai/AIDoSize";
+import Contact from "./Contact";
 import { anhUrl, isActive } from "./CatalogCrud";
 const API = "http://localhost:8080/api";
 const isHoatDong = (trangThai) => trangThai === "HOAT_DONG" || trangThai === "ACTIVE";
@@ -557,6 +558,7 @@ function App() { const taiKhoanDaLuu = (() => {
         /> )}
         {page === "khuyen-mai" && ( <KhuyenMai setPage={setPage} />
         )}
+        {page === "contact" && ( <Contact setPage={setPage} /> )}
         {page === "checkout" && ( <Checkout
             gioHang={gioHang}
             gioHangId={gioHangId}
@@ -564,7 +566,7 @@ function App() { const taiKhoanDaLuu = (() => {
             setPage={setPage}
             setGioHang={setGioHang}
         /> )}
-        <Footer />
+        <Footer setPage={setPage} />
         {toast && ( <div className="toast">
             <span>✓</span>
             {toast}
@@ -644,8 +646,12 @@ function Header({
                     </button>
                     <button
                         type="button"
-                        className="site-nav-link"
-                        onClick={() => setMenuMo(null)}
+                        className={page === "contact" ? "site-nav-link active" : "site-nav-link"}
+                        onClick={() => {
+                            setMenuMo(null);
+                            setPage("contact");
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
                     >
                         Liên hệ
                     </button>
@@ -775,24 +781,35 @@ function Header({
                                 <p className="mega-empty">Chưa có thương hiệu nào.</p>
                             ) : (
                                 <div className="mega-grid mega-brand-grid">
-                                    {thuongHieuList.map((th) => (
-                                        <button
-                                            type="button"
-                                            key={th.id}
-                                            className="mega-brand"
-                                            title={th.tenThuongHieu}
-                                            onClick={() => {
-                                                setMenuMo(null);
-                                                chonThuongHieu(th.tenThuongHieu);
-                                            }}
-                                        >
-                                            {th.hinhAnh ? (
-                                                <img src={anhUrl(th.hinhAnh)} alt={th.tenThuongHieu} />
-                                            ) : (
-                                                <span className="mega-brand-text">{th.tenThuongHieu}</span>
-                                            )}
-                                        </button>
-                                    ))}
+                                    {thuongHieuList.map((th) => {
+                                        const tenHienThi =
+                                            String(th.tenThuongHieu || "").trim().toLowerCase() === "post"
+                                                ? "Adidas"
+                                                : th.tenThuongHieu;
+
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={th.id}
+                                                className="mega-brand"
+                                                title={tenHienThi}
+                                                onClick={() => {
+                                                    setMenuMo(null);
+                                                    chonThuongHieu(
+                                                        String(th.tenThuongHieu || "").trim().toLowerCase() === "post"
+                                                            ? "adidas"
+                                                            : th.tenThuongHieu
+                                                    );
+                                                }}
+                                            >
+                                                {th.hinhAnh ? (
+                                                    <img src={anhUrl(th.hinhAnh)} alt={tenHienThi} />
+                                                ) : (
+                                                    <span className="mega-brand-text">{tenHienThi}</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )
                         )}
@@ -3943,7 +3960,7 @@ function OrderHistory({ taiKhoan, setPage }) {
     );
 }
 
-function Footer() { return (
+function Footer({ setPage }) { return (
     <footer className="footer">
         <div className="container footer-grid">
             <div className="footer-company">
@@ -3976,7 +3993,15 @@ function Footer() { return (
                 <a>Giới thiệu</a>
                 <a>Chính sách mua hàng</a>
                 <a>Chính sách đổi trả</a>
-                <a>Liên hệ</a>
+                <a
+                    onClick={() => {
+                        setPage("contact");
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    style={{ cursor: "pointer" }}
+                >
+                    Liên hệ
+                </a>
             </div>
             <div className="footer-column">
                 <h4>HỖ TRỢ</h4>
