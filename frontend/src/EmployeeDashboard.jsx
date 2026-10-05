@@ -1,3 +1,4 @@
+
 import {useEffect, useMemo, useState} from "react";
 import "./EmployeeDashboard.css";
 import {EmployeeOverview, ProductsPage} from "./EmployeeOverviewProducts.jsx";
@@ -130,8 +131,8 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                             type="button"
                             key={label}
                             className={`order-status-tab ${filter === label ? "active" : ""} ${
-                                value ? `status-${String(value).toLowerCase()}` : "status-all"
-                            }`}
+    value ? `status-${String(value).toLowerCase()}` : "status-all"
+}`}
                             onClick={() => setFilter(label)}
                         >
                             {label}
@@ -159,6 +160,7 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                     <table className="employee-table">
                         <thead>
                         <tr>
+                            <th>ID KH</th>
                             <th>Mã đơn</th>
                             <th>Khách hàng</th>
                             <th>SĐT</th>
@@ -173,6 +175,13 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                         {filtered.length ? (
                             filtered.map((order) => (
                                 <tr key={order.id}>
+                                    <td>
+                                        <strong>
+                                            {order.khachHang?.id
+                                                ? `#${order.khachHang.id}`
+                                                : "-"}
+                                        </strong>
+                                    </td>
                                     <td><strong>{order.maHoaDon}</strong></td>
                                     <td>{order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</td>
                                     <td>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || "-"}</td>
@@ -211,7 +220,7 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="8" className="employee-empty">Không có đơn online phù hợp.</td>
+                                <td colSpan="9" className="employee-empty">Không có đơn online phù hợp.</td>
                             </tr>
                         )}
                         </tbody>
@@ -224,11 +233,26 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
 
 function HoaDonPage({orders, onOpenDetail}) {
     const [search, setSearch] = useState("");
+    const [filterLoai, setFilterLoai] = useState("Tất cả");
 
-    const filtered = orders.filter((item) => {
+    const hoaDonsTheoLoai = orders.filter((item) => {
+        if (filterLoai === "Tại quầy") {
+            return item.loaiHoaDon === "TAI_QUAY";
+        }
+
+        if (filterLoai === "Online") {
+            return item.loaiHoaDon === "ONLINE";
+        }
+
+        return true;
+    });
+
+    const filtered = hoaDonsTheoLoai.filter((item) => {
         const keyword = search.trim().toLowerCase();
 
-        const maHoaDon = String(item?.maHoaDon || "").toLowerCase();
+        const maHoaDon = String(
+            item?.maHoaDon || ""
+        ).toLowerCase();
 
         const idKhachHang = String(
             item?.khachHang?.id || ""
@@ -255,6 +279,40 @@ function HoaDonPage({orders, onOpenDetail}) {
         );
     });
 
+    const tongSo = orders.length;
+    const soTaiQuay = orders.filter(
+        (item) => item.loaiHoaDon === "TAI_QUAY"
+    ).length;
+    const soOnline = orders.filter(
+        (item) => item.loaiHoaDon === "ONLINE"
+    ).length;
+
+    const getLoaiTabStyle = (label) => {
+        const active = filterLoai === label;
+
+        if (label === "Tất cả") {
+            return {
+                background: active ? "#c95f4f" : "#fff7f4",
+                color: active ? "#fff" : "#c95f4f",
+                border: "1px solid #e7b0a7",
+            };
+        }
+
+        if (label === "Tại quầy") {
+            return {
+                background: active ? "#f2a04a" : "#fff8ed",
+                color: active ? "#fff" : "#b56a00",
+                border: "1px solid #f1c98f",
+            };
+        }
+
+        return {
+            background: active ? "#5da56f" : "#f1f9f3",
+            color: active ? "#fff" : "#2f7f46",
+            border: "1px solid #cde6d2",
+        };
+    };
+
     return (
         <div className="employee-content">
             <PageHeading
@@ -263,6 +321,37 @@ function HoaDonPage({orders, onOpenDetail}) {
             />
 
             <section className="employee-card">
+                <div className="employee-order-tabs">
+                    {[
+                        ["Tất cả", tongSo],
+                        ["Tại quầy", soTaiQuay],
+                        ["Online", soOnline],
+                    ].map(([label, count]) => (
+                        <button
+                            key={label}
+                            type="button"
+                            className={`order-status-tab ${
+    filterLoai === label ? "active" : ""
+}`}
+                            onClick={() => setFilterLoai(label)}
+                            style={{
+                                ...getLoaiTabStyle(label),
+                                fontWeight: filterLoai === label ? 700 : 600,
+                                transition: "all 0.2s ease",
+                            }}
+                        >
+                            {label}
+                            <span
+                                style={{
+                                    color: filterLoai === label ? "inherit" : "#888",
+                                }}
+                            >
+                                {count}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
                 <div className="employee-search-row">
                     <input
                         value={search}
@@ -274,111 +363,102 @@ function HoaDonPage({orders, onOpenDetail}) {
                 <div className="employee-table-wrapper">
                     <table
                         className="employee-table"
-                        style={{minWidth: "1180px"}}
+                        style={{ minWidth: "1180px" }}
                     >
                         <thead>
-                        <tr>
-                            <th>ID KH</th>
-                            <th>Mã hóa đơn</th>
-                            <th>Khách hàng</th>
-                            <th>SĐT</th>
-                            <th>Loại</th>
-                            <th>Tổng tiền</th>
-                            <th>Trạng thái</th>
-                            <th>Ngày lập</th>
-                            <th>Thao tác</th>
-                        </tr>
+                            <tr>
+                                <th>ID KH</th>
+                                <th>Mã hóa đơn</th>
+                                <th>Khách hàng</th>
+                                <th>SĐT</th>
+                                <th>Loại</th>
+                                <th>Tổng tiền</th>
+                                <th>Trạng thái</th>
+                                <th>Ngày lập</th>
+                                <th>Thao tác</th>
+                            </tr>
                         </thead>
 
                         <tbody>
-                        {filtered.length > 0 ? (
-                            filtered.map((item) => (
-                                <tr key={item.id}>
-                                    {/* ID khách hàng lấy trực tiếp từ database */}
-                                    <td>
-                                        <strong>
-                                            {item?.khachHang?.id
-                                                ? `#${item.khachHang.id}`
-                                                : "-"}
-                                        </strong>
-                                    </td>
+                            {filtered.length > 0 ? (
+                                filtered.map((item) => (
+                                    <tr key={item.id}>
+                                        <td>
+                                            <strong>
+                                                {item?.khachHang?.id
+                                                    ? `#${item.khachHang.id}`
+                                                    : "-"}
+                                            </strong>
+                                        </td>
 
-                                    {/* Mã hóa đơn */}
-                                    <td>
-                                        <strong>
-                                            {item?.maHoaDon ||
-                                                `HD${item?.id || ""}`}
-                                        </strong>
-                                    </td>
+                                        <td>
+                                            <strong>
+                                                {item?.maHoaDon ||
+                                                    `HD${item?.id || ""}`}
+                                            </strong>
+                                        </td>
 
-                                    {/* Khách hàng */}
-                                    <td>
-                                        {item?.khachHang?.hoTen ||
-                                            item?.diaChi?.tenNguoiNhan ||
-                                            "Khách lẻ"}
-                                    </td>
+                                        <td>
+                                            {item?.khachHang?.hoTen ||
+                                                item?.diaChi?.tenNguoiNhan ||
+                                                "Khách lẻ"}
+                                        </td>
 
-                                    {/* Số điện thoại */}
-                                    <td>
-                                        {item?.khachHang?.soDienThoai ||
-                                            item?.diaChi?.soDienThoai ||
-                                            "-"}
-                                    </td>
+                                        <td>
+                                            {item?.khachHang?.soDienThoai ||
+                                                item?.diaChi?.soDienThoai ||
+                                                "-"}
+                                        </td>
 
-                                    {/* Loại hóa đơn */}
-                                    <td>
-                                        <span className="employee-type">
-                                            {item?.loaiHoaDon === "TAI_QUAY"
-                                                ? "Tại quầy"
-                                                : "Online"}
-                                        </span>
-                                    </td>
+                                        <td>
+                                            <span className="employee-type">
+                                                {item?.loaiHoaDon === "TAI_QUAY"
+                                                    ? "Tại quầy"
+                                                    : "Online"}
+                                            </span>
+                                        </td>
 
-                                    {/* Tổng tiền */}
-                                    <td>
-                                        <strong>
-                                            {formatMoney(
-                                                item?.tongThanhToan || 0
-                                            )}
-                                        </strong>
-                                    </td>
+                                        <td>
+                                            <strong>
+                                                {formatMoney(
+                                                    item?.tongThanhToan || 0
+                                                )}
+                                            </strong>
+                                        </td>
 
-                                    {/* Trạng thái */}
-                                    <td>
-                                        <StatusBadge
-                                            value={item?.trangThai}
-                                        />
-                                    </td>
+                                        <td>
+                                            <StatusBadge
+                                                value={item?.trangThai}
+                                            />
+                                        </td>
 
-                                    {/* Ngày lập */}
-                                    <td>
-                                        {formatDate(item?.ngayLap)}
-                                    </td>
+                                        <td>
+                                            {formatDate(item?.ngayLap)}
+                                        </td>
 
-                                    {/* Thao tác */}
-                                    <td>
-                                        <button
-                                            className="table-view"
-                                            type="button"
-                                            onClick={() =>
-                                                onOpenDetail(item)
-                                            }
-                                        >
-                                            Chi tiết
-                                        </button>
+                                        <td>
+                                            <button
+                                                className="table-view"
+                                                type="button"
+                                                onClick={() =>
+                                                    onOpenDetail(item)
+                                                }
+                                            >
+                                                Chi tiết
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td
+                                        colSpan="9"
+                                        className="employee-empty"
+                                    >
+                                        Không có hóa đơn phù hợp.
                                     </td>
                                 </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td
-                                    colSpan="9"
-                                    className="employee-empty"
-                                >
-                                    Không có hóa đơn phù hợp.
-                                </td>
-                            </tr>
-                        )}
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -400,77 +480,77 @@ function OrderDetailModal({order, onClose}) {
 
         Promise.all([
             readJson(`${API}/hoa-don/${order.id}/chi-tiet`).catch(() => []),
-            readJson(`${API}/hoa-don/${order.id}/thanh-toan`).catch(() => null),
-        ])
-            .then(([details, paymentData]) => {
-                if (!mounted) return;
-                setDetail(Array.isArray(details) ? details : []);
-                setPayment(paymentData);
-            })
-            .finally(() => {
-                if (mounted) setLoading(false);
-            });
+readJson(`${API}/hoa-don/${order.id}/thanh-toan`).catch(() => null),
+])
+.then(([details, paymentData]) => {
+    if (!mounted) return;
+    setDetail(Array.isArray(details) ? details : []);
+    setPayment(paymentData);
+})
+    .finally(() => {
+        if (mounted) setLoading(false);
+    });
 
-        return () => {
-            mounted = false;
-        };
-    }, [order]);
+return () => {
+    mounted = false;
+};
+}, [order]);
 
-    if (!order) return null;
+if (!order) return null;
 
-    return (
-        <div className="employee-modal-backdrop" onClick={onClose}>
-            <div className="employee-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="employee-modal-head">
-                    <div>
-                        <span className="employee-eyebrow">CHI TIẾT ĐƠN</span>
-                        <h2>{order.maHoaDon}</h2>
-                    </div>
-                    <button type="button" onClick={onClose}>×</button>
+return (
+    <div className="employee-modal-backdrop" onClick={onClose}>
+        <div className="employee-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="employee-modal-head">
+                <div>
+                    <span className="employee-eyebrow">CHI TIẾT ĐƠN</span>
+                    <h2>{order.maHoaDon}</h2>
                 </div>
+                <button type="button" onClick={onClose}>×</button>
+            </div>
 
-                <div className="order-detail-grid">
-                    <div>
-                        <span>Khách hàng</span><strong>{order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</strong>
-                    </div>
-                    <div>
-                        <span>Số điện thoại</span><strong>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || "-"}</strong>
-                    </div>
-                    <div><span>Loại đơn</span><strong>{order.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}</strong>
-                    </div>
-                    <div><span>Trạng thái</span><StatusBadge value={order.trangThai}/></div>
+            <div className="order-detail-grid">
+                <div>
+                    <span>Khách hàng</span><strong>{order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</strong>
                 </div>
+                <div>
+                    <span>Số điện thoại</span><strong>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || "-"}</strong>
+                </div>
+                <div><span>Loại đơn</span><strong>{order.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}</strong>
+                </div>
+                <div><span>Trạng thái</span><StatusBadge value={order.trangThai}/></div>
+            </div>
 
-                <h3>Sản phẩm</h3>
-                {loading ? (
-                    <div className="employee-empty">Đang tải chi tiết...</div>
-                ) : (
-                    <div className="employee-detail-list">
-                        {detail.map((item) => (
-                            <div key={item.id} className="employee-detail-item">
-                                <div>
-                                    <strong>
-                                        {item.sanPhamChiTiet?.sanPham?.tenSanPham ||
-                                            item.sanPham?.tenSanPham ||
-                                            "Sản phẩm"}
-                                    </strong>
-                                    <small>
-                                        SKU: {item.sanPhamChiTiet?.maSku || "-"} · SL: {item.soLuong}
-                                    </small>
-                                </div>
-                                <strong>{formatMoney(item.thanhTien || Number(item.donGia || 0) * Number(item.soLuong || 0))}</strong>
+            <h3>Sản phẩm</h3>
+            {loading ? (
+                <div className="employee-empty">Đang tải chi tiết...</div>
+            ) : (
+                <div className="employee-detail-list">
+                    {detail.map((item) => (
+                        <div key={item.id} className="employee-detail-item">
+                            <div>
+                                <strong>
+                                    {item.sanPhamChiTiet?.sanPham?.tenSanPham ||
+                                        item.sanPham?.tenSanPham ||
+                                        "Sản phẩm"}
+                                </strong>
+                                <small>
+                                    SKU: {item.sanPhamChiTiet?.maSku || "-"} · SL: {item.soLuong}
+                                </small>
                             </div>
-                        ))}
-                    </div>
-                )}
-
-                <div className="order-detail-total">
-                    <span>Thanh toán</span>
-                    <strong>{formatMoney(payment?.soTien || order.tongThanhToan)}</strong>
+                            <strong>{formatMoney(item.thanhTien || Number(item.donGia || 0) * Number(item.soLuong || 0))}</strong>
+                        </div>
+                    ))}
                 </div>
+            )}
+
+            <div className="order-detail-total">
+                <span>Thanh toán</span>
+                <strong>{formatMoney(payment?.soTien || order.tongThanhToan)}</strong>
             </div>
         </div>
-    );
+    </div>
+);
 }
 
 export default function EmployeeDashboard({
