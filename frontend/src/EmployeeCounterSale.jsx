@@ -136,7 +136,8 @@ function PaymentModal({
     // -----------------------------------------------------
     if (!open) return null;
 
-    const QUICK_CASH = [50000, 100000, 200000, 500000, 1000000, 2000000];
+    const QUICK_CASH = [1500000, 2000000, 2500000, 3000000];
+
 
     const canConfirm =
         method === "TIEN_MAT" ? isCashEnough : paidConfirmed;
