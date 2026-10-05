@@ -1,5 +1,6 @@
 package com.example.bangiay.controller;
 import com.example.bangiay.dto.DatHangRequest;
+import com.example.bangiay.dto.TaoHoaDonTaiQuayRequest;
 import com.example.bangiay.entity.ChiTietHoaDon;
 import com.example.bangiay.entity.ThanhToan;
 import com.example.bangiay.entity.HoaDon;
@@ -21,6 +22,7 @@ import java.util.List;
 public class HoaDonController {
 
     private final HoaDonService hoaDonService;
+
 
     @GetMapping
     public ResponseEntity<List<HoaDon>> getAll() {
@@ -194,5 +196,10 @@ public class HoaDonController {
                         ghiChu
                 )
         );
+    }
+
+    @PostMapping("/tao-tai-quay")
+    public ResponseEntity<?> taoHoaDonTaiQuay(@RequestBody TaoHoaDonTaiQuayRequest req) {
+        return ResponseEntity.ok(hoaDonService.taoHoaDonTaiQuay(req));
     }
 }
