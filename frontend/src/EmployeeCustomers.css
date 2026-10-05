@@ -123,11 +123,11 @@
 .emp-cus-table th.emp-cus-th-id {
     cursor: pointer;
     transition: 0.15s;
-    color: #e5502d;
+    color: #222;
 }
 
 .emp-cus-table th.emp-cus-th-id:hover {
-    background: #fff3f0;
+    background: #f0f0f0;
 }
 
 .emp-cus-id {
