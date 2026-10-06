@@ -75,6 +75,35 @@ public class KhachHangController {
         );
     }
 
+    @PostMapping
+    public ResponseEntity<KhachHang> create(
+            @RequestBody KhachHang khachHang
+    ) {
+        return ResponseEntity.ok(
+                khachHangService.save(khachHang)
+        );
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<KhachHang> update(
+            @PathVariable Long id,
+            @RequestBody KhachHang khachHang
+    ) {
+        KhachHang existing = khachHangService.getById(id);
+
+        if (existing == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        existing.setHoTen(khachHang.getHoTen());
+        existing.setSoDienThoai(khachHang.getSoDienThoai());
+        existing.setNgaySinh(khachHang.getNgaySinh());
+        existing.setGioiTinh(khachHang.getGioiTinh());
+
+        return ResponseEntity.ok(
+                khachHangService.save(existing)
+        );
+    }
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
             @PathVariable Long id
