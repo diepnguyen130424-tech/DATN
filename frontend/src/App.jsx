@@ -9,6 +9,7 @@ import Login from "./Login";
 import Register from "./Register";
 import KhuyenMai from "./KhuyenMai";
 import AIDoSize from "./ai/AIDoSize";
+import ChatWidget from "./chat/ChatWidget";
 import Contact from "./Contact";
 import { anhUrl, isActive } from "./CatalogCrud";
 
@@ -744,6 +745,9 @@ function App() {
             )}
 
             <Footer setPage={setPage} />
+            {!["QUAN_TRI", "NHAN_VIEN", "NHÂN_VIÊN"].includes(String(taiKhoan?.vaiTro || "").toUpperCase()) && (
+                <ChatWidget taiKhoan={taiKhoan} setPage={setPage} />
+            )}
             {toast && (
                 <div className="toast">
                     <span>✓</span>

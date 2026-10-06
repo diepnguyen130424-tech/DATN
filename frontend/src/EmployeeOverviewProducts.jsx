@@ -580,6 +580,7 @@ function Thumb({src, name, size = 44}) {
 
 const SORTS = [
     {id: "ma", label: "Mã sản phẩm"},
+    {id: "id", label: "ID sản phẩm"},
     {id: "ten", label: "Tên A → Z"},
     {id: "stock-asc", label: "Tồn kho thấp trước"},
     {id: "stock-desc", label: "Tồn kho cao trước"},
@@ -640,6 +641,7 @@ export function ProductsPage({products, variants, onMenu, preset}) {
             const info = infoMap.get(p.id);
             const matchText =
                 !keyword ||
+                String(p.id) === keyword ||
                 String(p.tenSanPham || "").toLowerCase().includes(keyword) ||
                 String(p.maSanPham || "").toLowerCase().includes(keyword) ||
                 String(p.thuongHieu?.tenThuongHieu || "").toLowerCase().includes(keyword) ||
@@ -656,6 +658,7 @@ export function ProductsPage({products, variants, onMenu, preset}) {
         const stockOf = (p) => infoMap.get(p.id).stock;
         const priceOf = (p) => infoMap.get(p.id).min || 0;
         const sorters = {
+            id: (a, b) => Number(a.id) - Number(b.id),
             ma: (a, b) =>
                 String(a.maSanPham || "").localeCompare(String(b.maSanPham || ""), "vi", {numeric: true}),
             ten: (a, b) => String(a.tenSanPham || "").localeCompare(String(b.tenSanPham || ""), "vi"),
@@ -732,7 +735,7 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                         <input
                             value={search}
                             onChange={(e) => withReset(setSearch)(e.target.value)}
-                            placeholder="Tìm theo tên, mã sản phẩm, thương hiệu hoặc SKU"
+                            placeholder="Tìm theo tên, ID, mã sản phẩm, thương hiệu hoặc SKU"
                         />
                         {search && (
                             <button type="button" aria-label="Xóa tìm kiếm" onClick={() => withReset(setSearch)("")}>
@@ -797,6 +800,7 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                         <table className="ev-table ep-table">
                             <thead>
                             <tr>
+                                <th className="ep-col-id">ID</th>
                                 <th>Sản phẩm</th>
                                 <th>Thương hiệu</th>
                                 <th>Danh mục</th>
@@ -815,6 +819,7 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                                         onClick={() => setSelected(p)}
                                         onKeyDown={(e) => e.key === "Enter" && setSelected(p)}
                                     >
+                                        <td className="ep-col-id"><span className="ep-id">#{p.id}</span></td>
                                         <td>
                                             <div className="ep-cell-product">
                                                 <Thumb src={p.hinhAnh} name={p.tenSanPham}/>
@@ -844,7 +849,7 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                                     <Thumb src={p.hinhAnh} name={p.tenSanPham} size={96}/>
                                     <span className="ep-card-brand">{p.thuongHieu?.tenThuongHieu || "FShop"}</span>
                                     <strong>{p.tenSanPham}</strong>
-                                    <small>{p.maSanPham || `SP${p.id}`}</small>
+                                    <small>ID #{p.id} · {p.maSanPham || `SP${p.id}`}</small>
                                     <b>{priceText(info, p.giaBan)}</b>
                                     <div className="ep-card-foot">
                                         <StockBadge info={info}/>
@@ -915,7 +920,7 @@ function ProductDrawer({product, info, onClose, onSell}) {
                     <Thumb src={product.hinhAnh} name={product.tenSanPham} size={72}/>
                     <div>
                         <h2>{product.tenSanPham}</h2>
-                        <p>{product.maSanPham || `SP${product.id}`}</p>
+                        <p>ID #{product.id} · {product.maSanPham || `SP${product.id}`}</p>
                         <ProductStatus value={product.trangThai}/>
                     </div>
                     <button type="button" className="ep-close" onClick={onClose} aria-label="Đóng">

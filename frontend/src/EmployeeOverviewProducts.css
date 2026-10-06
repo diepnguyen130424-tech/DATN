@@ -1027,3 +1027,17 @@
         max-width: none;
     }
 }
+
+/* Cột ID sản phẩm */
+.ep-col-id { width: 64px; white-space: nowrap; }
+
+.ep-id {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #f1f1f4;
+    color: #4a4a52;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
