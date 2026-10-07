@@ -921,6 +921,48 @@
     font-size: 18px;
 }
 
+
+/* ---------------------------------------------------------
+   PHÂN TRANG DÙNG CHUNG
+   --------------------------------------------------------- */
+.employee-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 18px 0 10px;
+    flex-wrap: wrap;
+}
+
+.employee-pagination button {
+    min-width: 34px;
+    height: 38px;
+    padding: 0 8px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    color: #8b8b8b;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.employee-pagination button.active {
+    background: #c95f4f;
+    border-color: #c95f4f;
+    color: #fff;
+    font-weight: 700;
+}
+
+.employee-pagination button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.employee-pagination button:not(:disabled):hover {
+    background: #faf3f1;
+}
+
 @media (max-width: 1100px) {
     .employee-sidebar {
         width: 195px;

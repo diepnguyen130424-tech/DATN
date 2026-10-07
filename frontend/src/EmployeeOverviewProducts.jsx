@@ -3,7 +3,7 @@ import "./EmployeeOverviewProducts.css";
 
 const API = "http://localhost:8080/api";
 const LOW_STOCK = 5; // cùng ngưỡng với màn Bán hàng tại quầy
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 const PLACEHOLDER_IMG = "";
 
 /* ------------------------------------------------------------------ */
@@ -672,7 +672,14 @@ export function ProductsPage({products, variants, onMenu, preset}) {
 
     const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const safePage = Math.min(page, pages);
-    const rows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const rows = filtered.slice(
+        (safePage - 1) * PAGE_SIZE,
+        safePage * PAGE_SIZE
+    );
+
+    useEffect(() => {
+        setPage((current) => Math.min(current, pages));
+    }, [pages]);
 
     const hasFilter =
         search || category !== "all" || brand !== "all" || status !== "all" || stock !== "all";
@@ -862,13 +869,35 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                 )}
 
                 {pages > 1 && (
-                    <nav className="ep-pager" aria-label="Phân trang">
-                        <button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>
-                            Trước
+                    <nav className="employee-pagination" aria-label="Phân trang">
+                        <button
+                            type="button"
+                            disabled={safePage <= 1}
+                            onClick={() => setPage(safePage - 1)}
+                        >
+                            ←
                         </button>
-                        <span>Trang {safePage} / {pages}</span>
-                        <button type="button" disabled={safePage >= pages} onClick={() => setPage(safePage + 1)}>
-                            Sau
+
+                        {Array.from(
+                            {length: pages},
+                            (_, index) => index + 1
+                        ).map((number) => (
+                            <button
+                                key={number}
+                                type="button"
+                                className={safePage === number ? "active" : ""}
+                                onClick={() => setPage(number)}
+                            >
+                                {number}
+                            </button>
+                        ))}
+
+                        <button
+                            type="button"
+                            disabled={safePage >= pages}
+                            onClick={() => setPage(safePage + 1)}
+                        >
+                            →
                         </button>
                     </nav>
                 )}

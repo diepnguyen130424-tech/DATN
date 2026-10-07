@@ -7,6 +7,7 @@ import EmployeeCustomers from "./EmployeeCustomers";
 import EmployeeChat from "./EmployeeChat";
 
 const API = "http://localhost:8080/api";
+const PAGINATION_PAGE_SIZE = 5;
 
 const MENU = [
     {id: "dashboard", icon: "▦", label: "Tổng quan"},
@@ -91,9 +92,46 @@ function PageHeading({eyebrow = "FSHOP NHÂN VIÊN", title, description, action}
     );
 }
 
+function Pagination({page, totalPages, onPageChange}) {
+    return (
+        <div className="employee-pagination">
+            <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => onPageChange(page - 1)}
+            >
+                ←
+            </button>
+
+            {Array.from(
+                {length: totalPages},
+                (_, index) => index + 1
+            ).map((number) => (
+                <button
+                    key={number}
+                    type="button"
+                    className={page === number ? "active" : ""}
+                    onClick={() => onPageChange(number)}
+                >
+                    {number}
+                </button>
+            ))}
+
+            <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => onPageChange(page + 1)}
+            >
+                →
+            </button>
+        </div>
+    );
+}
+
 function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState("Tất cả");
+    const [page, setPage] = useState(1);
 
     const onlineOrders = orders.filter((item) => item.loaiHoaDon === "ONLINE");
 
@@ -119,6 +157,21 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
         return matchSearch && (!selected || item.trangThai === selected);
     });
 
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGINATION_PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const pageItems = filtered.slice(
+        (safePage - 1) * PAGINATION_PAGE_SIZE,
+        safePage * PAGINATION_PAGE_SIZE
+    );
+
+    useEffect(() => {
+        setPage(1);
+    }, [search, filter]);
+
+    useEffect(() => {
+        setPage((current) => Math.min(current, totalPages));
+    }, [totalPages]);
+
     return (
         <div className="employee-content">
             <PageHeading
@@ -133,8 +186,8 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                             type="button"
                             key={label}
                             className={`order-status-tab ${filter === label ? "active" : ""} ${
-    value ? `status-${String(value).toLowerCase()}` : "status-all"
-}`}
+                                value ? `status-${String(value).toLowerCase()}` : "status-all"
+                            }`}
                             onClick={() => setFilter(label)}
                         >
                             {label}
@@ -175,7 +228,7 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                         </thead>
                         <tbody>
                         {filtered.length ? (
-                            filtered.map((order) => (
+                            pageItems.map((order) => (
                                 <tr key={order.id}>
                                     <td>
                                         <strong>
@@ -227,6 +280,14 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                         )}
                         </tbody>
                     </table>
+
+                    {totalPages > 1 && (
+                        <Pagination
+                            page={safePage}
+                            totalPages={totalPages}
+                            onPageChange={setPage}
+                        />
+                    )}
                 </div>
             </section>
         </div>
@@ -236,6 +297,7 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
 function HoaDonPage({orders, onOpenDetail}) {
     const [search, setSearch] = useState("");
     const [filterLoai, setFilterLoai] = useState("Tất cả");
+    const [page, setPage] = useState(1);
 
     const hoaDonsTheoLoai = orders.filter((item) => {
         if (filterLoai === "Tại quầy") {
@@ -289,6 +351,21 @@ function HoaDonPage({orders, onOpenDetail}) {
         (item) => item.loaiHoaDon === "ONLINE"
     ).length;
 
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGINATION_PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const pageItems = filtered.slice(
+        (safePage - 1) * PAGINATION_PAGE_SIZE,
+        safePage * PAGINATION_PAGE_SIZE
+    );
+
+    useEffect(() => {
+        setPage(1);
+    }, [search, filterLoai]);
+
+    useEffect(() => {
+        setPage((current) => Math.min(current, totalPages));
+    }, [totalPages]);
+
     const getLoaiTabStyle = (label) => {
         const active = filterLoai === label;
 
@@ -333,8 +410,8 @@ function HoaDonPage({orders, onOpenDetail}) {
                             key={label}
                             type="button"
                             className={`order-status-tab ${
-    filterLoai === label ? "active" : ""
-}`}
+                                filterLoai === label ? "active" : ""
+                            }`}
                             onClick={() => setFilterLoai(label)}
                             style={{
                                 ...getLoaiTabStyle(label),
@@ -368,101 +445,109 @@ function HoaDonPage({orders, onOpenDetail}) {
                         style={{ minWidth: "1180px" }}
                     >
                         <thead>
-                            <tr>
-                                <th>ID KH</th>
-                                <th>Mã hóa đơn</th>
-                                <th>Khách hàng</th>
-                                <th>SĐT</th>
-                                <th>Loại</th>
-                                <th>Tổng tiền</th>
-                                <th>Trạng thái</th>
-                                <th>Ngày lập</th>
-                                <th>Thao tác</th>
-                            </tr>
+                        <tr>
+                            <th>ID KH</th>
+                            <th>Mã hóa đơn</th>
+                            <th>Khách hàng</th>
+                            <th>SĐT</th>
+                            <th>Loại</th>
+                            <th>Tổng tiền</th>
+                            <th>Trạng thái</th>
+                            <th>Ngày lập</th>
+                            <th>Thao tác</th>
+                        </tr>
                         </thead>
 
                         <tbody>
-                            {filtered.length > 0 ? (
-                                filtered.map((item) => (
-                                    <tr key={item.id}>
-                                        <td>
-                                            <strong>
-                                                {item?.khachHang?.id
-                                                    ? `#${item.khachHang.id}`
-                                                    : "-"}
-                                            </strong>
-                                        </td>
+                        {filtered.length > 0 ? (
+                            pageItems.map((item) => (
+                                <tr key={item.id}>
+                                    <td>
+                                        <strong>
+                                            {item?.khachHang?.id
+                                                ? `#${item.khachHang.id}`
+                                                : "-"}
+                                        </strong>
+                                    </td>
 
-                                        <td>
-                                            <strong>
-                                                {item?.maHoaDon ||
-                                                    `HD${item?.id || ""}`}
-                                            </strong>
-                                        </td>
+                                    <td>
+                                        <strong>
+                                            {item?.maHoaDon ||
+                                                `HD${item?.id || ""}`}
+                                        </strong>
+                                    </td>
 
-                                        <td>
-                                            {item?.khachHang?.hoTen ||
-                                                item?.diaChi?.tenNguoiNhan ||
-                                                "Khách lẻ"}
-                                        </td>
+                                    <td>
+                                        {item?.khachHang?.hoTen ||
+                                            item?.diaChi?.tenNguoiNhan ||
+                                            "Khách lẻ"}
+                                    </td>
 
-                                        <td>
-                                            {item?.khachHang?.soDienThoai ||
-                                                item?.diaChi?.soDienThoai ||
-                                                "-"}
-                                        </td>
+                                    <td>
+                                        {item?.khachHang?.soDienThoai ||
+                                            item?.diaChi?.soDienThoai ||
+                                            "-"}
+                                    </td>
 
-                                        <td>
+                                    <td>
                                             <span className="employee-type">
                                                 {item?.loaiHoaDon === "TAI_QUAY"
                                                     ? "Tại quầy"
                                                     : "Online"}
                                             </span>
-                                        </td>
+                                    </td>
 
-                                        <td>
-                                            <strong>
-                                                {formatMoney(
-                                                    item?.tongThanhToan || 0
-                                                )}
-                                            </strong>
-                                        </td>
+                                    <td>
+                                        <strong>
+                                            {formatMoney(
+                                                item?.tongThanhToan || 0
+                                            )}
+                                        </strong>
+                                    </td>
 
-                                        <td>
-                                            <StatusBadge
-                                                value={item?.trangThai}
-                                            />
-                                        </td>
+                                    <td>
+                                        <StatusBadge
+                                            value={item?.trangThai}
+                                        />
+                                    </td>
 
-                                        <td>
-                                            {formatDate(item?.ngayLap)}
-                                        </td>
+                                    <td>
+                                        {formatDate(item?.ngayLap)}
+                                    </td>
 
-                                        <td>
-                                            <button
-                                                className="table-view"
-                                                type="button"
-                                                onClick={() =>
-                                                    onOpenDetail(item)
-                                                }
-                                            >
-                                                Chi tiết
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td
-                                        colSpan="9"
-                                        className="employee-empty"
-                                    >
-                                        Không có hóa đơn phù hợp.
+                                    <td>
+                                        <button
+                                            className="table-view"
+                                            type="button"
+                                            onClick={() =>
+                                                onOpenDetail(item)
+                                            }
+                                        >
+                                            Chi tiết
+                                        </button>
                                     </td>
                                 </tr>
-                            )}
+                            ))
+                        ) : (
+                            <tr>
+                                <td
+                                    colSpan="9"
+                                    className="employee-empty"
+                                >
+                                    Không có hóa đơn phù hợp.
+                                </td>
+                            </tr>
+                        )}
                         </tbody>
                     </table>
+
+                    {totalPages > 1 && (
+                        <Pagination
+                            page={safePage}
+                            totalPages={totalPages}
+                            onPageChange={setPage}
+                        />
+                    )}
                 </div>
             </section>
         </div>
@@ -482,77 +567,77 @@ function OrderDetailModal({order, onClose}) {
 
         Promise.all([
             readJson(`${API}/hoa-don/${order.id}/chi-tiet`).catch(() => []),
-readJson(`${API}/hoa-don/${order.id}/thanh-toan`).catch(() => null),
-])
-.then(([details, paymentData]) => {
-    if (!mounted) return;
-    setDetail(Array.isArray(details) ? details : []);
-    setPayment(paymentData);
-})
-    .finally(() => {
-        if (mounted) setLoading(false);
-    });
+            readJson(`${API}/hoa-don/${order.id}/thanh-toan`).catch(() => null),
+        ])
+            .then(([details, paymentData]) => {
+                if (!mounted) return;
+                setDetail(Array.isArray(details) ? details : []);
+                setPayment(paymentData);
+            })
+            .finally(() => {
+                if (mounted) setLoading(false);
+            });
 
-return () => {
-    mounted = false;
-};
-}, [order]);
+        return () => {
+            mounted = false;
+        };
+    }, [order]);
 
-if (!order) return null;
+    if (!order) return null;
 
-return (
-    <div className="employee-modal-backdrop" onClick={onClose}>
-        <div className="employee-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="employee-modal-head">
-                <div>
-                    <span className="employee-eyebrow">CHI TIẾT ĐƠN</span>
-                    <h2>{order.maHoaDon}</h2>
+    return (
+        <div className="employee-modal-backdrop" onClick={onClose}>
+            <div className="employee-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="employee-modal-head">
+                    <div>
+                        <span className="employee-eyebrow">CHI TIẾT ĐƠN</span>
+                        <h2>{order.maHoaDon}</h2>
+                    </div>
+                    <button type="button" onClick={onClose}>×</button>
                 </div>
-                <button type="button" onClick={onClose}>×</button>
-            </div>
 
-            <div className="order-detail-grid">
-                <div>
-                    <span>Khách hàng</span><strong>{order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</strong>
+                <div className="order-detail-grid">
+                    <div>
+                        <span>Khách hàng</span><strong>{order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</strong>
+                    </div>
+                    <div>
+                        <span>Số điện thoại</span><strong>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || "-"}</strong>
+                    </div>
+                    <div><span>Loại đơn</span><strong>{order.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}</strong>
+                    </div>
+                    <div><span>Trạng thái</span><StatusBadge value={order.trangThai}/></div>
                 </div>
-                <div>
-                    <span>Số điện thoại</span><strong>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || "-"}</strong>
-                </div>
-                <div><span>Loại đơn</span><strong>{order.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}</strong>
-                </div>
-                <div><span>Trạng thái</span><StatusBadge value={order.trangThai}/></div>
-            </div>
 
-            <h3>Sản phẩm</h3>
-            {loading ? (
-                <div className="employee-empty">Đang tải chi tiết...</div>
-            ) : (
-                <div className="employee-detail-list">
-                    {detail.map((item) => (
-                        <div key={item.id} className="employee-detail-item">
-                            <div>
-                                <strong>
-                                    {item.sanPhamChiTiet?.sanPham?.tenSanPham ||
-                                        item.sanPham?.tenSanPham ||
-                                        "Sản phẩm"}
-                                </strong>
-                                <small>
-                                    SKU: {item.sanPhamChiTiet?.maSku || "-"} · SL: {item.soLuong}
-                                </small>
+                <h3>Sản phẩm</h3>
+                {loading ? (
+                    <div className="employee-empty">Đang tải chi tiết...</div>
+                ) : (
+                    <div className="employee-detail-list">
+                        {detail.map((item) => (
+                            <div key={item.id} className="employee-detail-item">
+                                <div>
+                                    <strong>
+                                        {item.sanPhamChiTiet?.sanPham?.tenSanPham ||
+                                            item.sanPham?.tenSanPham ||
+                                            "Sản phẩm"}
+                                    </strong>
+                                    <small>
+                                        SKU: {item.sanPhamChiTiet?.maSku || "-"} · SL: {item.soLuong}
+                                    </small>
+                                </div>
+                                <strong>{formatMoney(item.thanhTien || Number(item.donGia || 0) * Number(item.soLuong || 0))}</strong>
                             </div>
-                            <strong>{formatMoney(item.thanhTien || Number(item.donGia || 0) * Number(item.soLuong || 0))}</strong>
-                        </div>
-                    ))}
-                </div>
-            )}
+                        ))}
+                    </div>
+                )}
 
-            <div className="order-detail-total">
-                <span>Thanh toán</span>
-                <strong>{formatMoney(payment?.soTien || order.tongThanhToan)}</strong>
+                <div className="order-detail-total">
+                    <span>Thanh toán</span>
+                    <strong>{formatMoney(payment?.soTien || order.tongThanhToan)}</strong>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
 }
 
 export default function EmployeeDashboard({

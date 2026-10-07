@@ -34,6 +34,8 @@ function formatGender(value) {
 export default function EmployeeCustomers({customers}) {
     const [search, setSearch] = useState("");
     const [sortOrder, setSortOrder] = useState("asc"); // asc | desc
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 5;
 
     // -----------------------------------------------------
     // LỌC + SẮP XẾP THEO ID
@@ -66,6 +68,20 @@ export default function EmployeeCustomers({customers}) {
     }, [customers, search, sortOrder]);
 
     const totalCustomers = customers?.length || 0;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const pageItems = filtered.slice(
+        (safePage - 1) * PAGE_SIZE,
+        safePage * PAGE_SIZE
+    );
+
+    useEffect(() => {
+        setPage(1);
+    }, [search, sortOrder]);
+
+    useEffect(() => {
+        setPage((current) => Math.min(current, totalPages));
+    }, [totalPages]);
 
     return (
         <div className="employee-content">
@@ -143,7 +159,7 @@ export default function EmployeeCustomers({customers}) {
                         </thead>
                         <tbody>
                         {filtered.length ? (
-                            filtered.map((item) => (
+                            pageItems.map((item) => (
                                 <tr key={item.id}>
                                     <td>
                                         <strong className="emp-cus-id">
@@ -174,6 +190,40 @@ export default function EmployeeCustomers({customers}) {
                         )}
                         </tbody>
                     </table>
+
+                    {totalPages > 1 && (
+                        <div className="employee-pagination">
+                            <button
+                                type="button"
+                                disabled={safePage <= 1}
+                                onClick={() => setPage(safePage - 1)}
+                            >
+                                ←
+                            </button>
+
+                            {Array.from(
+                                {length: totalPages},
+                                (_, index) => index + 1
+                            ).map((number) => (
+                                <button
+                                    key={number}
+                                    type="button"
+                                    className={safePage === number ? "active" : ""}
+                                    onClick={() => setPage(number)}
+                                >
+                                    {number}
+                                </button>
+                            ))}
+
+                            <button
+                                type="button"
+                                disabled={safePage >= totalPages}
+                                onClick={() => setPage(safePage + 1)}
+                            >
+                                →
+                            </button>
+                        </div>
+                    )}
                 </div>
             </section>
         </div>
