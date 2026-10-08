@@ -2539,98 +2539,147 @@ function CustomerContent() {
     const [customers, setCustomers] = useState([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [selected, setSelected] = useState(null);
     const [addresses, setAddresses] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
+
     const itemsPerPage = 5;
+
     const taiKhachHang = async (force = false) => {
         try {
-            if (!force && adminDataCache.khachHangs) {
-                setCustomers(adminDataCache.khachHangs);
-                setLoading(false);
-                getHoaDons()
-                    .then((hoaDons) => {
-                        const lanDatGanNhat = new Map();
-                        hoaDons.forEach((hoaDon) => {
-                            const khachHangId = hoaDon?.khachHang?.id;
-                            const thoiGian = new Date(hoaDon?.ngayLap || hoaDon?.ngayTao || 0).getTime();
-                            if (khachHangId && Number.isFinite(thoiGian)) {
-                                const cu = lanDatGanNhat.get(khachHangId) || 0;
-                                lanDatGanNhat.set(khachHangId, Math.max(cu, thoiGian));
-                            }
-                        });
-                        setCustomers((current) => [...current].sort((a, b) => {
-                            const ngayA = lanDatGanNhat.get(a.id) || 0;
-                            const ngayB = lanDatGanNhat.get(b.id) || 0;
-                            return ngayB !== ngayA
-                                ? ngayB - ngayA
-                                : Number(b.id || 0) - Number(a.id || 0);
-                        }));
-                    })
-                    .catch((err) => console.error("Lỗi sắp xếp khách hàng:", err));
-                return;
+            if (force) {
+                setRefreshing(true);
+            } else {
+                setLoading(true);
             }
-            setLoading(true);
+
             const danhSach = await getKhachHangs(force);
-            setCustomers(danhSach);
-            // Hiện danh sách khách hàng ngay, sau đó sắp xếp theo đơn đặt gần nhất.
-            getHoaDons(force)
-                .then((hoaDons) => {
-                    const lanDatGanNhat = new Map();
-                    hoaDons.forEach((hoaDon) => {
-                        const khachHangId = hoaDon?.khachHang?.id;
-                        const thoiGian = new Date(hoaDon?.ngayLap || hoaDon?.ngayTao || 0).getTime();
-                        if (khachHangId && Number.isFinite(thoiGian)) {
-                            const cu = lanDatGanNhat.get(khachHangId) || 0;
-                            if (thoiGian > cu) {
-                                lanDatGanNhat.set(khachHangId, thoiGian);
-                            }
-                        }
-                    });
-                    setCustomers((current) => [...current].sort((a, b) => {
-                        const ngayA = lanDatGanNhat.get(a.id) || 0;
-                        const ngayB = lanDatGanNhat.get(b.id) || 0;
-                        if (ngayA !== ngayB) {
-                            return ngayB - ngayA;
-                        }
-                        return Number(b.id || 0) - Number(a.id || 0);
-                    }));
-                })
-                .catch((err) => {
-                    console.error("Lỗi sắp xếp khách hàng theo đơn mới nhất:", err);
-                });
+
+            // Khách đăng ký mới có ID lớn hơn.
+            // Ưu tiên ID giảm dần để khách mới luôn nằm đầu danh sách.
+            const danhSachDaSapXep = [...danhSach].sort((a, b) => {
+                return Number(b?.id || 0) - Number(a?.id || 0);
+            });
+
+            setCustomers(danhSachDaSapXep);
         }
         catch (err) {
             console.error("Lỗi tải khách hàng:", err);
         }
         finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        taiKhachHang();
-    }, []);
-    // Giữ nguyên thứ tự đã sắp xếp:
-    // 1. Khách có đơn hàng mới nhất lên đầu
-    // 2. Nếu cùng thời gian thì ID lớn hơn lên trước
-    // 3. Khách chưa có đơn thì ID lớn hơn lên trước
-    // Không sort lại theo ID ở đây vì sẽ làm mất thứ tự khách mới nhất.
-    const filtered = [...customers]
-        .filter((item) => {
-            const keyword = search.trim().toLowerCase();
-            const hoTen = String(item?.hoTen || "").toLowerCase();
-            const tenDangNhap = String(item?.taiKhoan?.tenDangNhap || "").toLowerCase();
-            const soDienThoai = String(item?.soDienThoai || "").toLowerCase();
 
-            return (
-                !keyword ||
-                hoTen.includes(keyword) ||
-                tenDangNhap.includes(keyword) ||
-                soDienThoai.includes(keyword)
+    useEffect(() => {
+        // Lần đầu vào trang Khách hàng luôn lấy dữ liệu mới nhất từ backend.
+        // Không phụ thuộc cache cũ.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        taiKhachHang(true);
+    }, []);
+
+    useEffect(() => {
+        const taiLaiNgay = () => {
+            // Xóa cache cũ để chắc chắn lấy khách vừa đăng ký.
+            adminDataCache.khachHangs = null;
+            adminDataCache.khachHangsPromise = null;
+            taiKhachHang(true);
+        };
+
+        // Register và Admin cùng chạy trong một tab/app.
+        const xuLyKhachHangMoi = (event) => {
+            if (event?.detail?.type === "KHACH_HANG_MOI") {
+                taiLaiNgay();
+            }
+        };
+
+        window.addEventListener(
+            "fshop-khach-hang-moi",
+            xuLyKhachHangMoi
+        );
+
+        // Register và Admin mở ở hai tab khác nhau.
+        let channel = null;
+
+        try {
+            if ("BroadcastChannel" in window) {
+                channel = new BroadcastChannel("fshop-khach-hang");
+
+                channel.onmessage = (event) => {
+                    if (event?.data?.type === "KHACH_HANG_MOI") {
+                        taiLaiNgay();
+                    }
+                };
+            }
+        } catch (error) {
+            console.error(
+                "Không thể tạo BroadcastChannel:",
+                error
             );
-        })
-        .sort((a, b) => Number(a?.id || 0) - Number(b?.id || 0));
+        }
+
+        // Fallback cho trình duyệt không hỗ trợ BroadcastChannel.
+        const xuLyStorage = (event) => {
+            if (
+                event.key === "fshop-khach-hang-moi" &&
+                event.newValue
+            ) {
+                taiLaiNgay();
+            }
+        };
+
+        window.addEventListener("storage", xuLyStorage);
+
+        return () => {
+            window.removeEventListener(
+                "fshop-khach-hang-moi",
+                xuLyKhachHangMoi
+            );
+            window.removeEventListener(
+                "storage",
+                xuLyStorage
+            );
+
+            if (channel) {
+                channel.close();
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const filtered = customers.filter((item) => {
+        const keyword = search.trim().toLowerCase();
+
+        const hoTen = String(
+            item?.hoTen ||
+            item?.tenNguoiNhan ||
+            ""
+        ).toLowerCase();
+
+        const tenDangNhap = String(
+            item?.taiKhoan?.tenDangNhap ||
+            item?.tenDangNhap ||
+            ""
+        ).toLowerCase();
+
+        const soDienThoai = String(
+            item?.soDienThoai ||
+            item?.taiKhoan?.soDienThoai ||
+            ""
+        ).toLowerCase();
+
+        const id = String(item?.id || "").toLowerCase();
+
+        return (
+            !keyword ||
+            hoTen.includes(keyword) ||
+            tenDangNhap.includes(keyword) ||
+            soDienThoai.includes(keyword) ||
+            id.includes(keyword)
+        );
+    });
 
     const totalPages = Math.max(
         1,
@@ -2649,278 +2698,511 @@ function CustomerContent() {
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setCurrentPage((page) =>
-            Math.min(page, totalPages)
-        );
+        setCurrentPage((page) => Math.min(page, totalPages));
     }, [totalPages]);
 
     const formatGioiTinh = (value) => {
-        if (value === "NAM")
-            return "Nam";
-        if (value === "NU")
-            return "Nữ";
+        const v = String(value || "").trim().toUpperCase();
+
+        if (v === "NAM") return "Nam";
+        if (v === "NU" || v === "NỮ") return "Nữ";
+        if (v === "KHAC" || v === "KHÁC") return "Khác";
+
         return value || "-";
     };
+
     const formatNgaySinh = (value) => {
-        if (!value)
-            return "-";
-        const [year, month, day] = value.split("-");
+        if (!value) return "-";
+
+        const parts = String(value).split("-");
+
+        if (parts.length !== 3) {
+            return String(value);
+        }
+
+        const [year, month, day] = parts;
+
         return `${day}/${month}/${year}`;
     };
+
     const xemChiTiet = async (customer) => {
         setSelected(customer);
         setAddresses([]);
+
         try {
-            const res = await fetch(`${API}/dia-chi/khach-hang/${customer.id}`);
-            if (res.ok) {
-                const data = await res.json();
-                setAddresses(data);
+            const response = await fetch(
+                `${API}/dia-chi/khach-hang/${customer.id}`
+            );
+
+            if (!response.ok) {
+                return;
             }
+
+            const data = await response.json();
+            setAddresses(Array.isArray(data) ? data : []);
         }
         catch (err) {
-            console.error(err);
+            console.error("Lỗi tải địa chỉ khách hàng:", err);
         }
     };
-    return (<div className="admin-dashboard-content">
-        <div className="admin-page-heading">
-            <div>
-                <div className="admin-eyebrow">FSHOP ADMIN</div>
-                <h1>Khách hàng</h1>
-                <p>Quản lý thông tin khách hàng.</p>
+
+    const dongChiTiet = () => {
+        setSelected(null);
+        setAddresses([]);
+    };
+
+    const diaChiMacDinh = addresses.find(
+        (item) =>
+            item?.macDinh === true ||
+            item?.macDinh === 1 ||
+            item?.macDinh === "true"
+    );
+
+    return (
+        <div className="admin-dashboard-content">
+            <div className="admin-page-heading">
+                <div>
+                    <div className="admin-eyebrow">
+                        FSHOP ADMIN
+                    </div>
+
+                    <h1>Khách hàng</h1>
+
+                    <p>
+                        Quản lý thông tin khách hàng.
+                    </p>
+                </div>
             </div>
-        </div>
 
-        <section className="admin-card">
-            <div className="customer-toolbar">
-                <input className="customer-search-input" style={searchInputStyle} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên, tên đăng nhập hoặc số điện thoại..."/>
-            </div>
-        </section>
+            <section className="admin-card">
+                <div
+                    className="customer-toolbar"
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                        flexWrap: "wrap"
+                    }}
+                >
+                    <input
+                        className="customer-search-input"
+                        style={{
+                            width: "400px",
+                            maxWidth: "100%",
+                            height: "58px",
+                            boxSizing: "border-box",
+                            padding: "0 18px",
+                            border: "1px solid #ddd",
+                            borderRadius: "10px",
+                            fontSize: "16px",
+                            color: "#222",
+                            outline: "none",
+                            background: "#fff"
+                        }}
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Tìm ID, tên, tên đăng nhập hoặc số điện thoại..."
+                    />
 
-        <section className="admin-card">
-            <div className="admin-table-scroll">
-                <table className="admin-table">
-                    <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Họ tên</th>
-                        <th>Tên đăng nhập</th>
-                        <th>Số điện thoại</th>
-                        <th>Giới tính</th>
-                        <th>Thao tác</th>
-                    </tr>
-                    </thead>
+                    <button
+                        type="button"
+                        onClick={() => taiKhachHang(true)}
+                        disabled={refreshing}
+                        style={{
+                            height: "58px",
+                            padding: "0 18px",
+                            border: "1px solid #ddd",
+                            borderRadius: "10px",
+                            background: "#fff",
+                            cursor: refreshing
+                                ? "not-allowed"
+                                : "pointer",
+                            fontWeight: 600,
+                            opacity: refreshing ? 0.6 : 1,
+                            whiteSpace: "nowrap"
+                        }}
+                    >
+                        {refreshing
+                            ? "Đang cập nhật..."
+                            : "↻ Làm mới"}
+                    </button>
+                </div>
+            </section>
 
-                    <tbody>
-                    {loading ? (<tr>
-                        <td colSpan="7" className="customer-empty">
-                            Đang tải khách hàng...
-                        </td>
-                    </tr>) : filtered.length ? (currentItems.map((item) => (<tr key={item.id}>
-                        <td>#{item.id}</td>
-                        <td><strong>{item.hoTen}</strong></td>
-                        <td>{item.taiKhoan?.tenDangNhap || "-"}</td>
-                        <td>{item.soDienThoai || "-"}</td>
-                        <td>{formatGioiTinh(item.gioiTinh)}</td>
-                        <td>
-                            <button type="button" onClick={() => xemChiTiet(item)} style={{
-                                border: "1px solid #ddd",
-                                background: "#fff",
-                                color: "#222",
-                                padding: "8px 16px",
-                                borderRadius: "9px",
-                                cursor: "pointer",
-                                fontSize: "16px",
-                                fontWeight: 400
-                            }}>
-                                Xem
-                            </button>
-                        </td>
-                    </tr>))) : (<tr>
-                        <td colSpan="6" className="customer-empty">
-                            Không có khách hàng.
-                        </td>
-                    </tr>)}
+            <section className="admin-card">
+                <div className="admin-card-heading">
+                    <div>
+                        <h2>Danh sách khách hàng</h2>
+                        <p>
+                            Tổng: {filtered.length} khách hàng
+                        </p>
+                    </div>
+                </div>
 
-                    {!loading && filtered.length > 0 && (
+                <div className="admin-table-scroll">
+                    <table className="admin-table">
+                        <thead>
                         <tr>
-                            <td colSpan={6}>
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        justifyContent: "center",
-                                        alignItems: "center",
-                                        gap: "8px",
-                                        padding: "12px"
-                                    }}
-                                >
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setCurrentPage((page) =>
-                                                Math.max(1, page - 1)
-                                            )
-                                        }
-                                        disabled={currentPage === 1}
-                                        style={{
-                                            width: "56px",
-                                            height: "56px",
-                                            border: "1px solid #ddd",
-                                            borderRadius: "10px",
-                                            background: "#fff",
-                                            fontSize: "22px",
-                                            color:
-                                                currentPage === 1
-                                                    ? "#ccc"
-                                                    : "#222",
-                                            cursor:
-                                                currentPage === 1
-                                                    ? "default"
-                                                    : "pointer"
-                                        }}
-                                    >
-                                        ←
-                                    </button>
+                            <th>ID</th>
+                            <th>Họ tên</th>
+                            <th>Tên đăng nhập</th>
+                            <th>Số điện thoại</th>
+                            <th>Giới tính</th>
+                            <th>Thao tác</th>
+                        </tr>
+                        </thead>
 
-                                    {Array.from(
-                                        { length: totalPages },
-                                        (_, index) => index + 1
-                                    ).map((page) => (
+                        <tbody>
+                        {loading ? (
+                            <tr>
+                                <td
+                                    colSpan="6"
+                                    className="customer-empty"
+                                >
+                                    Đang tải khách hàng...
+                                </td>
+                            </tr>
+                        ) : currentItems.length > 0 ? (
+                            currentItems.map((item) => (
+                                <tr key={item.id}>
+                                    <td>
+                                        #{item.id}
+                                    </td>
+
+                                    <td>
+                                        <strong>
+                                            {item?.hoTen ||
+                                                item?.tenNguoiNhan ||
+                                                item?.taiKhoan?.hoTen ||
+                                                "Khách hàng mới"}
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        {item?.taiKhoan?.tenDangNhap ||
+                                            item?.tenDangNhap ||
+                                            "-"}
+                                    </td>
+
+                                    <td>
+                                        {item?.soDienThoai ||
+                                            item?.taiKhoan?.soDienThoai ||
+                                            "-"}
+                                    </td>
+
+                                    <td>
+                                        {formatGioiTinh(
+                                            item?.gioiTinh
+                                        )}
+                                    </td>
+
+                                    <td>
                                         <button
-                                            key={page}
                                             type="button"
                                             onClick={() =>
-                                                setCurrentPage(page)
+                                                xemChiTiet(item)
                                             }
                                             style={{
-                                                width: "46px",
-                                                height: "46px",
-                                                border: "none",
-                                                borderRadius: "10px",
-                                                background:
-                                                    currentPage === page
-                                                        ? "#c94f3f"
-                                                        : "transparent",
-                                                color:
-                                                    currentPage === page
-                                                        ? "#fff"
-                                                        : "#999",
-                                                fontWeight: 600,
-                                                cursor: "pointer"
+                                                border: "1px solid #ddd",
+                                                background: "#fff",
+                                                color: "#222",
+                                                padding: "8px 16px",
+                                                borderRadius: "9px",
+                                                cursor: "pointer",
+                                                fontSize: "14px",
+                                                fontWeight: 600
                                             }}
                                         >
-                                            {page}
+                                            Xem
                                         </button>
-                                    ))}
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td
+                                    colSpan="6"
+                                    className="customer-empty"
+                                >
+                                    Không tìm thấy khách hàng.
+                                </td>
+                            </tr>
+                        )}
+                        </tbody>
+                    </table>
+                </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setCurrentPage((page) =>
-                                                Math.min(
-                                                    totalPages,
-                                                    page + 1
-                                                )
-                                            )
-                                        }
-                                        disabled={
-                                            currentPage === totalPages
-                                        }
-                                        style={{
-                                            width: "56px",
-                                            height: "56px",
-                                            border: "1px solid #ddd",
-                                            borderRadius: "10px",
-                                            background: "#fff",
-                                            fontSize: "22px",
-                                            color:
-                                                currentPage === totalPages
-                                                    ? "#ccc"
-                                                    : "#222",
-                                            cursor:
-                                                currentPage === totalPages
-                                                    ? "default"
-                                                    : "pointer"
-                                        }}
-                                    >
-                                        →
-                                    </button>
+                {filtered.length > 0 && (
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "20px 0 5px",
+                            flexWrap: "wrap"
+                        }}
+                    >
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setCurrentPage((page) =>
+                                    Math.max(1, page - 1)
+                                )
+                            }
+                            disabled={currentPage === 1}
+                            style={{
+                                width: "56px",
+                                height: "46px",
+                                border: "1px solid #ddd",
+                                borderRadius: "10px",
+                                background: "#fff",
+                                fontSize: "20px",
+                                color:
+                                    currentPage === 1
+                                        ? "#ccc"
+                                        : "#222",
+                                cursor:
+                                    currentPage === 1
+                                        ? "default"
+                                        : "pointer"
+                            }}
+                        >
+                            ←
+                        </button>
+
+                        {Array.from(
+                            { length: totalPages },
+                            (_, index) => index + 1
+                        ).map((page) => (
+                            <button
+                                key={page}
+                                type="button"
+                                onClick={() =>
+                                    setCurrentPage(page)
+                                }
+                                style={{
+                                    width: "46px",
+                                    height: "46px",
+                                    border: "none",
+                                    borderRadius: "10px",
+                                    background:
+                                        currentPage === page
+                                            ? "#c94f3f"
+                                            : "transparent",
+                                    color:
+                                        currentPage === page
+                                            ? "#fff"
+                                            : "#777",
+                                    fontWeight: 600,
+                                    cursor: "pointer"
+                                }}
+                            >
+                                {page}
+                            </button>
+                        ))}
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setCurrentPage((page) =>
+                                    Math.min(
+                                        totalPages,
+                                        page + 1
+                                    )
+                                )
+                            }
+                            disabled={
+                                currentPage === totalPages
+                            }
+                            style={{
+                                width: "56px",
+                                height: "46px",
+                                border: "1px solid #ddd",
+                                borderRadius: "10px",
+                                background: "#fff",
+                                fontSize: "20px",
+                                color:
+                                    currentPage === totalPages
+                                        ? "#ccc"
+                                        : "#222",
+                                cursor:
+                                    currentPage === totalPages
+                                        ? "default"
+                                        : "pointer"
+                            }}
+                        >
+                            →
+                        </button>
+                    </div>
+                )}
+            </section>
+
+            {selected && (
+                <div
+                    onClick={dongChiTiet}
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(0,0,0,.45)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 9999,
+                        padding: "20px"
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: "min(650px,100%)",
+                            maxHeight: "90vh",
+                            overflowY: "auto",
+                            background: "#fff",
+                            borderRadius: "14px",
+                            padding: "25px",
+                            boxShadow:
+                                "0 20px 60px rgba(0,0,0,.18)"
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                marginBottom: "20px"
+                            }}
+                        >
+                            <h2 style={{ margin: 0 }}>
+                                Chi tiết khách hàng
+                            </h2>
+
+                            <button
+                                type="button"
+                                onClick={dongChiTiet}
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    fontSize: "30px",
+                                    cursor: "pointer",
+                                    lineHeight: 1
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns:
+                                    "1fr 1fr",
+                                gap: "14px",
+                                marginBottom: "25px"
+                            }}
+                        >
+                            <div>
+                                <strong>ID</strong>
+                                <p>#{selected.id}</p>
+                            </div>
+
+                            <div>
+                                <strong>Họ tên</strong>
+                                <p>
+                                    {selected?.hoTen ||
+                                        selected?.tenNguoiNhan ||
+                                        "Khách hàng mới"}
+                                </p>
+                            </div>
+
+                            <div>
+                                <strong>Tên đăng nhập</strong>
+                                <p>
+                                    {selected?.taiKhoan
+                                            ?.tenDangNhap ||
+                                        selected?.tenDangNhap ||
+                                        "-"}
+                                </p>
+                            </div>
+
+                            <div>
+                                <strong>Số điện thoại</strong>
+                                <p>
+                                    {selected?.soDienThoai ||
+                                        selected?.taiKhoan
+                                            ?.soDienThoai ||
+                                        "-"}
+                                </p>
+                            </div>
+
+                            <div>
+                                <strong>Ngày sinh</strong>
+                                <p>
+                                    {formatNgaySinh(
+                                        selected?.ngaySinh
+                                    )}
+                                </p>
+                            </div>
+
+                            <div>
+                                <strong>Giới tính</strong>
+                                <p>
+                                    {formatGioiTinh(
+                                        selected?.gioiTinh
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+
+                        <h3>Địa chỉ mặc định</h3>
+
+                        {diaChiMacDinh ? (
+                            <div
+                                style={{
+                                    padding: "14px",
+                                    border: "1px solid #eee",
+                                    borderRadius: "10px",
+                                    background: "#fafafa"
+                                }}
+                            >
+                                <strong>
+                                    {diaChiMacDinh?.tenNguoiNhan ||
+                                        "Chưa cập nhật"}
+                                </strong>
+
+                                <div
+                                    style={{
+                                        marginTop: "7px"
+                                    }}
+                                >
+                                    SĐT:{" "}
+                                    {diaChiMacDinh?.soDienThoai ||
+                                        "-"}
                                 </div>
-                            </td>
-                        </tr>
-                    )}
-                    </tbody>
-                </table>
-            </div>
-        </section>
-        {selected && (<div onClick={() => setSelected(null)} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: "20px"
-        }}>
-            <div onClick={(e) => e.stopPropagation()} style={{
-                width: "min(650px,100%)",
-                maxHeight: "90vh",
-                overflowY: "auto",
-                background: "#fff",
-                borderRadius: "14px",
-                padding: "25px"
-            }}>
-                <div style={{
-                    display: "flex",
-                    justifyContent: "space-between"
-                }}>
-                    <h2>Chi tiết khách hàng</h2>
-                    <button onClick={() => setSelected(null)}>×</button>
-                </div>
 
-                <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "14px",
-                    marginBottom: "25px"
-                }}>
-                    <div><strong>ID</strong><p>#{selected.id}</p></div>
-                    <div><strong>Họ tên</strong><p>{selected.hoTen}</p></div>
-                    <div>
-                        <strong>Tên đăng nhập</strong>
-                        <p>{selected.taiKhoan?.tenDangNhap || "-"}</p>
-                    </div>
-                    <div>
-                        <strong>Số điện thoại</strong>
-                        <p>{selected.soDienThoai || "-"}</p>
-                    </div>
-                    <div>
-                        <strong>Ngày sinh</strong>
-                        <p>{formatNgaySinh(selected.ngaySinh)}</p>
-                    </div>
-                    <div>
-                        <strong>Giới tính</strong>
-                        <p>{formatGioiTinh(selected.gioiTinh)}</p>
+                                <div
+                                    style={{
+                                        marginTop: "7px"
+                                    }}
+                                >
+                                    Địa chỉ:{" "}
+                                    {diaChiMacDinh?.diaChi ||
+                                        diaChiMacDinh?.diaChiChiTiet ||
+                                        diaChiMacDinh?.chiTiet ||
+                                        "-"}
+                                </div>
+                            </div>
+                        ) : (
+                            <p style={{ color: "#777" }}>
+                                Khách hàng chưa có địa chỉ mặc định.
+                            </p>
+                        )}
                     </div>
                 </div>
-
-                <h3>Địa chỉ mặc định</h3>
-
-                {addresses.find((item) => item.macDinh) ? ((() => {
-                    const item = addresses.find((item) => item.macDinh);
-                    return (<div style={{
-                        padding: "12px",
-                        border: "1px solid #eee",
-                        borderRadius: "8px"
-                    }}>
-                        <strong>{item.tenNguoiNhan}</strong>
-                        <div>{item.soDienThoai}</div>
-                        <div>{item.diaChi}</div>
-                    </div>);
-                })()) : (<p>Khách hàng chưa có địa chỉ mặc định.</p>)}
-            </div>
-        </div>)}
-    </div>);
+            )}
+        </div>
+    );
 }
 function EmployeeContent() {
     const [employees, setEmployees] = useState([]);

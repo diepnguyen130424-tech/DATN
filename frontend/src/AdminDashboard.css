@@ -1,3 +1,4 @@
+
 .admin-layout,
 .admin-layout * {
     box-sizing: border-box;
@@ -867,7 +868,7 @@
     text-transform: uppercase;
     border-bottom: 1px solid #e5e7eb;
     white-space: nowrap;
-        background: #fff1f1 !important;
+    background: #fff1f1 !important;
 }
 
 .admin-voucher .admin-table td {
@@ -976,10 +977,10 @@
 .admin-voucher .skeleton-bar {
     height: 14px;
     background: linear-gradient(
-        90deg,
-        #f3f4f6 25%,
-        #e5e7eb 50%,
-        #f3f4f6 75%
+            90deg,
+            #f3f4f6 25%,
+            #e5e7eb 50%,
+            #f3f4f6 75%
     );
     background-size: 200% 100%;
     animation: voucherShimmer 1.4s infinite;
@@ -1047,5 +1048,546 @@
     .admin-voucher .admin-filters select {
         width: 100%;
         min-width: 0;
+    }
+}
+
+
+.admin-voucher {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.admin-voucher .admin-page-heading {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.admin-voucher .admin-filters {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.admin-voucher .admin-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Bảng chính: trên màn hình lớn cố gắng vừa toàn bộ khu vực */
+.admin-voucher .admin-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse;
+    font-size: 12px !important;
+}
+
+/* Header nhỏ lại */
+.admin-voucher .admin-table th {
+    padding: 11px 7px !important;
+    font-size: 9px !important;
+    line-height: 1.2;
+    letter-spacing: 0.25px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Dữ liệu nhỏ lại */
+.admin-voucher .admin-table td {
+    padding: 13px 7px !important;
+    font-size: 11px !important;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Mã voucher */
+.admin-voucher .admin-table td strong {
+    font-size: 12px !important;
+}
+
+/* Badge trạng thái vừa ô */
+.admin-voucher .admin-table .order-status {
+    max-width: 100%;
+    padding: 5px 7px !important;
+    font-size: 9px !important;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+/*
+   Chia 11 cột hợp lý.
+   Tổng = 100%, nên bảng không tự đẩy ra ngoài ở màn hình desktop.
+*/
+.admin-voucher .admin-table th:nth-child(1),
+.admin-voucher .admin-table td:nth-child(1) {
+    width: 5%;
+}
+
+.admin-voucher .admin-table th:nth-child(2),
+.admin-voucher .admin-table td:nth-child(2) {
+    width: 7%;
+}
+
+.admin-voucher .admin-table th:nth-child(3),
+.admin-voucher .admin-table td:nth-child(3) {
+    width: 9%;
+}
+
+.admin-voucher .admin-table th:nth-child(4),
+.admin-voucher .admin-table td:nth-child(4) {
+    width: 9%;
+}
+
+.admin-voucher .admin-table th:nth-child(5),
+.admin-voucher .admin-table td:nth-child(5) {
+    width: 7%;
+}
+
+.admin-voucher .admin-table th:nth-child(6),
+.admin-voucher .admin-table td:nth-child(6) {
+    width: 10%;
+}
+
+.admin-voucher .admin-table th:nth-child(7),
+.admin-voucher .admin-table td:nth-child(7) {
+    width: 10%;
+}
+
+.admin-voucher .admin-table th:nth-child(8),
+.admin-voucher .admin-table td:nth-child(8) {
+    width: 8%;
+}
+
+.admin-voucher .admin-table th:nth-child(9),
+.admin-voucher .admin-table td:nth-child(9) {
+    width: 9%;
+}
+
+.admin-voucher .admin-table th:nth-child(10),
+.admin-voucher .admin-table td:nth-child(10) {
+    width: 9%;
+}
+
+.admin-voucher .admin-table th:nth-child(11),
+.admin-voucher .admin-table td:nth-child(11) {
+    width: 17%;
+}
+
+/* Không để nội dung cuối bảng làm vỡ chiều rộng */
+.admin-voucher .admin-table td:last-child {
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Nếu có nút sửa/xóa trong bảng */
+.admin-voucher .admin-table .btn-edit,
+.admin-voucher .admin-table .btn-delete {
+    padding: 6px 9px !important;
+    font-size: 10px !important;
+    margin-right: 4px;
+}
+
+/* Tiêu đề danh sách voucher gọn hơn */
+.admin-voucher .admin-table-head {
+    padding: 15px 18px !important;
+}
+
+.admin-voucher .admin-table-head h2 {
+    font-size: 15px !important;
+}
+
+.admin-voucher .admin-table-head span {
+    font-size: 11px !important;
+}
+
+/* Bộ lọc gọn hơn */
+.admin-voucher .admin-filters {
+    gap: 10px;
+    padding: 13px 16px;
+}
+
+.admin-voucher .admin-filters input,
+.admin-voucher .admin-filters select {
+    padding: 9px 12px;
+    font-size: 12px;
+}
+
+/* Nút thêm voucher gọn vừa */
+.admin-voucher .admin-date-button {
+    padding: 11px 18px;
+    font-size: 13px;
+}
+
+/* =========================================================
+   MÀN HÌNH 1261 - 1500PX
+========================================================= */
+
+@media (min-width: 1261px) and (max-width: 1500px) {
+    .admin-main-body {
+        padding: 24px;
+    }
+
+    .admin-voucher .admin-page-heading {
+        padding-bottom: 18px;
+    }
+
+    .admin-voucher .admin-page-heading h1 {
+        font-size: 27px;
+    }
+
+    .admin-voucher .admin-page-heading p {
+        font-size: 12px;
+    }
+
+    .admin-voucher .admin-table th {
+        padding: 10px 5px !important;
+        font-size: 8.5px !important;
+    }
+
+    .admin-voucher .admin-table td {
+        padding: 12px 5px !important;
+        font-size: 10px !important;
+    }
+
+    .admin-voucher .admin-table td strong {
+        font-size: 11px !important;
+    }
+
+    .admin-voucher .admin-table .order-status {
+        padding: 5px 6px !important;
+        font-size: 8.5px !important;
+    }
+}
+
+/* =========================================================
+   MÀN HÌNH <= 1260PX
+   Cho phép cuộn ngang thay vì cắt mất cột/chức năng.
+========================================================= */
+
+@media (max-width: 1260px) {
+    .admin-voucher .admin-table {
+        min-width: 1050px !important;
+        max-width: none !important;
+        table-layout: fixed !important;
+    }
+
+    .admin-voucher .admin-table th {
+        padding: 11px 8px !important;
+        font-size: 9px !important;
+    }
+
+    .admin-voucher .admin-table td {
+        padding: 13px 8px !important;
+        font-size: 11px !important;
+    }
+}
+
+/* =========================================================
+   TABLET / MOBILE
+========================================================= */
+
+@media (max-width: 900px) {
+    .admin-voucher .admin-page-heading {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+    }
+
+    .admin-voucher .admin-date-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .admin-voucher .admin-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-voucher .admin-filters input,
+    .admin-voucher .admin-filters select {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .admin-voucher .admin-table-scroll {
+        overflow-x: auto !important;
+    }
+
+    .admin-voucher .admin-table {
+        min-width: 1050px !important;
+    }
+}
+
+/* =========================================================
+   ĐIỆN THOẠI
+========================================================= */
+
+@media (max-width: 600px) {
+    .admin-voucher .admin-table-head {
+        padding: 14px 15px !important;
+    }
+
+    .admin-voucher .admin-table {
+        min-width: 1000px !important;
+    }
+
+    .admin-voucher .admin-table th {
+        padding: 10px 6px !important;
+    }
+
+    .admin-voucher .admin-table td {
+        padding: 11px 6px !important;
+    }
+}
+
+
+/* =========================================================
+   VOUCHER - BẢN CÂN ĐỐI / ĐỌC RÕ / HIỂN THỊ ĐỦ
+   13 cột: ID, Mã, Tên, Loại, Giá trị, Giảm tối đa,
+   Đơn tối thiểu, SL/Đã dùng, Bắt đầu, Hết hạn,
+   Trạng thái, Sửa, Xóa.
+========================================================= */
+
+/* Cho khu vực nội dung sử dụng tối đa chiều ngang */
+.admin-voucher {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+}
+
+.admin-voucher .admin-table-scroll {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    box-sizing: border-box;
+}
+
+/* Bảng không còn bị ép nhỏ hoặc tạo thanh cuộn ngang */
+.admin-voucher .admin-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 12px !important;
+}
+
+/* Header: rõ, không quá nhỏ */
+.admin-voucher .admin-table th {
+    padding: 12px 7px !important;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    letter-spacing: 0.15px !important;
+    text-align: center !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow: visible !important;
+}
+
+/* Dữ liệu: cho phép xuống dòng nhẹ thay vì cắt chữ */
+.admin-voucher .admin-table td {
+    padding: 14px 7px !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    text-align: center !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+}
+
+/* Mã voucher / tên voucher */
+.admin-voucher .admin-table td strong {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+}
+
+/* Cột 1: ID */
+.admin-voucher .admin-table th:nth-child(1),
+.admin-voucher .admin-table td:nth-child(1) {
+    width: 5% !important;
+}
+
+/* Cột 2: Mã */
+.admin-voucher .admin-table th:nth-child(2),
+.admin-voucher .admin-table td:nth-child(2) {
+    width: 8% !important;
+}
+
+/* Cột 3: Tên */
+.admin-voucher .admin-table th:nth-child(3),
+.admin-voucher .admin-table td:nth-child(3) {
+    width: 9% !important;
+}
+
+/* Cột 4: Loại */
+.admin-voucher .admin-table th:nth-child(4),
+.admin-voucher .admin-table td:nth-child(4) {
+    width: 8% !important;
+}
+
+/* Cột 5: Giá trị */
+.admin-voucher .admin-table th:nth-child(5),
+.admin-voucher .admin-table td:nth-child(5) {
+    width: 7% !important;
+}
+
+/* Cột 6: Giảm tối đa */
+.admin-voucher .admin-table th:nth-child(6),
+.admin-voucher .admin-table td:nth-child(6) {
+    width: 10% !important;
+}
+
+/* Cột 7: Đơn tối thiểu */
+.admin-voucher .admin-table th:nth-child(7),
+.admin-voucher .admin-table td:nth-child(7) {
+    width: 10% !important;
+}
+
+/* Cột 8: SL/Đã dùng */
+.admin-voucher .admin-table th:nth-child(8),
+.admin-voucher .admin-table td:nth-child(8) {
+    width: 8% !important;
+}
+
+/* Cột 9: Bắt đầu */
+.admin-voucher .admin-table th:nth-child(9),
+.admin-voucher .admin-table td:nth-child(9) {
+    width: 8% !important;
+}
+
+/* Cột 10: Hết hạn */
+.admin-voucher .admin-table th:nth-child(10),
+.admin-voucher .admin-table td:nth-child(10) {
+    width: 8% !important;
+}
+
+/* Cột 11: Trạng thái */
+.admin-voucher .admin-table th:nth-child(11),
+.admin-voucher .admin-table td:nth-child(11) {
+    width: 11% !important;
+}
+
+/* Cột 12: Sửa */
+.admin-voucher .admin-table th:nth-child(12),
+.admin-voucher .admin-table td:nth-child(12) {
+    width: 4.5% !important;
+}
+
+/* Cột 13: Xóa */
+.admin-voucher .admin-table th:nth-child(13),
+.admin-voucher .admin-table td:nth-child(13) {
+    width: 4.5% !important;
+}
+
+/* Badge trạng thái: đủ rõ nhưng không chiếm quá nhiều */
+.admin-voucher .admin-table .order-status {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    max-width: 100% !important;
+    min-height: 24px !important;
+    padding: 5px 7px !important;
+    border-radius: 999px !important;
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    text-align: center !important;
+}
+
+/* Nút Sửa/Xóa: nhỏ gọn nhưng vẫn bấm dễ */
+.admin-voucher .admin-table .btn-edit,
+.admin-voucher .admin-table .btn-delete {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 6px 4px !important;
+    border-radius: 7px !important;
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+}
+
+/* Không cho nội dung nút làm vỡ cột */
+.admin-voucher .admin-table td:nth-child(12),
+.admin-voucher .admin-table td:nth-child(13) {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+}
+
+/* Khu vực tiêu đề danh sách */
+.admin-voucher .admin-table-head {
+    padding: 16px 18px !important;
+}
+
+.admin-voucher .admin-table-head h2 {
+    font-size: 16px !important;
+}
+
+.admin-voucher .admin-table-head span {
+    font-size: 12px !important;
+}
+
+/* Desktop 1261-1500: giảm nhẹ padding để đủ chỗ */
+@media (min-width: 1261px) and (max-width: 1500px) {
+    .admin-main-body {
+        padding: 24px !important;
+    }
+
+    .admin-voucher .admin-table th {
+        padding: 10px 5px !important;
+        font-size: 9px !important;
+    }
+
+    .admin-voucher .admin-table td {
+        padding: 12px 5px !important;
+        font-size: 11px !important;
+    }
+
+    .admin-voucher .admin-table .order-status {
+        font-size: 8.5px !important;
+        padding: 5px 5px !important;
+    }
+
+    .admin-voucher .admin-table .btn-edit,
+    .admin-voucher .admin-table .btn-delete {
+        font-size: 9px !important;
+        padding: 6px 2px !important;
+    }
+}
+
+/* Dưới 1260px: vẫn ưu tiên đủ nội dung, nhưng cho cuộn nếu thật sự thiếu */
+@media (max-width: 1260px) {
+    .admin-voucher .admin-table-scroll {
+        overflow-x: auto !important;
+    }
+
+    .admin-voucher .admin-table {
+        min-width: 1050px !important;
+    }
+
+    .admin-voucher .admin-table th,
+    .admin-voucher .admin-table td {
+        white-space: normal !important;
+    }
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+    .admin-voucher .admin-table {
+        min-width: 1050px !important;
     }
 }

@@ -22,113 +22,320 @@ public class MaGiamGiaController {
     private final MaGiamGiaService maGiamGiaService;
 
 
+    // =========================================================
+    // LẤY TẤT CẢ
+    // =========================================================
+
     @GetMapping
     public ResponseEntity<List<MaGiamGia>> getAll() {
+
         return ResponseEntity.ok(
                 maGiamGiaService.getAll()
         );
     }
 
+
+    // =========================================================
+    // LẤY VOUCHER ĐANG HOẠT ĐỘNG
+    // =========================================================
+
     @GetMapping("/dang-hoat-dong")
     public ResponseEntity<List<MaGiamGia>> getDangHoatDong() {
+
         return ResponseEntity.ok(
                 maGiamGiaService.getDangHoatDong()
         );
     }
 
 
+    // =========================================================
+    // LẤY THEO ID
+    // =========================================================
+
     @GetMapping("/{id}")
     public ResponseEntity<MaGiamGia> getById(
             @PathVariable Long id
     ) {
+
         return ResponseEntity.ok(
                 maGiamGiaService.getById(id)
         );
     }
 
+
+    // =========================================================
+    // LẤY THEO MÃ
+    // =========================================================
+
     @GetMapping("/ma/{maVoucher}")
     public ResponseEntity<MaGiamGia> getByMaVoucher(
             @PathVariable String maVoucher
     ) {
+
         return ResponseEntity.ok(
-                maGiamGiaService.getByMaVoucher(maVoucher)
+                maGiamGiaService.getByMaVoucher(
+                        maVoucher
+                )
         );
     }
+
+
+    // =========================================================
+    // THÊM VOUCHER
+    // =========================================================
 
     @PostMapping
-    public ResponseEntity<MaGiamGia> create(
+    public ResponseEntity<?> create(
             @RequestBody MaGiamGia maGiamGia
     ) {
-        return ResponseEntity.ok(
-                maGiamGiaService.save(maGiamGia)
-        );
+
+        try {
+
+            return ResponseEntity.ok(
+                    maGiamGiaService.save(
+                            maGiamGia
+                    )
+            );
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            String message =
+                    layMessageLoi(e);
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(
+                            Map.of(
+                                    "message",
+                                    message
+                            )
+                    );
+        }
     }
 
+
+    // =========================================================
+    // SỬA VOUCHER
+    // =========================================================
+
     @PutMapping("/{id}")
-    public ResponseEntity<MaGiamGia> update(
+    public ResponseEntity<?> update(
             @PathVariable Long id,
             @RequestBody MaGiamGia maGiamGia
     ) {
-        maGiamGia.setId(id);
 
-        return ResponseEntity.ok(
-                maGiamGiaService.save(maGiamGia)
-        );
+        try {
+
+            // Kiểm tra voucher có tồn tại
+            MaGiamGia existing =
+                    maGiamGiaService.getById(id);
+
+
+            // Giữ ID cũ
+            maGiamGia.setId(
+                    existing.getId()
+            );
+
+
+            return ResponseEntity.ok(
+                    maGiamGiaService.save(
+                            maGiamGia
+                    )
+            );
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            String message =
+                    layMessageLoi(e);
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(
+                            Map.of(
+                                    "message",
+                                    message
+                            )
+                    );
+        }
     }
+
+
+    // =========================================================
+    // XÓA VOUCHER
+    // =========================================================
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(
+    public ResponseEntity<?> delete(
             @PathVariable Long id
     ) {
-        maGiamGiaService.delete(id);
 
-        return ResponseEntity.noContent().build();
+        try {
+
+            maGiamGiaService.delete(id);
+
+            return ResponseEntity
+                    .noContent()
+                    .build();
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            String message =
+                    layMessageLoi(e);
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(
+                            Map.of(
+                                    "message",
+                                    message
+                            )
+                    );
+        }
     }
 
 
-    // ⭐ KIỂM TRA VOUCHER
+    // =========================================================
+    // KIỂM TRA VOUCHER
+    // =========================================================
+
     @PostMapping("/kiem-tra")
     public ResponseEntity<?> kiemTra(
             @RequestBody Map<String, Object> body
     ) {
+
         try {
-            String ma = (String) body.get("ma");
-            BigDecimal tongTien = new BigDecimal(
-                    body.get("tongTien").toString()
-            );
-            // ⭐ Lấy khachHangId (có thể null)
-            Long khachHangId = null;
-            if (body.get("khachHangId") != null) {
-                khachHangId = Long.valueOf(
-                        body.get("khachHangId").toString()
+
+            if (body == null) {
+
+                throw new RuntimeException(
+                        "Dữ liệu kiểm tra voucher không hợp lệ"
                 );
             }
 
+
+            // Mã voucher
+            String ma =
+                    body.get("ma") != null
+                            ? body.get("ma").toString()
+                            : null;
+
+
+            // Tổng tiền
+            if (body.get("tongTien") == null) {
+
+                throw new RuntimeException(
+                        "Tổng tiền không được để trống"
+                );
+            }
+
+
+            BigDecimal tongTien =
+                    new BigDecimal(
+                            body.get("tongTien")
+                                    .toString()
+                    );
+
+
+            // Khách hàng
+            Long khachHangId = null;
+
+            if (body.get("khachHangId") != null) {
+
+                khachHangId =
+                        Long.valueOf(
+                                body.get("khachHangId")
+                                        .toString()
+                        );
+            }
+
+
             return ResponseEntity.ok(
-                    maGiamGiaService.kiemTraVoucher(ma,
+                    maGiamGiaService.kiemTraVoucher(
+                            ma,
                             tongTien,
-                            khachHangId)
+                            khachHangId
+                    )
             );
+
         } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("message", e.getMessage()));
+
+            e.printStackTrace();
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(
+                            Map.of(
+                                    "message",
+                                    layMessageLoi(e)
+                            )
+                    );
         }
     }
 
 
-    // ⭐ MỚI — SAO CHÉP: TRỪ 1 LƯỢT VOUCHER
+    // =========================================================
+    // TĂNG LƯỢT SỬ DỤNG
+    // =========================================================
+
     @PostMapping("/sao-chep/{ma}")
     public ResponseEntity<?> saoChep(
             @PathVariable String ma
     ) {
+
         try {
-            maGiamGiaService.tangSoLuongDaDung(ma);
+
+            maGiamGiaService
+                    .tangSoLuongDaDung(ma);
+
             return ResponseEntity.ok(
-                    Map.of("message", "Đã cập nhật lượt sử dụng")
+                    Map.of(
+                            "message",
+                            "Đã cập nhật lượt sử dụng"
+                    )
             );
+
         } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("message", e.getMessage()));
+
+            e.printStackTrace();
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(
+                            Map.of(
+                                    "message",
+                                    layMessageLoi(e)
+                            )
+                    );
         }
+    }
+
+
+    private String layMessageLoi(
+            Exception e
+    ) {
+
+        Throwable current = e;
+
+        while (current != null) {
+
+            if (current.getMessage() != null
+                    && !current.getMessage()
+                    .trim()
+                    .isEmpty()) {
+
+                return current.getMessage();
+            }
+
+            current =
+                    current.getCause();
+        }
+
+        return "Không thể xử lý voucher";
     }
 }

@@ -1,12 +1,16 @@
 package com.example.bangiay.service;
 
+import com.example.bangiay.dto.RegisterRequest;
 import com.example.bangiay.entity.TaiKhoan;
 import com.example.bangiay.repository.TaiKhoanRepository;
 import com.example.bangiay.entity.KhachHang;
 import com.example.bangiay.repository.KhachHangRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.example.bangiay.dto.LoginResponse;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -53,9 +57,6 @@ public class AuthService {
             String matKhau
     ) {
 
-        // =========================
-        // 1. Tìm tài khoản
-        // =========================
         TaiKhoan taiKhoan = taiKhoanRepository
                 .findByTenDangNhap(tenDangNhap)
                 .orElseThrow(() ->
@@ -64,18 +65,12 @@ public class AuthService {
                         )
                 );
 
-        // =========================
-        // 2. Kiểm tra mật khẩu
-        // =========================
         if (!taiKhoan.getMatKhau().equals(matKhau)) {
             throw new RuntimeException(
                     "Sai tên đăng nhập hoặc mật khẩu"
             );
         }
 
-        // =========================
-        // 3. Kiểm tra trạng thái
-        // =========================
         if (!"HOAT_DONG".equalsIgnoreCase(
                 taiKhoan.getTrangThai()
         )) {
@@ -84,9 +79,6 @@ public class AuthService {
             );
         }
 
-        // =========================
-        // 4. Lấy KhachHang
-        // =========================
         Long khachHangId = null;
 
         if ("KHACH_HANG".equalsIgnoreCase(
@@ -97,8 +89,6 @@ public class AuthService {
                     .findByTaiKhoan_Id(taiKhoan.getId())
                     .orElse(null);
 
-            // Nếu tài khoản chưa có KhachHang
-            // thì tự động tạo
             if (khachHang == null) {
 
                 khachHang = new KhachHang();
@@ -109,13 +99,9 @@ public class AuthService {
                 khachHang = khachHangRepository.save(khachHang);
             }
 
-            // Lấy ID khách hàng
             khachHangId = khachHang.getId();
         }
 
-        // =========================
-        // 5. Trả thông tin đăng nhập
-        // =========================
         return new LoginResponse(
                 taiKhoan.getId(),
                 taiKhoan.getTenDangNhap(),
@@ -125,39 +111,56 @@ public class AuthService {
         );
     }
 
-    public TaiKhoan register(TaiKhoan taiKhoan) {
+    @Transactional
+    public TaiKhoan register(RegisterRequest request) {
 
-        // =========================
-        // 1. Kiểm tra username
-        // =========================
         if (taiKhoanRepository.existsByTenDangNhap(
-                taiKhoan.getTenDangNhap()
+                request.getTenDangNhap()
         )) {
             throw new RuntimeException(
                     "Tên đăng nhập đã tồn tại"
             );
         }
 
-        // =========================
-        // 2. Thiết lập tài khoản
-        // =========================
+        TaiKhoan taiKhoan = new TaiKhoan();
+
+        taiKhoan.setTenDangNhap(
+                request.getTenDangNhap().trim()
+        );
+
+        taiKhoan.setMatKhau(
+                request.getMatKhau()
+        );
+
         taiKhoan.setVaiTro("KHACH_HANG");
         taiKhoan.setTrangThai("HOAT_DONG");
         taiKhoan.setNgayTao(LocalDateTime.now());
-
-        // =========================
-        // 3. Lưu tài khoản
-        // =========================
         TaiKhoan savedTaiKhoan =
                 taiKhoanRepository.save(taiKhoan);
 
-        // =========================
-        // 4. Tạo khách hàng
-        // =========================
         KhachHang khachHang = new KhachHang();
 
         khachHang.setTaiKhoan(savedTaiKhoan);
-        khachHang.setHoTen("Khách hàng mới");
+
+        khachHang.setHoTen(
+                request.getHoTen()
+        );
+
+        khachHang.setSoDienThoai(
+                request.getSoDienThoai()
+        );
+
+        if (request.getNgaySinh() != null
+                && !request.getNgaySinh().isBlank()) {
+
+            khachHang.setNgaySinh(
+                    LocalDate.parse(request.getNgaySinh())
+            );
+        }
+
+        khachHang.setGioiTinh(
+                request.getGioiTinh()
+        );
 
         khachHangRepository.save(khachHang);
 
