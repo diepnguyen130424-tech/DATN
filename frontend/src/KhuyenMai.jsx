@@ -16,6 +16,33 @@ function formatDate(str) {
     }
 }
 
+/* ⭐ HÀM KIỂM TRA KM CÒN HIỆU LỰC KHÔNG */
+function isConHieuLuc(item) {
+    // Nếu backend đã đánh dấu ngừng → loại
+    const trangThai = String(item?.trangThai || "HOAT_DONG").toUpperCase();
+    if (trangThai === "NGUNG_HOAT_DONG") return false;
+
+    const now = new Date();
+
+    // Chưa bắt đầu
+    if (item?.ngayBatDau) {
+        const batDau = new Date(item.ngayBatDau);
+        if (!Number.isNaN(batDau.getTime()) && now < batDau) return false;
+    }
+
+    // Đã hết hạn (hết cuối ngày kết thúc, 23:59:59)
+    if (item?.ngayKetThuc) {
+        const ketThuc = new Date(item.ngayKetThuc);
+        if (!Number.isNaN(ketThuc.getTime())) {
+            const hetHan = new Date(ketThuc);
+            hetHan.setHours(23, 59, 59, 999);
+            if (now > hetHan) return false;
+        }
+    }
+
+    return true;
+}
+
 export default function KhuyenMai({ setPage }) {
     const [activeTab, setActiveTab] = useState("voucher");
 
@@ -60,7 +87,7 @@ export default function KhuyenMai({ setPage }) {
         return () => clearTimeout(timer);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Load voucher
+    // ⭐ Load voucher + filter hết hạn
     useEffect(() => {
         const load = async () => {
             try {
@@ -68,7 +95,12 @@ export default function KhuyenMai({ setPage }) {
                 const res = await fetch(`${API}/ma-giam-gia/dang-hoat-dong`);
                 if (!res.ok) throw new Error("Không tải được voucher");
                 const data = await res.json();
-                setVouchers(Array.isArray(data) ? data : []);
+                const raw = Array.isArray(data) ? data : [];
+
+                // ⭐ Lọc chỉ voucher còn hiệu lực
+                const active = raw.filter(isConHieuLuc);
+
+                setVouchers(active);
             } catch (err) {
                 console.error(err);
                 setVouchers([]);
@@ -80,7 +112,7 @@ export default function KhuyenMai({ setPage }) {
         return () => clearTimeout(timer);
     }, []);
 
-    // Load chương trình
+    // ⭐ Load chương trình + filter hết hạn
     useEffect(() => {
         const load = async () => {
             try {
@@ -90,7 +122,12 @@ export default function KhuyenMai({ setPage }) {
                 );
                 if (!res.ok) throw new Error("Không tải được chương trình");
                 const data = await res.json();
-                setChuongTrinhs(Array.isArray(data) ? data : []);
+                const raw = Array.isArray(data) ? data : [];
+
+                // ⭐ Lọc chỉ chương trình còn hiệu lực
+                const active = raw.filter(isConHieuLuc);
+
+                setChuongTrinhs(active);
             } catch (err) {
                 console.error(err);
                 setChuongTrinhs([]);
@@ -166,10 +203,6 @@ export default function KhuyenMai({ setPage }) {
                 return;
             }
 
-            // ==========================================
-            // LƯU MÃ ĐÃ SAO CHÉP
-            // ==========================================
-
             const newList = [
                 ...copiedList,
                 ma,
@@ -189,20 +222,11 @@ export default function KhuyenMai({ setPage }) {
                 );
             }
 
-            // ==========================================
-            // THÔNG BÁO
-            // ==========================================
-
             setThongBao(`✓ Đã sao chép mã ${ma}`);
 
-            // Tự biến mất sau 1.8 giây
             setTimeout(() => {
                 setThongBao("");
             }, 1800);
-
-            // ==========================================
-            // CẬP NHẬT SỐ LƯỢT
-            // ==========================================
 
             setVouchers((old) =>
                 old.map((v) =>

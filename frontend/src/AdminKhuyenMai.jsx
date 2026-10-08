@@ -12,6 +12,7 @@ const EMPTY_FORM = {
     ngayBatDau: "",
     ngayKetThuc: "",
     trangThai: "HOAT_DONG",
+    thuongHieuId: "",   // ⭐ MỚI
 };
 
 function formatGia(gia) {
@@ -28,16 +29,44 @@ function formatDate(str) {
     }
 }
 
+/* ⭐ Trạng thái THỰC TẾ: chỉ 2 giá trị
+   - HOAT_DONG: trong khoảng + admin đang bật
+   - NGUNG_HOAT_DONG: admin tắt / hết hạn / chưa bắt đầu
+*/
+function getTrangThaiThuc(item) {
+    if (item?.trangThai === "NGUNG_HOAT_DONG") {
+        return "NGUNG_HOAT_DONG";
+    }
+
+    const now = new Date();
+
+    if (item?.ngayBatDau) {
+        const bd = new Date(item.ngayBatDau);
+        if (!Number.isNaN(bd.getTime()) && now < bd) {
+            return "NGUNG_HOAT_DONG";
+        }
+    }
+
+    if (item?.ngayKetThuc) {
+        const kt = new Date(item.ngayKetThuc);
+        if (!Number.isNaN(kt.getTime())) {
+            const hetHan = new Date(kt);
+            hetHan.setHours(23, 59, 59, 999);
+            if (now > hetHan) return "NGUNG_HOAT_DONG";
+        }
+    }
+
+    return "HOAT_DONG";
+}
+
 function getTrangThaiClass(trangThai) {
     if (trangThai === "HOAT_DONG") return "active";
-    if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
-    return "";
+    return "inactive";
 }
 
 function getTrangThaiLabel(trangThai) {
     if (trangThai === "HOAT_DONG") return "Hoạt động";
-    if (trangThai === "NGUNG_HOAT_DONG") return "Ngừng hoạt động";
-    return trangThai;
+    return "Ngừng hoạt động";
 }
 
 function readCache() {
@@ -71,6 +100,10 @@ export default function AdminKhuyenMai() {
     const [form, setForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState("");
+
+    // ⭐ MỚI: thương hiệu
+    const [thuongHieuList, setThuongHieuList] = useState([]);
+    const [apDungCho, setApDungCho] = useState("TAT_CA"); // TAT_CA | THUONG_HIEU
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
@@ -142,6 +175,14 @@ export default function AdminKhuyenMai() {
         }
     };
 
+    // ⭐ Load danh sách thương hiệu
+    useEffect(() => {
+        fetch(`${API}/thuong-hieu`)
+            .then((r) => (r.ok ? r.json() : []))
+            .then((d) => setThuongHieuList(Array.isArray(d) ? d : []))
+            .catch(() => setThuongHieuList([]));
+    }, []);
+
     useEffect(() => {
         loadDanhSach();
     }, []);
@@ -149,6 +190,7 @@ export default function AdminKhuyenMai() {
     const openCreate = () => {
         setEditing(null);
         setForm(EMPTY_FORM);
+        setApDungCho("TAT_CA");
         setFormError("");
         setShowModal(true);
     };
@@ -162,7 +204,9 @@ export default function AdminKhuyenMai() {
             ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
             ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
             trangThai: v.trangThai || "HOAT_DONG",
+            thuongHieuId: v.thuongHieu?.id || v.thuongHieuId || "",   // ⭐ nested
         });
+        setApDungCho(v.thuongHieu?.id || v.thuongHieuId ? "THUONG_HIEU" : "TAT_CA");
         setFormError("");
         setShowModal(true);
     };
@@ -172,6 +216,7 @@ export default function AdminKhuyenMai() {
         setShowModal(false);
         setEditing(null);
         setForm(EMPTY_FORM);
+        setApDungCho("TAT_CA");
         setFormError("");
     };
 
@@ -190,6 +235,9 @@ export default function AdminKhuyenMai() {
         if (!form.ngayKetThuc) return "Vui lòng chọn ngày kết thúc";
         if (new Date(form.ngayBatDau) >= new Date(form.ngayKetThuc))
             return "Ngày kết thúc phải sau ngày bắt đầu";
+        // ⭐ Nếu chọn theo thương hiệu → bắt buộc chọn hãng
+        if (apDungCho === "THUONG_HIEU" && !form.thuongHieuId)
+            return "Vui lòng chọn thương hiệu áp dụng";
         return "";
     };
 
@@ -211,6 +259,12 @@ export default function AdminKhuyenMai() {
                 ngayBatDau: form.ngayBatDau + ":00",
                 ngayKetThuc: form.ngayKetThuc + ":00",
                 trangThai: form.trangThai,
+
+                // ⭐ Gửi NESTED OBJECT (khớp entity backend)
+                thuongHieu:
+                    apDungCho === "THUONG_HIEU" && form.thuongHieuId
+                        ? { id: Number(form.thuongHieuId) }
+                        : null,
             };
 
             const url = editing
@@ -282,8 +336,11 @@ export default function AdminKhuyenMai() {
     const filtered = danhSach.filter((v) => {
         const kw = search.trim().toLowerCase();
         const matchKw = !kw || v.tenChuongTrinh?.toLowerCase().includes(kw);
+
+        const ttThuc = getTrangThaiThuc(v);
         const matchTT =
-            filterTrangThai === "TAT_CA" || v.trangThai === filterTrangThai;
+            filterTrangThai === "TAT_CA" || ttThuc === filterTrangThai;
+
         return matchKw && matchTT;
     });
 
@@ -297,9 +354,7 @@ export default function AdminKhuyenMai() {
     }, [search, filterTrangThai]);
 
     useEffect(() => {
-        setCurrentPage((page) =>
-            Math.min(page, totalPages)
-        );
+        setCurrentPage((page) => Math.min(page, totalPages));
     }, [totalPages]);
 
     const currentItems = filtered.slice(
@@ -349,6 +404,7 @@ export default function AdminKhuyenMai() {
                             <th>Giá trị</th>
                             <th>Bắt đầu</th>
                             <th>Kết thúc</th>
+                            <th>Áp dụng cho</th>
                             <th>Trạng thái</th>
                             <th>Thao tác</th>
                         </tr>
@@ -356,7 +412,7 @@ export default function AdminKhuyenMai() {
                         <tbody>
                         {[1, 2, 3, 4, 5].map((i) => (
                             <tr key={i} className="skeleton-row">
-                                {Array.from({ length: 8 }).map((_, j) => (
+                                {Array.from({ length: 9 }).map((_, j) => (
                                     <td key={j}>
                                         <div className="skeleton-bar" />
                                     </td>
@@ -364,7 +420,6 @@ export default function AdminKhuyenMai() {
                             </tr>
                         ))}
                         </tbody>
-
                     </table>
                 </div>
             )}
@@ -392,6 +447,7 @@ export default function AdminKhuyenMai() {
                             <th>Giá trị</th>
                             <th>Bắt đầu</th>
                             <th>Kết thúc</th>
+                            <th>Áp dụng cho</th>
                             <th>Trạng thái</th>
                             <th>Thao tác</th>
                         </tr>
@@ -417,14 +473,39 @@ export default function AdminKhuyenMai() {
                                 </td>
                                 <td>{formatDate(v.ngayBatDau)}</td>
                                 <td>{formatDate(v.ngayKetThuc)}</td>
+
+                                {/* ⭐ Cột áp dụng cho */}
                                 <td>
+                                    {v.thuongHieu?.tenThuongHieu ? (
                                         <span
-                                            className={`order-status ${getTrangThaiClass(
-                                                v.trangThai
-                                            )}`}
+                                            style={{
+                                                background: "#fff3f0",
+                                                color: "#e53935",
+                                                padding: "4px 10px",
+                                                borderRadius: 12,
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                whiteSpace: "nowrap",
+                                            }}
                                         >
-                                            {getTrangThaiLabel(v.trangThai)}
+                                            {v.thuongHieu.tenThuongHieu}
                                         </span>
+                                    ) : (
+                                        <span style={{ color: "#888", fontSize: 12 }}>
+                                            Tất cả SP
+                                        </span>
+                                    )}
+                                </td>
+
+                                <td>
+                                    {(() => {
+                                        const ttThuc = getTrangThaiThuc(v);
+                                        return (
+                                            <span className={`order-status ${getTrangThaiClass(ttThuc)}`}>
+                                                {getTrangThaiLabel(ttThuc)}
+                                            </span>
+                                        );
+                                    })()}
                                 </td>
                                 <td style={{ whiteSpace: "nowrap" }}>
                                     <button
@@ -446,7 +527,7 @@ export default function AdminKhuyenMai() {
                         ))}
                         {filtered.length === 0 && (
                             <tr>
-                                <td colSpan={8} className="admin-empty">
+                                <td colSpan={9} className="admin-empty">
                                     Không có chương trình nào
                                 </td>
                             </tr>
@@ -454,7 +535,7 @@ export default function AdminKhuyenMai() {
 
                         <tr>
                             <td
-                                colSpan={8}
+                                colSpan={9}
                                 style={{
                                     textAlign: "center",
                                     padding: "12px"
@@ -600,7 +681,6 @@ export default function AdminKhuyenMai() {
                                 gap: 14,
                             }}
                         >
-                            {/* ⭐ ID — CHỈ HIỂN THỊ KHI SỬA */}
                             {editing && (
                                 <div style={{ gridColumn: "1 / -1" }}>
                                     <label
@@ -753,6 +833,52 @@ export default function AdminKhuyenMai() {
                                 />
                             </div>
 
+                            {/* ⭐ ÁP DỤNG CHO */}
+                            <div style={{ gridColumn: "1 / -1" }}>
+                                <label
+                                    style={{
+                                        display: "block",
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        marginBottom: 6,
+                                    }}
+                                >
+                                    Áp dụng cho
+                                </label>
+                                <select
+                                    className="price-input"
+                                    value={apDungCho}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setApDungCho(val);
+                                        if (val === "TAT_CA") {
+                                            handleChange("thuongHieuId", "");
+                                        }
+                                    }}
+                                >
+                                    <option value="TAT_CA">Tất cả sản phẩm</option>
+                                    <option value="THUONG_HIEU">Theo thương hiệu</option>
+                                </select>
+
+                                {apDungCho === "THUONG_HIEU" && (
+                                    <select
+                                        className="price-input"
+                                        style={{ marginTop: 10 }}
+                                        value={form.thuongHieuId}
+                                        onChange={(e) =>
+                                            handleChange("thuongHieuId", e.target.value)
+                                        }
+                                    >
+                                        <option value="">-- Chọn thương hiệu --</option>
+                                        {thuongHieuList.map((th) => (
+                                            <option key={th.id} value={th.id}>
+                                                {th.tenThuongHieu}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
                             <div>
                                 <label
                                     style={{
@@ -780,7 +906,6 @@ export default function AdminKhuyenMai() {
                                     <option value="NGUNG_HOAT_DONG">
                                         Ngừng hoạt động
                                     </option>
-
                                 </select>
                             </div>
                         </div>

@@ -36,4 +36,9 @@ public class ChuongTrinhGiamGia {
 
     @Column(name = "trang_thai", nullable = false)
     private String trangThai;
+
+    // ⭐ MỚI: Thương hiệu áp dụng (null = tất cả sản phẩm)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "thuong_hieu_id")
+    private ThuongHieu thuongHieu;
 }
