@@ -685,8 +685,9 @@ function App() {
                                                        setPage={setPage} khuyenMaiActive={khuyenMaiActive} />}
 
             {page === "khuyen-mai" && <KhuyenMai setPage={setPage} />}
-            {page === "contact" && <Contact setPage={setPage} />}
-
+            {page === "contact" && (
+                <Contact setPage={setPage} language={language} />
+            )}
             {page === "checkout" && <Checkout gioHang={gioHangDuocChon} tatCaGioHang={gioHang}
                                               gioHangId={gioHangId} tongTien={tongTienDuocChon} setPage={setPage}
                                               setGioHang={setGioHang} setSelectedVariantIds={setSelectedVariantIds}

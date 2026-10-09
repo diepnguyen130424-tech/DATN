@@ -17,7 +17,7 @@ const FAQS = [
     "Tôi cần hỗ trợ thêm, liên hệ như thế nào?",
 ];
 
-function Contact({ setPage }) {
+function Contact({ setPage, language = "vi" }) {
     const [form, setForm] = useState({
         hoTen: "",
         email: "",
@@ -125,8 +125,19 @@ function Contact({ setPage }) {
                         <div><i>⌖</i><span><b>Địa chỉ</b><small>Hà Nội, Việt Nam</small></span></div>
                         <div><i>☎</i><span><b>Hotline</b><small>0123 456 789</small></span></div>
                         <div><i>✉</i><span><b>Email</b><small>support@fshop.vn</small></span></div>
-                        <div><i>◷</i><span><b>Thời gian làm việc</b><small>08:00 - 22:00 (Tất cả các ngày trong tuần)</small></span></div>
-                    </div>
+                        <div>
+                            <i>◷</i>
+                            <span>
+        <b>
+            {language === "en" ? "Business hours" : "Thời gian làm việc"}
+        </b>
+        <small>
+            {language === "en"
+                ? "08:00 - 22:00 (Every day of the week)"
+                : "08:00 - 22:00 (Tất cả các ngày trong tuần)"}
+        </small>
+    </span>
+                        </div>                    </div>
 
                     <div className="contact-map">
                         <iframe title="Bản đồ FShop" src="https://www.google.com/maps?q=H%C3%A0%20N%E1%BB%99i%2C%20Vi%E1%BB%87t%20Nam&output=embed" loading="lazy" />
