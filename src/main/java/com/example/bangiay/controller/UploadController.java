@@ -21,7 +21,7 @@ public class UploadController {
     public static final Path UPLOAD_ROOT = Paths.get("uploads").toAbsolutePath().normalize();
 
     private static final long MAX_SIZE = 5L * 1024 * 1024;
-    private static final Set<String> FOLDERS = Set.of("thuong-hieu", "danh-muc");
+    private static final Set<String> FOLDERS = Set.of("thuong-hieu", "danh-muc", "danh-gia");
     private static final Map<String, String> EXT = Map.of(
             "image/png", ".png",
             "image/jpeg", ".jpg",

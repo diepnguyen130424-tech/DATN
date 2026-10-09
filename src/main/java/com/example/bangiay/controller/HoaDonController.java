@@ -198,6 +198,17 @@ public class HoaDonController {
         );
     }
 
+    /** Khách xác nhận đã nhận hàng (đơn phải ở trạng thái DA_GIAO) */
+    @PutMapping("/{id}/xac-nhan-nhan-hang")
+    public ResponseEntity<HoaDon> xacNhanNhanHang(
+            @PathVariable Long id,
+            @RequestParam Long khachHangId
+    ) {
+        return ResponseEntity.ok(
+                hoaDonService.xacNhanDaNhanHang(id, khachHangId)
+        );
+    }
+
     @PostMapping("/tao-tai-quay")
     public ResponseEntity<?> taoHoaDonTaiQuay(@RequestBody TaoHoaDonTaiQuayRequest req) {
         return ResponseEntity.ok(hoaDonService.taoHoaDonTaiQuay(req));

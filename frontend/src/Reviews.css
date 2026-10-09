@@ -1,0 +1,109 @@
+/* ===== Sao ===== */
+.rv-stars { position: relative; display: inline-block; line-height: 1; letter-spacing: 2px; white-space: nowrap; }
+.rv-stars-bg { color: #d6dae1; }
+.rv-stars-fg { position: absolute; left: 0; top: 0; overflow: hidden; color: #f5a623; white-space: nowrap; }
+
+/* ===== Khối đánh giá ở trang chi tiết ===== */
+.rv-section { margin: 40px 0 20px; padding: 26px; background: #fff; border: 1px solid #e6e9ef; border-radius: 16px; }
+.rv-section h2 { margin: 0 0 18px; font-size: 20px; }
+.rv-muted { color: #7a8494; font-size: 14px; margin: 8px 0; }
+.rv-empty { display: flex; align-items: center; gap: 14px; padding: 22px; background: #f7f8fa; border-radius: 12px; color: #5f6b7a; }
+.rv-empty span { font-size: 30px; color: #f5a623; }
+.rv-empty p { margin: 0; }
+
+.rv-summary { display: flex; flex-wrap: wrap; gap: 22px; align-items: center; padding: 20px; background: #fffaf3; border: 1px solid #fde6c4; border-radius: 12px; }
+.rv-score { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 120px; }
+.rv-score strong { font-size: 38px; line-height: 1; color: #d97706; }
+.rv-score span { font-size: 13px; color: #7a8494; }
+.rv-filters { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; min-width: 240px; }
+.rv-filters button { border: 1px solid #e0e4ea; background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 13px; cursor: pointer; color: #374151; }
+.rv-filters button:hover { border-color: #111827; }
+.rv-filters button.active { background: #111827; border-color: #111827; color: #fff; }
+
+.rv-list { margin-top: 8px; }
+.rv-item { display: flex; gap: 14px; padding: 20px 0; border-bottom: 1px solid #edf0f4; }
+.rv-item:last-child { border-bottom: 0; }
+.rv-avatar { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #111827; color: #fff; font-weight: 800; }
+.rv-body { min-width: 0; flex: 1; }
+.rv-name { display: block; font-size: 13px; margin-bottom: 4px; color: #1f2937; }
+.rv-meta { margin-top: 5px; font-size: 12px; color: #8a93a3; }
+.rv-text { margin: 10px 0 0; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; color: #1f2937; }
+.rv-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.rv-images button { padding: 0; border: 1px solid #e6e9ef; border-radius: 8px; overflow: hidden; width: 72px; height: 72px; cursor: zoom-in; background: #f3f4f6; }
+.rv-images img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rv-reply { margin-top: 12px; padding: 12px 14px; background: #f5f6f8; border-left: 3px solid #111827; border-radius: 6px; }
+.rv-reply strong { font-size: 13px; }
+.rv-reply p { margin: 5px 0 0; font-size: 13px; line-height: 1.55; color: #374151; white-space: pre-wrap; }
+.rv-more { display: block; margin: 12px auto 0; padding: 10px 24px; border: 1px solid #111827; border-radius: 10px; background: #fff; font-weight: 700; cursor: pointer; }
+.rv-more:hover { background: #111827; color: #fff; }
+.rv-lightbox { position: fixed; inset: 0; z-index: 3000; background: rgba(0, 0, 0, 0.82); display: grid; place-items: center; padding: 24px; cursor: zoom-out; }
+.rv-lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; }
+
+/* ===== Modal viết đánh giá ===== */
+.rv-modal-backdrop { position: fixed; inset: 0; z-index: 2500; background: rgba(17, 24, 39, 0.55); display: grid; place-items: center; padding: 16px; overflow-y: auto; }
+.rv-modal { width: 100%; max-width: 560px; background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25); }
+.rv-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.rv-modal-head h3 { margin: 0; font-size: 19px; }
+.rv-modal-head button { border: 0; background: transparent; font-size: 28px; line-height: 1; cursor: pointer; color: #6b7280; }
+.rv-modal-product { display: flex; gap: 12px; align-items: center; padding: 12px; background: #f7f8fa; border-radius: 12px; }
+.rv-modal-thumb { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 10px; background: #fff; display: grid; place-items: center; overflow: hidden; border: 1px solid #e6e9ef; }
+.rv-modal-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.rv-modal-product strong { display: block; font-size: 14px; }
+.rv-modal-product span, .rv-modal-product small { display: block; margin-top: 2px; font-size: 12px; color: #7a8494; }
+
+.rv-pick { display: flex; align-items: center; gap: 14px; margin: 18px 0 12px; flex-wrap: wrap; }
+.rv-pick > span { font-size: 14px; font-weight: 700; }
+.rv-pick-stars { display: flex; align-items: center; gap: 2px; }
+.rv-pick-stars button { border: 0; background: transparent; font-size: 32px; line-height: 1; color: #d6dae1; cursor: pointer; padding: 0 2px; }
+.rv-pick-stars button.on { color: #f5a623; }
+.rv-pick-stars em { margin-left: 10px; font-style: normal; font-size: 14px; font-weight: 700; color: #d97706; }
+
+.rv-textarea { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #d9dde4; border-radius: 10px; font: inherit; font-size: 14px; resize: vertical; }
+.rv-textarea:focus { outline: 2px solid #111827; outline-offset: 0; border-color: transparent; }
+.rv-count { text-align: right; font-size: 11px; color: #9aa2af; margin-top: 3px; }
+
+.rv-upload { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.rv-thumb { position: relative; width: 74px; height: 74px; border-radius: 10px; overflow: hidden; border: 1px solid #e6e9ef; }
+.rv-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.rv-thumb button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border: 0; border-radius: 50%; background: rgba(17, 24, 39, 0.75); color: #fff; line-height: 1; cursor: pointer; }
+.rv-add-photo { height: 74px; padding: 0 16px; border: 1px dashed #9aa2af; border-radius: 10px; background: #fafbfc; font-size: 13px; cursor: pointer; color: #374151; }
+.rv-add-photo:disabled { opacity: 0.6; cursor: progress; }
+
+.rv-error { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #fff5f5; color: #b42318; font-size: 13px; }
+.rv-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.rv-btn-ghost, .rv-btn-primary { border-radius: 10px; padding: 11px 22px; font-weight: 800; cursor: pointer; font-size: 14px; }
+.rv-btn-ghost { border: 1px solid #d1d5db; background: #fff; color: #374151; }
+.rv-btn-primary { border: 0; background: #111827; color: #fff; }
+.rv-btn-primary:disabled, .rv-btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ===== Trang "Đơn hàng của tôi": xác nhận nhận hàng + nút đánh giá ===== */
+.order-receive-banner { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #fff8e8; border: 1px solid #fde1a6; }
+.order-receive-banner > span { font-size: 24px; }
+.order-receive-banner > div { flex: 1; min-width: 200px; }
+.order-receive-banner strong { display: block; font-size: 14px; color: #1f2937; }
+.order-receive-banner p { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: #6b7280; }
+.order-receive-banner button { border: 0; border-radius: 10px; padding: 11px 18px; background: #111827; color: #fff; font-weight: 800; cursor: pointer; }
+.order-receive-banner button:disabled { opacity: 0.6; cursor: progress; }
+.order-receive-banner.done { background: #effaf3; border-color: #b7e4c7; }
+.order-receive-banner.done > span { color: #15803d; font-weight: 800; }
+
+.order-need-confirm { font-style: normal; font-size: 11px; font-weight: 700; color: #b45309; background: #fff3d6; border-radius: 999px; padding: 3px 9px; }
+.order-review-btn { margin-top: 8px; border: 1px solid #111827; border-radius: 8px; background: #fff; padding: 6px 12px; font-size: 12px; font-weight: 800; cursor: pointer; }
+.order-review-btn:hover { background: #111827; color: #fff; }
+.order-reviewed { display: flex !important; align-items: center; gap: 6px; margin-top: 8px !important; color: #15803d !important; font-weight: 700; }
+
+/* ===== Điểm sao thật ===== */
+.rv-jump { border: 0; background: transparent; padding: 0 0 0 6px; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; }
+.rv-hint { margin: 0 0 10px; padding: 9px 12px; border-radius: 8px; background: #fff8e8; color: #92400e; font-size: 13px; line-height: 1.5; }
+.rv-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.rv-chips button { border: 1px solid #e0e4ea; background: #f7f8fa; border-radius: 999px; padding: 5px 11px; font-size: 12px; cursor: pointer; color: #374151; }
+.rv-chips button:hover { border-color: #111827; background: #fff; }
+
+/* ===== Thông báo + xác nhận ngay trong trang (thay cho alert/confirm) ===== */
+.rv-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 4000; max-width: calc(100% - 32px); padding: 13px 20px; border-radius: 12px; background: #111827; color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3); animation: rv-toast-in .25s ease; }
+.rv-toast.error { background: #b42318; }
+@keyframes rv-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.order-confirm-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.order-confirm-inline span { font-size: 13px; font-weight: 700; color: #1f2937; }
+.order-receive-banner .order-confirm-inline button.ghost { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+.order-receive-banner .order-review-now { background: #15803d; }

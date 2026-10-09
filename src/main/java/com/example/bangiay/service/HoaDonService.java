@@ -8,7 +8,9 @@ import com.example.bangiay.repository.*;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -62,6 +64,13 @@ public class HoaDonService {
 
 
     public HoaDon save(HoaDon hoaDon) {
+
+        // Không để PUT cả object làm mất thời điểm khách đã xác nhận nhận hàng
+        if (hoaDon.getId() != null && hoaDon.getNgayNhanHang() == null) {
+            hoaDonRepository.findById(hoaDon.getId()).ifPresent(cu ->
+                    hoaDon.setNgayNhanHang(cu.getNgayNhanHang())
+            );
+        }
 
         if (hoaDon.getNgayLap() == null) {
             hoaDon.setNgayLap(
@@ -1538,6 +1547,74 @@ public class HoaDonService {
 
 
         return hoaDonDaLuu;
+    }
+
+
+    // =========================================================
+    // KHÁCH XÁC NHẬN ĐÃ NHẬN HÀNG
+    // =========================================================
+
+    @Transactional
+    public HoaDon xacNhanDaNhanHang(Long id, Long khachHangId) {
+
+        HoaDon hoaDon = hoaDonRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
+
+        if (hoaDon.getKhachHang() == null
+                || khachHangId == null
+                || !hoaDon.getKhachHang().getId().equals(khachHangId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Bạn không có quyền xác nhận đơn hàng này");
+        }
+
+        if (!"DA_GIAO".equalsIgnoreCase(hoaDon.getTrangThai())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Chỉ xác nhận được khi đơn hàng đã giao");
+        }
+
+        // Bấm lại nhiều lần vẫn an toàn
+        if (hoaDon.getNgayNhanHang() != null) {
+            return hoaDon;
+        }
+
+        return danhDauDaNhan(hoaDon, "Khách hàng đã xác nhận nhận hàng");
+    }
+
+    // Chạy tự động mỗi giờ: đơn DA_GIAO quá soNgay ngày mà khách chưa xác nhận
+    @Transactional
+    public int tuDongXacNhanNhanHang(int soNgay) {
+
+        LocalDateTime moc = LocalDateTime.now().minusDays(soNgay);
+
+        List<HoaDon> dsDon = hoaDonRepository
+                .findByTrangThaiAndNgayNhanHangIsNullAndNgayCapNhatBefore("DA_GIAO", moc);
+
+        for (HoaDon hoaDon : dsDon) {
+            danhDauDaNhan(hoaDon,
+                    "Hệ thống tự động xác nhận đã nhận hàng sau " + soNgay + " ngày");
+        }
+
+        return dsDon.size();
+    }
+
+    private HoaDon danhDauDaNhan(HoaDon hoaDon, String ghiChu) {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        hoaDon.setNgayNhanHang(now);
+        hoaDon.setNgayCapNhat(now);
+
+        HoaDon daLuu = hoaDonRepository.save(hoaDon);
+
+        LichSuHoaDon lichSu = new LichSuHoaDon();
+        lichSu.setHoaDon(daLuu);
+        lichSu.setTrangThai("DA_GIAO");
+        lichSu.setThoiGian(now);
+        lichSu.setGhiChu(ghiChu);
+        lichSuHoaDonRepository.save(lichSu);
+
+        return daLuu;
     }
 
 }

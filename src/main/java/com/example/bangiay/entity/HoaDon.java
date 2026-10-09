@@ -64,4 +64,8 @@ public class HoaDon {
 
     @Column(name = "ngay_cap_nhat")
     private LocalDateTime ngayCapNhat;
+
+    /** Thời điểm khách xác nhận đã nhận hàng (hoặc hệ thống tự xác nhận sau 7 ngày). null = chưa xác nhận */
+    @Column(name = "ngay_nhan_hang")
+    private LocalDateTime ngayNhanHang;
 }
