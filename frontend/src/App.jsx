@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
+import LanguageSwitcher from "./LanguageSwitcher";
 import "./App.css";
 import "./Auth.css";
 import "./Cart.css";
@@ -651,6 +652,7 @@ function App() {
 
     return (
         <div className="fshop">
+            <LanguageSwitcher />
             <Header page={page} setPage={setPage} search={search} setSearch={setSearch}
                     tongSoLuong={tongSoLuong} taiKhoan={taiKhoan} dangXuat={dangXuat}
                     thuongHieuList={thuongHieuList} danhMucList={danhMucList}
