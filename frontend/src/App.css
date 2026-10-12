@@ -11649,3 +11649,48 @@ body { background: #fff; color: #171717; }
   box-shadow: 0 6px 16px rgba(229, 80, 45, 0.3);
 }
 
+/* Cố định thanh menu màu đen khi cuộn trang */
+.site-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 9999 !important;
+  width: 100%;
+}
+
+
+
+/* Tiêu đề các cột giỏ hàng bám dưới thanh menu */
+.cart-table-head {
+  position: sticky;
+  top: 72px;
+  z-index: 20;
+  background: #fff;
+  padding-top: 10px;
+  box-shadow: 0 1px 0 #eee;
+}
+
+/* Thành tiền và nút Xóa nằm cạnh nhau */
+.cart-total-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cart-total-cell .remove-cart {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 4px 6px;
+  color: #e53935;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cart-total-cell .remove-cart:hover {
+  color: #b71c1c;
+  text-decoration: underline;
+}
+

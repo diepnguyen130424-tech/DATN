@@ -1,6 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
-import LanguageSwitcher from "./LanguageSwitcher";
 import "./App.css";
 import "./Auth.css";
 import "./Cart.css";
@@ -486,6 +485,9 @@ function App() {
 
     const themVaoGio = async (sp, ct = null, sl = 1) => {
         if (!taiKhoan) { setPage("login"); return false; }
+        const xacNhan = window.confirm(`Bạn có chắc muốn thêm sản phẩm "${sp.tenSanPham}" vào giỏ hàng?`);
+        if (!xacNhan) return false;
+        if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") { alert("Chỉ KH mới thêm giỏ"); return false; }
         if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") { alert("Chỉ KH mới thêm giỏ"); return false; }
         if (!ct?.id) { alert("SP chưa có biến thể"); return false; }
         const vId = ct.id;
@@ -652,7 +654,6 @@ function App() {
 
     return (
         <div className="fshop">
-            <LanguageSwitcher />
             <Header page={page} setPage={setPage} search={search} setSearch={setSearch}
                     tongSoLuong={tongSoLuong} taiKhoan={taiKhoan} dangXuat={dangXuat}
                     thuongHieuList={thuongHieuList} danhMucList={danhMucList}
@@ -1575,9 +1576,6 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                                 <strong className="cart-product-name">{item.sanPham.tenSanPham}</strong>
                                                 {item.chiTiet?.kichCo && <small>Size: {item.chiTiet.kichCo.tenKichCo}</small>}
                                                 {item.chiTiet?.mauSac && <small>Màu: {item.chiTiet.mauSac.tenMau}</small>}
-                                                <div className="cart-product-actions" onClick={(e) => e.stopPropagation()}>
-                                                    <button type="button" className="remove-cart" onClick={() => xoaKhoiGio(item.variantId)}>Xóa</button>
-                                                </div>
                                             </div>
                                         </div>
 
@@ -1611,9 +1609,27 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                         </div>
 
                                         {/* ⭐ THÀNH TIỀN ĐÃ SALE */}
-                                        <strong className="cart-total" style={{ color: km ? "#e53935" : undefined }}>
-                                            {formatGia(gia * item.soLuong)}
-                                        </strong>
+
+                                        <div className="cart-total-cell">
+                                            <strong
+                                                className="cart-total"
+                                                style={{ color: km ? "#e53935" : undefined }}
+                                            >
+                                                {formatGia(gia * item.soLuong)}
+                                            </strong>
+
+                                            <button
+                                                type="button"
+                                                className="remove-cart"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    xoaKhoiGio(item.variantId);
+                                                }}
+                                            >
+                                                Xóa
+                                            </button>
+                                        </div>
+
                                     </div>
                                 );
                             })}
@@ -1763,6 +1779,8 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
 
     const datHang = async () => {
         if (!gioHang || gioHang.length === 0) { alert("Chưa có sản phẩm nào"); setPage("cart"); return; }
+        const xacNhanDatHang = window.confirm("Bạn có chắc chắn muốn đặt hàng không?");
+        if (!xacNhanDatHang) return;
         if (!hoTen.trim()) { alert("Nhập họ tên"); return; }
         if (!soDienThoai.trim()) { alert("Nhập SĐT"); return; }
         if (!/^0\d{9}$/.test(soDienThoai.trim())) { alert("SĐT phải 10 số và bắt đầu bằng 0"); return; }
@@ -2052,7 +2070,7 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                             <div>
                                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>Phương thức thanh toán</label>
                                 <select className="price-input" value={phuongThuc} onChange={(e) => setPhuongThuc(e.target.value)}>
-                                    <option value="TIEN_MAT">Tiền mặt khi nhận hàng</option>
+                                    <option value="TIEN_MAT">Thanh toán khi nhận hàng (COD)</option>
                                     <option value="CHUYEN_KHOAN">Chuyển khoản</option>
                                 </select>
                                 {phuongThuc === "CHUYEN_KHOAN" && (
