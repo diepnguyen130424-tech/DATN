@@ -2301,97 +2301,246 @@ function Loading() {
             <p>Đang tải sản phẩm...</p>
         </div>
     );
-}function OrderHistory({ taiKhoan, setPage }) {
+}
+
+function OrderHistory({ taiKhoan, setPage }) {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [showOrderDetail, setShowOrderDetail] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState("");
+    const [statusFilter, setStatusFilter] = useState("ALL");
 
     const khachHangId = taiKhoan?.khachHangId;
 
     const statusMap = {
-        CHO_XAC_NHAN: { label: "Chờ xác nhận", step: 1, className: "waiting" },
-        DA_XAC_NHAN: { label: "Đã xác nhận", step: 2, className: "confirmed" },
-        DANG_CHUAN_BI: { label: "Đang chuẩn bị", step: 3, className: "preparing" },
-        DANG_GIAO: { label: "Đang giao", step: 4, className: "shipping" },
-        DA_GIAO: { label: "Đã giao", step: 5, className: "delivered" },
-        DA_HUY: { label: "Đã hủy", step: 0, className: "cancelled" },
+        CHO_XAC_NHAN: {
+            label: "Chờ xác nhận",
+            step: 1,
+            className: "waiting",
+        },
+        DA_XAC_NHAN: {
+            label: "Đã xác nhận",
+            step: 2,
+            className: "confirmed",
+        },
+        DANG_CHUAN_BI: {
+            label: "Đang chuẩn bị",
+            step: 3,
+            className: "preparing",
+        },
+        DANG_GIAO: {
+            label: "Đang giao",
+            step: 4,
+            className: "shipping",
+        },
+        DA_GIAO: {
+            label: "Đã giao",
+            step: 5,
+            className: "delivered",
+        },
+        DA_HUY: {
+            label: "Đã hủy",
+            step: 0,
+            className: "cancelled",
+        },
     };
 
     const normalizeStatus = (value) =>
-        String(value || "").trim().toUpperCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        String(value || "")
+            .trim()
+            .toUpperCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
             .replace(/[\s-]+/g, "_");
 
     const getStatus = (order) => {
-        const raw = order?.trangThai || order?.trangThaiDonHang || order?.trangThaiHoaDon;
+        const raw =
+            order?.trangThai ||
+            order?.trangThaiDonHang ||
+            order?.trangThaiHoaDon;
+
         const key = normalizeStatus(raw);
-        return statusMap[key] || { label: raw || "Chưa cập nhật", step: 1, className: "unknown" };
+
+        return statusMap[key] || {
+            label: raw || "Chưa cập nhật",
+            step: 1,
+            className: "unknown",
+        };
     };
 
-    const getOrderId = (order) => order?.id ?? order?.hoaDonId ?? order?.maHoaDon;
-    const getOrderCode = (order) => order?.maHoaDon || `#${order?.id ?? ""}`;
-    const getTotal = (order) => Number(order?.tongThanhToan ?? order?.tongTienSauGiam ?? order?.tongTienHang ?? 0);
+    const getOrderId = (order) =>
+        order?.id ?? order?.hoaDonId ?? order?.maHoaDon;
+
+    const getOrderCode = (order) =>
+        order?.maHoaDon || `#${order?.id ?? ""}`;
+
+    const getTotal = (order) =>
+        Number(
+            order?.tongThanhToan ??
+            order?.tongTienSauGiam ??
+            order?.tongTienHang ??
+            0
+        );
 
     const formatDate = (value) => {
         if (!value) return "Chưa cập nhật";
+
         const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return String(value);
-        return date.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+        if (Number.isNaN(date.getTime())) {
+            return String(value);
+        }
+
+        return date.toLocaleString("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
     };
 
+    const statusFilters = [
+        ["ALL", "Tất cả"],
+        ["CHO_XAC_NHAN", "Chờ xác nhận"],
+        ["DA_XAC_NHAN", "Đã xác nhận"],
+        ["DANG_CHUAN_BI", "Đang chuẩn bị"],
+        ["DANG_GIAO", "Đang giao"],
+        ["DA_GIAO", "Đã giao"],
+        ["DA_HUY", "Đã hủy"],
+    ];
+
+    const filteredOrders =
+        statusFilter === "ALL"
+            ? orders
+            : orders.filter((order) =>
+                normalizeStatus(
+                    order?.trangThai ||
+                    order?.trangThaiDonHang ||
+                    order?.trangThaiHoaDon
+                ) === statusFilter
+            );
+
     const openOrder = async (order) => {
-        setSelectedOrder({ ...order, __chiTiet: order.__chiTiet || [], __lichSu: order.__lichSu || [] });
+        setShowOrderDetail(true);
+        setSelectedOrder({
+            ...order,
+            __chiTiet: order.__chiTiet || [],
+            __lichSu: order.__lichSu || [],
+        });
+
         setDetailLoading(true);
         setDetailError("");
+
         const id = getOrderId(order);
-        if (!id) { setDetailLoading(false); return; }
+
+        if (!id) {
+            setDetailLoading(false);
+            return;
+        }
+
         try {
-            const [detailResponse, historyResponse] = await Promise.all([
-                fetch(`${API}/hoa-don/${id}/chi-tiet`),
-                fetch(`${API}/hoa-don/${id}/lich-su`),
-            ]);
-            const detailData = detailResponse.ok ? await detailResponse.json() : [];
-            const historyData = historyResponse.ok ? await historyResponse.json() : [];
+            const [detailResponse, historyResponse] =
+                await Promise.all([
+                    fetch(`${API}/hoa-don/${id}/chi-tiet`),
+                    fetch(`${API}/hoa-don/${id}/lich-su`),
+                ]);
+
+            const detailData = detailResponse.ok
+                ? await detailResponse.json()
+                : [];
+
+            const historyData = historyResponse.ok
+                ? await historyResponse.json()
+                : [];
+
             setSelectedOrder({
                 ...order,
-                __chiTiet: Array.isArray(detailData) ? detailData : [],
-                __lichSu: Array.isArray(historyData) ? historyData : [],
+                __chiTiet: Array.isArray(detailData)
+                    ? detailData
+                    : [],
+                __lichSu: Array.isArray(historyData)
+                    ? historyData
+                    : [],
             });
         } catch (err) {
             console.error("Lỗi tải chi tiết đơn hàng:", err);
-            setDetailError("Không tải được chi tiết đơn hàng. Bạn vẫn có thể xem trạng thái hiện tại.");
+            setDetailError(
+                "Không tải được chi tiết đơn hàng. Bạn vẫn có thể xem trạng thái hiện tại."
+            );
         } finally {
             setDetailLoading(false);
         }
     };
 
     const loadOrders = async (keepSelected = false) => {
-        if (!khachHangId) { setOrders([]); setLoading(false); return; }
+        if (!khachHangId) {
+            setOrders([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         setError("");
+
         try {
-            const response = await fetch(`${API}/hoa-don/khach-hang/${khachHangId}`);
-            if (!response.ok) throw new Error("Không thể tải danh sách đơn hàng");
+            const response = await fetch(
+                `${API}/hoa-don/khach-hang/${khachHangId}`
+            );
+
+            if (!response.ok) {
+                throw new Error("Không thể tải danh sách đơn hàng");
+            }
+
             const data = await response.json();
-            const list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
+
+            const list = Array.isArray(data)
+                ? data
+                : Array.isArray(data?.content)
+                    ? data.content
+                    : [];
+
             list.sort((a, b) => {
-                const da = new Date(a?.ngayLap || a?.ngayTao || 0).getTime();
-                const db = new Date(b?.ngayLap || b?.ngayTao || 0).getTime();
+                const da = new Date(
+                    a?.ngayLap || a?.ngayTao || 0
+                ).getTime();
+
+                const db = new Date(
+                    b?.ngayLap || b?.ngayTao || 0
+                ).getTime();
+
                 return db - da;
             });
+
             setOrders(list);
+
             if (keepSelected && selectedOrder) {
                 const selectedId = getOrderId(selectedOrder);
-                const fresh = list.find((item) => String(getOrderId(item)) === String(selectedId));
-                if (fresh) await openOrder(fresh);
+
+                const fresh = list.find(
+                    (item) =>
+                        String(getOrderId(item)) ===
+                        String(selectedId)
+                );
+
+                if (fresh && showOrderDetail) {
+                    await openOrder(fresh);
+                } else if (!fresh) {
+                    setSelectedOrder(null);
+                    setShowOrderDetail(false);
+                }
             }
         } catch (err) {
             console.error("Lỗi tải đơn hàng:", err);
-            setError(err.message || "Không thể tải đơn hàng");
-        } finally { setLoading(false); }
+            setError(
+                err.message || "Không thể tải đơn hàng"
+            );
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -2412,11 +2561,24 @@ function Loading() {
             <div className="container">
                 <div className="order-history-heading">
                     <div>
-                        <span className="section-kicker">FShop</span>
+                        <span className="section-kicker">
+                            FShop
+                        </span>
+
                         <h1>Đơn hàng của tôi</h1>
-                        <p>Theo dõi trạng thái và xem lại chi tiết các đơn hàng bạn đã đặt.</p>
+
+                        <p>
+                            Theo dõi trạng thái và xem lại chi tiết
+                            các đơn hàng bạn đã đặt.
+                        </p>
                     </div>
-                    <button type="button" className="order-refresh-btn" onClick={() => loadOrders(true)} disabled={loading}>
+
+                    <button
+                        type="button"
+                        className="order-refresh-btn"
+                        onClick={() => loadOrders(true)}
+                        disabled={loading}
+                    >
                         ↻ {loading ? "Đang tải..." : "Làm mới"}
                     </button>
                 </div>
@@ -2432,152 +2594,479 @@ function Loading() {
                         <div className="order-state-icon">!</div>
                         <h3>Không tải được đơn hàng</h3>
                         <p>{error}</p>
-                        <button type="button" onClick={() => loadOrders()}>Thử lại</button>
+
+                        <button
+                            type="button"
+                            onClick={() => loadOrders()}
+                        >
+                            Thử lại
+                        </button>
                     </div>
                 ) : orders.length === 0 ? (
                     <div className="order-state-card">
                         <div className="order-state-icon">📦</div>
                         <h3>Bạn chưa có đơn hàng nào</h3>
-                        <p>Hãy chọn sản phẩm và đặt hàng, đơn hàng của bạn sẽ xuất hiện tại đây.</p>
-                        <button type="button" onClick={() => setPage("products")}>Mua sắm ngay</button>
+                        <p>
+                            Hãy chọn sản phẩm và đặt hàng,
+                            đơn hàng của bạn sẽ xuất hiện tại đây.
+                        </p>
+
+                        <button
+                            type="button"
+                            onClick={() => setPage("products")}
+                        >
+                            Mua sắm ngay
+                        </button>
                     </div>
                 ) : (
-                    <div className="order-history-layout">
-                        <section className="order-list">
-                            {orders.map((order) => {
-                                const status = getStatus(order);
-                                const selected = String(getOrderId(selectedOrder)) === String(getOrderId(order));
-                                return (
-                                    <button type="button" key={getOrderId(order) || getOrderCode(order)}
-                                            className={`order-card ${selected ? "selected" : ""}`}
-                                            onClick={() => openOrder(order)}>
-                                        <div className="order-card-top">
-                                            <div>
-                                                <span className="order-code">{getOrderCode(order)}</span>
-                                                <span className="order-date">{formatDate(order.ngayLap || order.ngayTao)}</span>
-                                            </div>
-                                            <span className={`order-status-badge ${status.className}`}>{status.label}</span>
-                                        </div>
-                                        <div className="order-card-bottom">
-                                            <strong>{formatGia(getTotal(order))}</strong>
-                                            <span>Xem chi tiết →</span>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </section>
+                    <>
+                        {!showOrderDetail && (
+                            <div
+                                className="order-status-filters"
+                                role="group"
+                                aria-label="Lọc trạng thái đơn hàng"
+                            >
+                                {statusFilters.map(([key, label]) => {
+                                    const count =
+                                        key === "ALL"
+                                            ? orders.length
+                                            : orders.filter(
+                                                (order) =>
+                                                    normalizeStatus(
+                                                        order?.trangThai ||
+                                                        order?.trangThaiDonHang ||
+                                                        order?.trangThaiHoaDon
+                                                    ) === key
+                                            ).length;
 
-                        <section className="order-detail-card">
-                            {!selectedOrder ? (
-                                <div className="order-detail-empty">
-                                    <div>📋</div>
-                                    <h3>Chọn một đơn hàng</h3>
-                                    <p>Chọn đơn hàng bên trái để xem tiến trình giao hàng và chi tiết.</p>
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="order-detail-header">
-                                        <div>
-                                            <span className="section-kicker">Chi tiết đơn hàng</span>
-                                            <h2>{getOrderCode(selectedOrder)}</h2>
-                                            <p>Đặt lúc {formatDate(selectedOrder.ngayLap || selectedOrder.ngayTao)}</p>
-                                        </div>
-                                        <span className={`order-status-badge ${getStatus(selectedOrder).className}`}>{getStatus(selectedOrder).label}</span>
-                                    </div>
-                                    {detailError && <div className="order-inline-error">{detailError}</div>}
-                                    <div className={`order-progress ${getStatus(selectedOrder).className}`}>
-                                        {steps.map(([key, label], index) => {
-                                            const currentStep = getStatus(selectedOrder).step;
-                                            const done = currentStep > index + 1;
-                                            const current = currentStep === index + 1;
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={key}
+                                            className={`order-filter-chip ${
+                                                statusFilter === key
+                                                    ? "active"
+                                                    : ""
+                                            }`}
+                                            onClick={() =>
+                                                setStatusFilter(key)
+                                            }
+                                        >
+                                            {label}
+                                            <span>{count}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div className={`order-history-layout ${showOrderDetail ? "showing-detail" : "list-only"}`}>
+                            {!showOrderDetail && (
+                                <section className="order-list">
+                                    {filteredOrders.length ? (
+                                        filteredOrders.map((order) => {
+                                            const status = getStatus(order);
+
+                                            const selected =
+                                                String(getOrderId(selectedOrder)) ===
+                                                String(getOrderId(order));
+
                                             return (
-                                                <div className={`order-step ${done ? "done" : ""} ${current ? "current" : ""}`} key={key}>
-                                                    <span className="order-step-dot">{done ? "✓" : index + 1}</span>
-                                                    <span>{label}</span>
-                                                </div>
+                                                <button
+                                                    type="button"
+                                                    key={
+                                                        getOrderId(order) ||
+                                                        getOrderCode(order)
+                                                    }
+                                                    className={`order-card ${
+                                                        selected ? "selected" : ""
+                                                    }`}
+                                                    onClick={() =>
+                                                        openOrder(order)
+                                                    }
+                                                >
+                                                    <div className="order-card-top">
+                                                        <div>
+                                                        <span className="order-code">
+                                                            {getOrderCode(order)}
+                                                        </span>
+
+                                                            <span className="order-date">
+                                                            {formatDate(
+                                                                order.ngayLap ||
+                                                                order.ngayTao
+                                                            )}
+                                                        </span>
+                                                        </div>
+
+                                                        <span
+                                                            className={`order-status-badge ${status.className}`}
+                                                        >
+                                                        {status.label}
+                                                    </span>
+                                                    </div>
+
+                                                    <div className="order-card-bottom">
+                                                        <strong>
+                                                            {formatGia(
+                                                                getTotal(order)
+                                                            )}
+                                                        </strong>
+
+                                                        <span>
+                                                        Xem chi tiết →
+                                                    </span>
+                                                    </div>
+                                                </button>
                                             );
-                                        })}
-                                    </div>
-                                    {getStatus(selectedOrder).className === "cancelled" && (
-                                        <div className="order-cancel-note">Đơn hàng đã được hủy. Nếu cần hỗ trợ, vui lòng liên hệ cửa hàng.</div>
+                                        })
+                                    ) : (
+                                        <div className="order-filter-empty">
+                                            Không có đơn hàng ở trạng thái này.
+                                        </div>
                                     )}
-                                    <div className="order-info-grid">
-                                        <div><span>Người nhận</span><strong>{selectedOrder.khachHang?.hoTen || "Chưa cập nhật"}</strong></div>
-                                        <div><span>Số điện thoại</span><strong>{selectedOrder.khachHang?.soDienThoai || "Chưa cập nhật"}</strong></div>
-                                        <div>
-                                            <span>Địa chỉ</span>
-                                            <strong>{selectedOrder.diaChi?.diaChi || selectedOrder.diaChi?.diaChiChiTiet || selectedOrder.diaChi?.chiTiet || selectedOrder.ghiChu || "Địa chỉ giao hàng đã lưu"}</strong>
+                                </section>
+                            )}
+
+                            {showOrderDetail && selectedOrder && (
+                                <section className="order-detail-card">
+                                    <button
+                                        type="button"
+                                        className="order-back-btn"
+                                        onClick={() => {
+                                            setShowOrderDetail(false);
+                                            window.scrollTo({ top: 0, behavior: "smooth" });
+                                        }}
+                                    >
+                                        ← Quay lại danh sách đơn hàng
+                                    </button>
+                                    {!selectedOrder ? (
+                                        <div className="order-detail-empty">
+                                            <div>📋</div>
+                                            <h3>Chọn một đơn hàng</h3>
+                                            <p>
+                                                Chọn đơn hàng bên trái để xem
+                                                tiến trình và chi tiết.
+                                            </p>
                                         </div>
-                                        <div><span>Phương thức</span><strong>{selectedOrder.loaiHoaDon || "Đơn hàng online"}</strong></div>
-                                    </div>
-                                    <div className="order-section-block">
-                                        <div className="order-section-title">
-                                            <h3>Sản phẩm</h3>
-                                            {detailLoading && <span>Đang tải...</span>}
-                                        </div>
-                                        {selectedOrder.__chiTiet?.length ? (
-                                            <div className="order-item-list">
-                                                {selectedOrder.__chiTiet.map((item, index) => {
-                                                    const spct = item?.sanPhamChiTiet || {};
-                                                    const sp = spct?.sanPham || {};
-                                                    const size = spct?.kichCo?.tenKichCo || spct?.kichCo?.ten || spct?.kichCo?.size;
-                                                    const color = spct?.mauSac?.tenMauSac || spct?.mauSac?.ten;
+                                    ) : (
+                                        <>
+                                            <div className="order-detail-header">
+                                                <div>
+                                                <span className="section-kicker">
+                                                    Chi tiết đơn hàng
+                                                </span>
+
+                                                    <h2>
+                                                        {getOrderCode(selectedOrder)}
+                                                    </h2>
+
+                                                    <p>
+                                                        Đặt lúc{" "}
+                                                        {formatDate(
+                                                            selectedOrder.ngayLap ||
+                                                            selectedOrder.ngayTao
+                                                        )}
+                                                    </p>
+                                                </div>
+
+                                                <span
+                                                    className={`order-status-badge ${
+                                                        getStatus(selectedOrder).className
+                                                    }`}
+                                                >
+                                                {getStatus(selectedOrder).label}
+                                            </span>
+                                            </div>
+
+                                            {detailError && (
+                                                <div className="order-inline-error">
+                                                    {detailError}
+                                                </div>
+                                            )}
+
+                                            <div
+                                                className={`order-progress ${
+                                                    getStatus(selectedOrder).className
+                                                }`}
+                                            >
+                                                {steps.map(([key, label], index) => {
+                                                    const currentStep =
+                                                        getStatus(selectedOrder).step;
+
+                                                    const done =
+                                                        currentStep > index + 1;
+
+                                                    const current =
+                                                        currentStep === index + 1;
+
                                                     return (
-                                                        <div className="order-item-row" key={item?.id || index}>
-                                                            <div className="order-item-image">
-                                                                {sp?.hinhAnh ? <img src={anhUrl(sp.hinhAnh)} alt={sp.tenSanPham || "Sản phẩm"} /> : <span>👟</span>}
-                                                            </div>
-                                                            <div className="order-item-main">
-                                                                <strong>{sp?.tenSanPham || spct?.maSku || "Sản phẩm"}</strong>
-                                                                <span>{[size && `Size ${size}`, color && `Màu ${color}`].filter(Boolean).join(" · ") || "Chi tiết sản phẩm"}</span>
-                                                                <small>x{item?.soLuong || 0}</small>
-                                                            </div>
-                                                            <strong>{formatGia(item?.thanhTien ?? (Number(item?.donGia || 0) * Number(item?.soLuong || 0)))}</strong>
+                                                        <div
+                                                            className={`order-step ${
+                                                                done ? "done" : ""
+                                                            } ${
+                                                                current ? "current" : ""
+                                                            }`}
+                                                            key={key}
+                                                        >
+                                                        <span className="order-step-dot">
+                                                            {done ? "✓" : index + 1}
+                                                        </span>
+
+                                                            <span>{label}</span>
                                                         </div>
                                                     );
                                                 })}
                                             </div>
-                                        ) : (
-                                            <p className="order-muted">Chưa có dữ liệu chi tiết sản phẩm.</p>
-                                        )}
-                                    </div>
-                                    <div className="order-total-box">
-                                        <div><span>Tiền hàng</span><strong>{formatGia(selectedOrder.tongTienHang || 0)}</strong></div>
-                                        <div><span>Giảm giá</span><strong>-{formatGia(selectedOrder.tienGiam || 0)}</strong></div>
-                                        <div><span>Phí vận chuyển</span><strong>{formatGia(selectedOrder.phiVanChuyen || 0)}</strong></div>
-                                        <div className="grand"><span>Tổng thanh toán</span><strong>{formatGia(getTotal(selectedOrder))}</strong></div>
-                                    </div>
-                                    {selectedOrder.__lichSu?.length > 0 && (
-                                        <div className="order-section-block order-history-log">
-                                            <div className="order-section-title"><h3>Lịch sử trạng thái</h3></div>
-                                            <div className="order-log-list">
-                                                {[...selectedOrder.__lichSu]
-                                                    .sort((a, b) => new Date(b?.thoiGian || 0) - new Date(a?.thoiGian || 0))
-                                                    .map((item, index) => {
-                                                        const st = getStatus({ trangThai: item?.trangThai });
-                                                        return (
-                                                            <div className="order-log-item" key={item?.id || index}>
-                                                                <span className="order-log-dot" />
-                                                                <div>
-                                                                    <strong>{st.label}</strong>
-                                                                    <span>{formatDate(item?.thoiGian)}</span>
-                                                                    {item?.ghiChu && <p>{item.ghiChu}</p>}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
+
+                                            {getStatus(selectedOrder).className ===
+                                                "cancelled" && (
+                                                    <div className="order-cancel-note">
+                                                        Đơn hàng đã được hủy. Nếu cần hỗ trợ,
+                                                        vui lòng liên hệ cửa hàng.
+                                                    </div>
+                                                )}
+
+                                            <div className="order-info-grid">
+                                                <div>
+                                                    <span>Người nhận</span>
+                                                    <strong>
+                                                        {selectedOrder.khachHang?.hoTen ||
+                                                            "Chưa cập nhật"}
+                                                    </strong>
+                                                </div>
+
+                                                <div>
+                                                    <span>Số điện thoại</span>
+                                                    <strong>
+                                                        {selectedOrder.khachHang?.soDienThoai ||
+                                                            "Chưa cập nhật"}
+                                                    </strong>
+                                                </div>
+
+                                                <div>
+                                                    <span>Địa chỉ</span>
+                                                    <strong>
+                                                        {selectedOrder.diaChi?.diaChi ||
+                                                            selectedOrder.diaChi?.diaChiChiTiet ||
+                                                            selectedOrder.diaChi?.chiTiet ||
+                                                            selectedOrder.ghiChu ||
+                                                            "Địa chỉ giao hàng đã lưu"}
+                                                    </strong>
+                                                </div>
+
+                                                <div>
+                                                    <span>Phương thức thanh toán</span>
+                                                    <strong>
+                                                        {selectedOrder.phuongThucThanhToan ||
+                                                            selectedOrder.thanhToan?.phuongThucThanhToan ||
+                                                            selectedOrder.thanhToan?.phuongThuc ||
+                                                            selectedOrder.loaiHoaDon ||
+                                                            "Chưa cập nhật"}
+                                                    </strong>
+                                                </div>
+
+                                                <div>
+                                                    <span>Voucher</span>
+                                                    <strong>
+                                                        {selectedOrder.voucher?.maVoucher ||
+                                                            selectedOrder.voucher?.maGiamGia ||
+                                                            selectedOrder.maVoucher ||
+                                                            selectedOrder.maGiamGia ||
+                                                            "Không sử dụng"}
+                                                    </strong>
+                                                </div>
                                             </div>
-                                        </div>
+
+                                            <div className="order-section-block">
+                                                <div className="order-section-title">
+                                                    <h3>Sản phẩm</h3>
+                                                    {detailLoading && (
+                                                        <span>Đang tải...</span>
+                                                    )}
+                                                </div>
+
+                                                {selectedOrder.__chiTiet?.length ? (
+                                                    <div className="order-item-list">
+                                                        {selectedOrder.__chiTiet.map(
+                                                            (item, index) => {
+                                                                const spct =
+                                                                    item?.sanPhamChiTiet || {};
+
+                                                                const sp =
+                                                                    spct?.sanPham || {};
+
+                                                                const size =
+                                                                    spct?.kichCo?.tenKichCo ||
+                                                                    spct?.kichCo?.ten ||
+                                                                    spct?.kichCo?.size;
+
+                                                                const color =
+                                                                    spct?.mauSac?.tenMauSac ||
+                                                                    spct?.mauSac?.tenMau ||
+                                                                    spct?.mauSac?.ten;
+
+                                                                return (
+                                                                    <div
+                                                                        className="order-item-row"
+                                                                        key={item?.id || index}
+                                                                    >
+                                                                        <div className="order-item-image">
+                                                                            {sp?.hinhAnh ? (
+                                                                                <img
+                                                                                    src={anhUrl(sp.hinhAnh)}
+                                                                                    alt={
+                                                                                        sp.tenSanPham ||
+                                                                                        "Sản phẩm"
+                                                                                    }
+                                                                                />
+                                                                            ) : (
+                                                                                <span>👟</span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="order-item-main">
+                                                                            <strong>
+                                                                                {sp?.tenSanPham ||
+                                                                                    spct?.maSku ||
+                                                                                    "Sản phẩm"}
+                                                                            </strong>
+
+                                                                            <span>
+                                                                            {[
+                                                                                    size && `Size ${size}`,
+                                                                                    color && `Màu ${color}`,
+                                                                                ]
+                                                                                    .filter(Boolean)
+                                                                                    .join(" · ") ||
+                                                                                "Chi tiết sản phẩm"}
+                                                                        </span>
+
+                                                                            <small>
+                                                                                x{item?.soLuong || 0}
+                                                                            </small>
+                                                                        </div>
+
+                                                                        <strong>
+                                                                            {formatGia(
+                                                                                item?.thanhTien ??
+                                                                                Number(item?.donGia || 0) *
+                                                                                Number(item?.soLuong || 0)
+                                                                            )}
+                                                                        </strong>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p className="order-muted">
+                                                        Chưa có dữ liệu chi tiết sản phẩm.
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="order-total-box">
+                                                <div>
+                                                    <span>Tiền hàng</span>
+                                                    <strong>
+                                                        {formatGia(
+                                                            selectedOrder.tongTienHang || 0
+                                                        )}
+                                                    </strong>
+                                                </div>
+
+                                                <div>
+                                                    <span>Voucher áp dụng</span>
+                                                    <strong>
+                                                        {selectedOrder.voucher?.maVoucher ||
+                                                            selectedOrder.voucher?.maGiamGia ||
+                                                            selectedOrder.maVoucher ||
+                                                            selectedOrder.maGiamGia ||
+                                                            "Không sử dụng"}
+                                                    </strong>
+                                                </div>
+
+                                                <div>
+                                                    <span>Giảm giá</span>
+                                                    <strong>
+                                                        -{formatGia(
+                                                        selectedOrder.tienGiam || 0
+                                                    )}
+                                                    </strong>
+                                                </div>
+
+                                                <div>
+                                                    <span>Phí vận chuyển</span>
+                                                    <strong>
+                                                        {formatGia(
+                                                            selectedOrder.phiVanChuyen || 0
+                                                        )}
+                                                    </strong>
+                                                </div>
+
+                                                <div className="grand">
+                                                    <span>Tổng thanh toán</span>
+                                                    <strong>
+                                                        {formatGia(
+                                                            getTotal(selectedOrder)
+                                                        )}
+                                                    </strong>
+                                                </div>
+                                            </div>
+
+                                            {selectedOrder.__lichSu?.length > 0 && (
+                                                <div className="order-section-block order-history-log">
+                                                    <div className="order-section-title">
+                                                        <h3>Lịch sử trạng thái</h3>
+                                                    </div>
+
+                                                    <div className="order-log-list">
+                                                        {[...selectedOrder.__lichSu]
+                                                            .sort(
+                                                                (a, b) =>
+                                                                    new Date(b?.thoiGian || 0) -
+                                                                    new Date(a?.thoiGian || 0)
+                                                            )
+                                                            .map((item, index) => (
+                                                                <div
+                                                                    className="order-log-item"
+                                                                    key={item?.id || index}
+                                                                >
+                                                                    <strong>
+                                                                        {item?.trangThai ||
+                                                                            item?.tenTrangThai ||
+                                                                            "Cập nhật trạng thái"}
+                                                                    </strong>
+
+                                                                    <span>
+                                                                    {formatDate(
+                                                                        item?.thoiGian ||
+                                                                        item?.ngayTao
+                                                                    )}
+                                                                </span>
+
+                                                                    {item?.ghiChu && (
+                                                                        <p>{item.ghiChu}</p>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
-                                </>
+                                </section>
                             )}
-                        </section>
-                    </div>
+                        </div>
+                    </>
                 )}
             </div>
         </main>
     );
 }
+
+
 
 function Footer({ setPage }) {
     return (
