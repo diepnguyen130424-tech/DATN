@@ -31,4 +31,7 @@ public class DiaChi {
 
     @Column(name = "mac_dinh", nullable = false)
     private Boolean macDinh;
+
+    @Column(name = "phi_ship", nullable = false)
+    private Integer phiShip = 30000;
 }

@@ -17,7 +17,7 @@ const FAQS = [
     "Tôi cần hỗ trợ thêm, liên hệ như thế nào?",
 ];
 
-function Contact({ setPage, language = "vi" }) {
+function Contact({ setPage }) {
     const [form, setForm] = useState({
         hoTen: "",
         email: "",
@@ -128,14 +128,8 @@ function Contact({ setPage, language = "vi" }) {
                         <div>
                             <i>◷</i>
                             <span>
-        <b>
-            {language === "en" ? "Business hours" : "Thời gian làm việc"}
-        </b>
-        <small>
-            {language === "en"
-                ? "08:00 - 22:00 (Every day of the week)"
-                : "08:00 - 22:00 (Tất cả các ngày trong tuần)"}
-        </small>
+        <b>Thời gian làm việc</b>
+        <small>08:00 - 22:00 (Tất cả các ngày trong tuần)</small>
     </span>
                         </div>                    </div>
 

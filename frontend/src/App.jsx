@@ -27,12 +27,7 @@ const danhMuc = [
 
 const thuongHieu = ["Nike", "adidas", "Puma Sport", "Converse"];
 
-const ANH_THUONG_HIEU = {
-    nike: { den: "https://static.nike.com/a/images/t_web_pdp_936_v2/f_auto,u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/d3e09821-478f-4eb6-9597-aed72268365f/NIKE+FLEX+TRAIN.png", trang: "https://ash.vn/cdn/shop/files/d92eca3620053ee340820f88c1df2355_1800x.jpg?v=1764240841" },
-    adidas: { den: "https://kallos.co/cdn/shop/products/Black_EG4959_01_standard.jpg?v=1674061906&width=840", trang: "https://loadbalancer.dktvnblog.com/blog/wp-content/uploads/2025/07/gia-thanh-cua-giay-auth-chenh-lech-nhieu-so-voi-giay-fake.jpg" },
-    puma: { den: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMR9JB1zJoOlUvuSjHetbioHMvcvZpVJWgwrjAq7VnIQ8_CF0sdyYAWlje&s=10", trang: "https://myshoes.vn/image/catalog/2025/puma/puma07/giay-puma-caven-mix-nam-trang-xam-01.jpg" },
-    converse: { den: "https://www.converse.vn/media/catalog/product/0/8/0882-CON162050C000005-1.jpg", trang: "https://sneakerholicvietnam.vn/wp-content/uploads/2020/08/converse-chuck-taylor-all-star-move-white-568498c-1.jpg" },
-};
+
 
 function layTenThuongHieu(sp) {
     return String(sp?.thuongHieu?.tenThuongHieu || sp?.tenThuongHieu || "").trim().toLowerCase();
@@ -485,9 +480,6 @@ function App() {
 
     const themVaoGio = async (sp, ct = null, sl = 1) => {
         if (!taiKhoan) { setPage("login"); return false; }
-        const xacNhan = window.confirm(`Bạn có chắc muốn thêm sản phẩm "${sp.tenSanPham}" vào giỏ hàng?`);
-        if (!xacNhan) return false;
-        if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") { alert("Chỉ KH mới thêm giỏ"); return false; }
         if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") { alert("Chỉ KH mới thêm giỏ"); return false; }
         if (!ct?.id) { alert("SP chưa có biến thể"); return false; }
         const vId = ct.id;
@@ -689,7 +681,7 @@ function App() {
 
             {page === "khuyen-mai" && <KhuyenMai setPage={setPage} />}
             {page === "contact" && (
-                <Contact setPage={setPage} language={language} />
+                <Contact setPage={setPage} />
             )}
             {page === "checkout" && <Checkout gioHang={gioHangDuocChon} tatCaGioHang={gioHang}
                                               gioHangId={gioHangId} tongTien={tongTienDuocChon} setPage={setPage}
@@ -1576,6 +1568,9 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                                 <strong className="cart-product-name">{item.sanPham.tenSanPham}</strong>
                                                 {item.chiTiet?.kichCo && <small>Size: {item.chiTiet.kichCo.tenKichCo}</small>}
                                                 {item.chiTiet?.mauSac && <small>Màu: {item.chiTiet.mauSac.tenMau}</small>}
+                                                <div className="cart-product-actions" onClick={(e) => e.stopPropagation()}>
+                                                    <button type="button" className="remove-cart" onClick={() => xoaKhoiGio(item.variantId)}>Xóa</button>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -1609,27 +1604,9 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                         </div>
 
                                         {/* ⭐ THÀNH TIỀN ĐÃ SALE */}
-
-                                        <div className="cart-total-cell">
-                                            <strong
-                                                className="cart-total"
-                                                style={{ color: km ? "#e53935" : undefined }}
-                                            >
-                                                {formatGia(gia * item.soLuong)}
-                                            </strong>
-
-                                            <button
-                                                type="button"
-                                                className="remove-cart"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    xoaKhoiGio(item.variantId);
-                                                }}
-                                            >
-                                                Xóa
-                                            </button>
-                                        </div>
-
+                                        <strong className="cart-total" style={{ color: km ? "#e53935" : undefined }}>
+                                            {formatGia(gia * item.soLuong)}
+                                        </strong>
                                     </div>
                                 );
                             })}
@@ -1717,7 +1694,113 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
     const [hoTen, setHoTen] = useState("");
     const [soDienThoai, setSoDienThoai] = useState("");
     const [diaChi, setDiaChi] = useState("");
+    const [addresses, setAddresses] = useState([]);
+    const [selectedAddressId, setSelectedAddressId] = useState("");
+    const [saveAddress, setSaveAddress] = useState(false);
+    const [phiShipMoi, setPhiShipMoi] = useState(PHI_SHIP_MAC_DINH);
+    const [setAsDefault, setSetAsDefault] = useState(false);
+    const [addressModalOpen, setAddressModalOpen] = useState(false);
+    const [addingAddress, setAddingAddress] = useState(false);
+    const [savingAddress, setSavingAddress] = useState(false);
+    const [newAddress, setNewAddress] = useState({ tenNguoiNhan: "", soDienThoai: "", diaChi: "", macDinh: false, phiShip: PHI_SHIP_MAC_DINH });
     const [ghiChu, setGhiChu] = useState("");
+
+    // Tự tải thông tin tài khoản và các địa chỉ đã lưu khi mở trang thanh toán.
+    useEffect(() => {
+        const loadCustomerInfo = async () => {
+            try {
+                const tk = JSON.parse(localStorage.getItem("taiKhoan") || "null");
+                if (!tk) return;
+                let khId = Number(tk.khachHangId || 0);
+                if (!khId && tk.id) {
+                    const idRes = await fetch(`${API}/khach-hang/tai-khoan/${tk.id}/id`);
+                    if (idRes.ok) khId = Number(await idRes.json()) || 0;
+                }
+                if (!khId) return;
+                const [addrRes, customerRes] = await Promise.all([
+                    fetch(`${API}/dia-chi/khach-hang/${khId}`),
+                    fetch(`${API}/khach-hang/${khId}`),
+                ]);
+                if (customerRes.ok) {
+                    const customer = await customerRes.json();
+                    setHoTen((v) => v || customer.hoTen || "");
+                    setSoDienThoai((v) => v || customer.soDienThoai || "");
+                }
+                if (addrRes.ok) {
+                    const list = await addrRes.json();
+                    if (Array.isArray(list)) {
+                        setAddresses(list);
+                        const preferred = list.find((a) => a.macDinh) || list[0];
+                        if (preferred) {
+                            setSelectedAddressId(String(preferred.id));
+                            setHoTen((v) => v || preferred.tenNguoiNhan || "");
+                            setSoDienThoai((v) => v || preferred.soDienThoai || "");
+                            setDiaChi((v) => v || preferred.diaChi || "");
+                        }
+                    }
+                }
+            } catch (e) { console.error("Không tải được thông tin nhận hàng:", e); }
+        };
+        loadCustomerInfo();
+    }, []);
+
+    const chonDiaChiDaLuu = (id) => {
+        setSelectedAddressId(id);
+        const address = addresses.find((a) => String(a.id) === String(id));
+        if (address) {
+            setHoTen(address.tenNguoiNhan || "");
+            setSoDienThoai(address.soDienThoai || "");
+            setDiaChi(address.diaChi || "");
+        }
+    };
+
+    const chonDiaChiVaDong = (address) => {
+        if (!address) return;
+        setSelectedAddressId(String(address.id));
+        setHoTen(address.tenNguoiNhan || "");
+        setSoDienThoai(address.soDienThoai || "");
+        setDiaChi(address.diaChi || "");
+        setPhiShipMoi(Number(address.phiShip ?? PHI_SHIP_MAC_DINH));
+        setSaveAddress(false);
+        setAddressModalOpen(false);
+    };
+
+    const moThemDiaChi = () => {
+        setNewAddress({ tenNguoiNhan: hoTen || "", soDienThoai: soDienThoai || "", diaChi: "", macDinh: addresses.length === 0, phiShip: PHI_SHIP_MAC_DINH });
+        setAddingAddress(true);
+    };
+
+    const luuDiaChiMoi = async () => {
+        if (!newAddress.tenNguoiNhan.trim() || !newAddress.soDienThoai.trim() || !newAddress.diaChi.trim()) {
+            alert("Vui lòng nhập đầy đủ tên người nhận, số điện thoại và địa chỉ."); return;
+        }
+        if (!/^0\d{9}$/.test(newAddress.soDienThoai.trim())) { alert("Số điện thoại phải gồm 10 số và bắt đầu bằng 0."); return; }
+        try {
+            setSavingAddress(true);
+            const tk = JSON.parse(localStorage.getItem("taiKhoan") || "null");
+            let khId = Number(tk?.khachHangId || 0);
+            if (!khId && tk?.id) {
+                const idRes = await fetch(`${API}/khach-hang/tai-khoan/${tk.id}/id`);
+                if (idRes.ok) khId = Number(await idRes.json()) || 0;
+            }
+            if (!khId) throw new Error("Không xác định được tài khoản khách hàng. Vui lòng đăng nhập lại.");
+            const res = await fetch(`${API}/dia-chi`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ khachHang: { id: khId }, tenNguoiNhan: newAddress.tenNguoiNhan.trim(), soDienThoai: newAddress.soDienThoai.trim(), diaChi: newAddress.diaChi.trim(), macDinh: newAddress.macDinh, phiShip: Number(newAddress.phiShip) || PHI_SHIP_MAC_DINH })
+            });
+            const text = await res.text();
+            let saved = null; try { saved = text ? JSON.parse(text) : null; } catch {}
+            if (!res.ok) throw new Error(saved?.message || "Không lưu được địa chỉ mới.");
+            let list = addresses;
+            if (newAddress.macDinh) list = list.map((a) => ({ ...a, macDinh: false }));
+            const next = [...list, saved || { ...newAddress, id: `temp-${Date.now()}` }];
+            setAddresses(next);
+            chonDiaChiVaDong(next[next.length - 1]);
+            setAddingAddress(false);
+            alert("Đã lưu địa chỉ mới.");
+        } catch (e) { alert(e.message || "Có lỗi khi lưu địa chỉ."); }
+        finally { setSavingAddress(false); }
+    };
     const [phuongThuc, setPhuongThuc] = useState("TIEN_MAT");
     const [dangDatHang, setDangDatHang] = useState(false);
     const [bill, setBill] = useState(null);
@@ -1727,7 +1810,9 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
     const [checkingVoucher, setCheckingVoucher] = useState(false);
     const MAX_VOUCHER = 2;
     const coVoucherFreeship = vouchers.some(isVoucherFreeship);
-    const phiVanChuyen = coVoucherFreeship ? 0 : PHI_SHIP_MAC_DINH;
+    const diaChiDangChon = addresses.find((a) => String(a.id) === String(selectedAddressId));
+    const phiShipDiaChi = Number(diaChiDangChon?.phiShip ?? phiShipMoi ?? PHI_SHIP_MAC_DINH);
+    const phiVanChuyen = coVoucherFreeship ? 0 : phiShipDiaChi;
     const tienGiam = vouchers.reduce((s, v) => s + Number(v.tienGiam || 0), 0);
 
     // ⭐ Tính tổng tiền theo GIÁ SALE
@@ -1779,8 +1864,6 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
 
     const datHang = async () => {
         if (!gioHang || gioHang.length === 0) { alert("Chưa có sản phẩm nào"); setPage("cart"); return; }
-        const xacNhanDatHang = window.confirm("Bạn có chắc chắn muốn đặt hàng không?");
-        if (!xacNhanDatHang) return;
         if (!hoTen.trim()) { alert("Nhập họ tên"); return; }
         if (!soDienThoai.trim()) { alert("Nhập SĐT"); return; }
         if (!/^0\d{9}$/.test(soDienThoai.trim())) { alert("SĐT phải 10 số và bắt đầu bằng 0"); return; }
@@ -1823,7 +1906,24 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                 if (!r.ok) throw new Error(d?.message || d?.error || t || `Lỗi thêm SP`);
             }
 
-            // ⭐ Gửi giá sale lên backend
+            // Lưu địa chỉ mới vào sổ địa chỉ nếu khách chọn.
+            if (saveAddress) {
+                const tk = JSON.parse(localStorage.getItem("taiKhoan") || "null");
+                let khId = Number(tk?.khachHangId || 0);
+                if (!khId && tk?.id) {
+                    const idRes = await fetch(`${API}/khach-hang/tai-khoan/${tk.id}/id`);
+                    if (idRes.ok) khId = Number(await idRes.json()) || 0;
+                }
+                if (khId) {
+                    const addressRes = await fetch(`${API}/dia-chi`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ khachHang: { id: khId }, tenNguoiNhan: hoTen.trim(), soDienThoai: soDienThoai.trim(), diaChi: diaChi.trim(), macDinh: setAsDefault, phiShip: Number(phiShipMoi) || PHI_SHIP_MAC_DINH }),
+                    });
+                    if (!addressRes.ok) throw new Error("Không lưu được địa chỉ nhận hàng");
+                }
+            }
+
+            // Gửi giá sale lên backend
             const res = await fetch(`${API}/hoa-don/dat-hang/${gioHangId}`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -2060,17 +2160,21 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                 )}
                             </div>
                             <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
-                                    Địa chỉ nhận hàng <span style={{ color: "#e53935" }}>*</span>
-                                </label>
-                                <textarea className="price-input" value={diaChi} onChange={(e) => setDiaChi(e.target.value)}
-                                          placeholder="Nhập địa chỉ nhận hàng"
-                                          style={{ minHeight: "90px", paddingTop: "10px", resize: "vertical" }} />
+                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>Địa chỉ nhận hàng <span style={{ color: "#e53935" }}>*</span></label>
+                                <button type="button" onClick={() => { setAddingAddress(false); setAddressModalOpen(true); }} style={{ width: "100%", textAlign: "left", padding: "16px", border: "1px solid #eee", borderRadius: 12, background: "#fff", display: "flex", gap: 12, alignItems: "center" }}>
+                                    <span style={{ color: "#e65336", fontSize: 24 }}>⌖</span>
+                                    <span style={{ flex: 1, minWidth: 0 }}>
+                                        <span style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontWeight: 700, marginBottom: 6 }}><span>{hoTen || "Chưa có người nhận"}</span><span style={{ color: "#777", fontWeight: 400 }}>{soDienThoai}</span>{diaChiDangChon?.macDinh && <span style={{ color: "#e65336", border: "1px solid #e65336", borderRadius: 3, padding: "1px 5px", fontSize: 11 }}>Mặc định</span>}</span>
+                                        <span style={{ display: "block", color: diaChi ? "#555" : "#999", fontSize: 13, lineHeight: 1.5, overflowWrap: "anywhere" }}>{diaChi || "Chọn hoặc thêm địa chỉ giao hàng"}</span>
+                                        <span style={{ display: "block", color: "#777", fontSize: 12, marginTop: 6 }}>Phí vận chuyển: <strong style={{ color: "#e65336" }}>{phiVanChuyen === 0 ? "Miễn phí" : formatGia(phiVanChuyen)}</strong></span>
+                                    </span>
+                                    <span style={{ color: "#888", fontSize: 24 }}>›</span>
+                                </button>
                             </div>
                             <div>
                                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>Phương thức thanh toán</label>
                                 <select className="price-input" value={phuongThuc} onChange={(e) => setPhuongThuc(e.target.value)}>
-                                    <option value="TIEN_MAT">Thanh toán khi nhận hàng (COD)</option>
+                                    <option value="TIEN_MAT">Tiền mặt khi nhận hàng</option>
                                     <option value="CHUYEN_KHOAN">Chuyển khoản</option>
                                 </select>
                                 {phuongThuc === "CHUYEN_KHOAN" && (
@@ -2165,6 +2269,27 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                     </aside>
                 </div>
             </div>
+            {addressModalOpen && <div onClick={() => setAddressModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,.48)", display: "flex", justifyContent: "center", alignItems: "center", padding: 16 }}>
+                <section onClick={(e) => e.stopPropagation()} style={{ width: "min(680px, 100%)", maxHeight: "88vh", overflowY: "auto", background: "#fff", borderRadius: 14, boxShadow: "0 16px 60px rgba(0,0,0,.25)" }}>
+                    <header style={{ padding: "18px 22px", borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><h2 style={{ margin: 0, fontSize: 20 }}>Chọn địa chỉ nhận hàng</h2><button type="button" onClick={() => setAddressModalOpen(false)} aria-label="Đóng" style={{ border: 0, background: "transparent", fontSize: 26, color: "#777" }}>×</button></header>
+                    {!addingAddress ? <><div style={{ padding: 16, display: "grid", gap: 10 }}>
+                        {addresses.length === 0 && <div style={{ padding: 24, textAlign: "center", color: "#777" }}>Bạn chưa có địa chỉ nào. Hãy thêm địa chỉ mới.</div>}
+                        {addresses.map((a) => <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: 14, border: `1px solid ${String(a.id) === String(selectedAddressId) ? "#e65336" : "#e5e5e5"}`, borderRadius: 10, background: String(a.id) === String(selectedAddressId) ? "#fffaf8" : "#fff" }}>
+                            <input type="radio" name="selectedAddress" checked={String(a.id) === String(selectedAddressId)} onChange={() => chonDiaChiVaDong(a)} style={{ marginTop: 5, accentColor: "#e65336" }} />
+                            <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontWeight: 700 }}><span>{a.tenNguoiNhan}</span><span style={{ color: "#777", fontWeight: 400 }}>{a.soDienThoai}</span>{a.macDinh && <span style={{ color: "#e65336", border: "1px solid #e65336", padding: "1px 5px", borderRadius: 3, fontSize: 11 }}>Mặc định</span>}</div><div style={{ marginTop: 6, color: "#555", lineHeight: 1.5, overflowWrap: "anywhere" }}>{a.diaChi}</div><div style={{ color: "#777", fontSize: 12, marginTop: 5 }}>Phí ship: {formatGia(Number(a.phiShip ?? PHI_SHIP_MAC_DINH))}</div></div>
+                            <button type="button" onClick={() => chonDiaChiVaDong(a)} style={{ border: "1px solid #e65336", color: "#e65336", background: "#fff", borderRadius: 6, padding: "7px 12px", whiteSpace: "nowrap" }}>Chọn</button>
+                        </div>)}
+                    </div><footer style={{ padding: 16, borderTop: "1px solid #eee", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><button type="button" onClick={moThemDiaChi} style={{ padding: "11px 16px", border: "1px solid #e65336", borderRadius: 7, color: "#e65336", background: "#fff", fontWeight: 700 }}>＋ Thêm địa chỉ mới</button><button type="button" onClick={() => setAddressModalOpen(false)} style={{ padding: "11px 20px", border: 0, borderRadius: 7, color: "#fff", background: "#e65336", fontWeight: 700 }}>Xong</button></footer></> : <div style={{ padding: 20, display: "grid", gap: 14 }}>
+                        <h3 style={{ margin: 0 }}>Thêm địa chỉ mới</h3>
+                        <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Họ tên người nhận<input className="price-input" value={newAddress.tenNguoiNhan} onChange={(e) => setNewAddress({ ...newAddress, tenNguoiNhan: e.target.value })} placeholder="Nhập họ tên" /></label>
+                        <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Số điện thoại<input className="price-input" value={newAddress.soDienThoai} onChange={(e) => setNewAddress({ ...newAddress, soDienThoai: e.target.value })} placeholder="Số điện thoại 10 số" /></label>
+                        <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Địa chỉ chi tiết<textarea className="price-input" value={newAddress.diaChi} onChange={(e) => setNewAddress({ ...newAddress, diaChi: e.target.value })} placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố" rows={3} style={{ resize: "vertical" }} /></label>
+                        <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Phí vận chuyển (VNĐ)<input className="price-input" type="number" min="0" step="1000" value={newAddress.phiShip} onChange={(e) => setNewAddress({ ...newAddress, phiShip: Math.max(0, Number(e.target.value)) })} /></label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><input type="checkbox" checked={newAddress.macDinh} onChange={(e) => setNewAddress({ ...newAddress, macDinh: e.target.checked })} /> Đặt làm địa chỉ mặc định</label>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}><button type="button" onClick={() => setAddingAddress(false)} style={{ padding: "10px 16px", border: "1px solid #ddd", borderRadius: 7, background: "#fff" }}>Quay lại</button><button type="button" disabled={savingAddress} onClick={luuDiaChiMoi} style={{ padding: "10px 18px", border: 0, borderRadius: 7, color: "#fff", background: "#e65336", fontWeight: 700, opacity: savingAddress ? .6 : 1 }}>{savingAddress ? "Đang lưu..." : "Lưu địa chỉ"}</button></div>
+                    </div>}
+                </section>
+            </div>}
         </main>
     );
 }

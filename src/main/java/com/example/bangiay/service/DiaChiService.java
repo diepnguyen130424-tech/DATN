@@ -24,6 +24,11 @@ public class DiaChiService {
     }
 
     public DiaChi save(DiaChi diaChi) {
+        if (diaChi.getPhiShip() == null || diaChi.getPhiShip() < 0) diaChi.setPhiShip(30000);
+        if (Boolean.TRUE.equals(diaChi.getMacDinh()) && diaChi.getKhachHang() != null && diaChi.getKhachHang().getId() != null) {
+            diaChiRepository.findByKhachHang_Id(diaChi.getKhachHang().getId()).forEach(a -> { a.setMacDinh(false); diaChiRepository.save(a); });
+        }
+        if (diaChi.getMacDinh() == null) diaChi.setMacDinh(false);
         return diaChiRepository.save(diaChi);
     }
 
@@ -34,8 +39,11 @@ public class DiaChiService {
         existing.setTenNguoiNhan(diaChi.getTenNguoiNhan());
         existing.setSoDienThoai(diaChi.getSoDienThoai());
         existing.setDiaChi(diaChi.getDiaChi());
-        existing.setMacDinh(diaChi.getMacDinh());
-
+        if (diaChi.getPhiShip() != null && diaChi.getPhiShip() >= 0) existing.setPhiShip(diaChi.getPhiShip());
+        if (Boolean.TRUE.equals(diaChi.getMacDinh())) {
+            diaChiRepository.findByKhachHang_Id(existing.getKhachHang().getId()).forEach(a -> { a.setMacDinh(false); diaChiRepository.save(a); });
+        }
+        existing.setMacDinh(diaChi.getMacDinh() != null && diaChi.getMacDinh());
         return diaChiRepository.save(existing);
     }
 
