@@ -37,7 +37,12 @@ public class ChuongTrinhGiamGia {
     @Column(name = "trang_thai", nullable = false)
     private String trangThai;
 
-    // ⭐ MỚI: Thương hiệu áp dụng (null = tất cả sản phẩm)
+    // ⭐ MỚI: phạm vi áp dụng
+    // TAT_CA | THUONG_HIEU | SAN_PHAM | BIEN_THE
+    @Column(name = "pham_vi_ap_dung", nullable = false)
+    private String phamViApDung;
+
+    // ⭐ Thương hiệu áp dụng (null = tất cả sản phẩm)
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "thuong_hieu_id")
     private ThuongHieu thuongHieu;

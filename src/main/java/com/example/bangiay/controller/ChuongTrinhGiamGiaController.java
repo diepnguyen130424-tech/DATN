@@ -1,7 +1,7 @@
 package com.example.bangiay.controller;
 
-import com.example.bangiay.entity.ChuongTrinhGiamGia;
-import com.example.bangiay.entity.SanPhamGiamGia;
+import com.example.bangiay.dto.ChuongTrinhGiamGiaRequest;
+import com.example.bangiay.dto.ChuongTrinhGiamGiaResponse;
 import com.example.bangiay.service.ChuongTrinhGiamGiaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,99 +18,40 @@ import java.util.List;
 })
 public class ChuongTrinhGiamGiaController {
 
-    private final ChuongTrinhGiamGiaService chuongTrinhGiamGiaService;
+    private final ChuongTrinhGiamGiaService service;
+
+    // ⭐ Public cho khách hàng — đặt TRƯỚC /{id}
+    @GetMapping("/dang-hoat-dong")
+    public ResponseEntity<List<ChuongTrinhGiamGiaResponse>> getDangHoatDong() {
+        return ResponseEntity.ok(service.getDangHoatDong());
+    }
 
     @GetMapping
-    public ResponseEntity<List<ChuongTrinhGiamGia>> getAll() {
-        return ResponseEntity.ok(
-                chuongTrinhGiamGiaService.getAll()
-        );
+    public ResponseEntity<List<ChuongTrinhGiamGiaResponse>> getAll() {
+        return ResponseEntity.ok(service.getAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ChuongTrinhGiamGia> getById(
-            @PathVariable Long id) {
-
-        return ResponseEntity.ok(
-                chuongTrinhGiamGiaService.getById(id)
-        );
-    }
-
-    @GetMapping("/trang-thai/{trangThai}")
-    public ResponseEntity<List<ChuongTrinhGiamGia>> getByTrangThai(
-            @PathVariable String trangThai) {
-
-        return ResponseEntity.ok(
-                chuongTrinhGiamGiaService.getByTrangThai(trangThai)
-        );
+    public ResponseEntity<ChuongTrinhGiamGiaResponse> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(service.getById(id));
     }
 
     @PostMapping
-    public ResponseEntity<ChuongTrinhGiamGia> create(
-            @RequestBody ChuongTrinhGiamGia chuongTrinhGiamGia) {
-
-        return ResponseEntity.ok(
-                chuongTrinhGiamGiaService.save(chuongTrinhGiamGia)
-        );
+    public ResponseEntity<ChuongTrinhGiamGiaResponse> create(
+            @RequestBody ChuongTrinhGiamGiaRequest req) {
+        return ResponseEntity.ok(service.save(req));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ChuongTrinhGiamGia> update(
+    public ResponseEntity<ChuongTrinhGiamGiaResponse> update(
             @PathVariable Long id,
-            @RequestBody ChuongTrinhGiamGia chuongTrinhGiamGia) {
-
-        chuongTrinhGiamGia.setId(id);
-
-        return ResponseEntity.ok(
-                chuongTrinhGiamGiaService.save(chuongTrinhGiamGia)
-        );
+            @RequestBody ChuongTrinhGiamGiaRequest req) {
+        return ResponseEntity.ok(service.update(id, req));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(
-            @PathVariable Long id) {
-
-        chuongTrinhGiamGiaService.delete(id);
-
-        return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/{chuongTrinhId}/san-pham")
-    public ResponseEntity<List<SanPhamGiamGia>> getSanPhamByChuongTrinh(
-            @PathVariable Long chuongTrinhId) {
-
-        return ResponseEntity.ok(
-                chuongTrinhGiamGiaService
-                        .getSanPhamByChuongTrinh(chuongTrinhId)
-        );
-    }
-
-    @GetMapping("/san-pham/{sanPhamId}")
-    public ResponseEntity<List<SanPhamGiamGia>> getChuongTrinhBySanPham(
-            @PathVariable Long sanPhamId) {
-
-        return ResponseEntity.ok(
-                chuongTrinhGiamGiaService
-                        .getChuongTrinhBySanPham(sanPhamId)
-        );
-    }
-
-    @PostMapping("/san-pham")
-    public ResponseEntity<SanPhamGiamGia> createSanPhamGiamGia(
-            @RequestBody SanPhamGiamGia sanPhamGiamGia) {
-
-        return ResponseEntity.ok(
-                chuongTrinhGiamGiaService
-                        .saveSanPhamGiamGia(sanPhamGiamGia)
-        );
-    }
-
-    @DeleteMapping("/san-pham/{id}")
-    public ResponseEntity<Void> deleteSanPhamGiamGia(
-            @PathVariable Long id) {
-
-        chuongTrinhGiamGiaService.deleteSanPhamGiamGia(id);
-
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        service.delete(id);
         return ResponseEntity.noContent().build();
     }
 }

@@ -111,31 +111,74 @@ function isVoucherFreeship(v) {
 }
 
 /* ⭐ Tìm KM phù hợp với 1 sản phẩm */
-function timKhuyenMaiChoSP(sanPham, khuyenMaiActive) {
-    if (!Array.isArray(khuyenMaiActive) || khuyenMaiActive.length === 0) {
-        return null;
+/* ⭐ Tính KM cho 1 SP/biến thể — hỗ trợ cả 4 phạm vi */
+function tinhKhuyenMai({ giaGoc, sanPhamId, sanPhamChiTietId, thuongHieuId, kmList }) {
+    if (!Array.isArray(kmList) || kmList.length === 0) return null;
+    if (!giaGoc || giaGoc <= 0) return null;
+
+    const uuTien = { BIEN_THE: 4, SAN_PHAM: 3, THUONG_HIEU: 2, TAT_CA: 1 };
+    let best = null;
+
+    for (const km of kmList) {
+        const pv = km.phamViApDung || "TAT_CA";
+        let match = false;
+
+        if (pv === "BIEN_THE" && sanPhamChiTietId) {
+            match = (km.bienThes || []).some(
+                (x) => String(x.sanPhamChiTietId) === String(sanPhamChiTietId)
+            );
+        } else if (pv === "SAN_PHAM" && sanPhamId) {
+            match = (km.sanPhams || []).some(
+                (x) => String(x.sanPhamId) === String(sanPhamId)
+            );
+        } else if (pv === "THUONG_HIEU" && thuongHieuId) {
+            match = String(km.thuongHieuId) === String(thuongHieuId);
+        } else if (pv === "TAT_CA") {
+            match = true;
+        }
+
+        if (!match) continue;
+
+        let soTienGiam =
+            String(km.loaiGiam).toUpperCase() === "PHAN_TRAM"
+                ? (giaGoc * Number(km.giaTriGiam)) / 100
+                : Number(km.giaTriGiam);
+        if (soTienGiam > giaGoc) soTienGiam = giaGoc;
+        soTienGiam = Math.round(soTienGiam);
+
+        const cand = {
+            km,
+            giaGoc,
+            soTienGiam,
+            giaSauGiam: giaGoc - soTienGiam,
+            doUuTien: uuTien[pv] || 0,
+        };
+
+        if (
+            !best ||
+            cand.doUuTien > best.doUuTien ||
+            (cand.doUuTien === best.doUuTien && cand.soTienGiam > best.soTienGiam)
+        ) {
+            best = cand;
+        }
     }
-    const thuongHieuIdSP = sanPham?.thuongHieu?.id;
-
-    // Ưu tiên 1: KM theo đúng thương hiệu
-    const kmTheoHang = khuyenMaiActive.find(
-        (km) => km.thuongHieuId && Number(km.thuongHieuId) === Number(thuongHieuIdSP)
-    );
-    if (kmTheoHang) return kmTheoHang;
-
-    // Ưu tiên 2: KM tất cả SP
-    const kmTatCa = khuyenMaiActive.find((km) => !km.thuongHieuId);
-    return kmTatCa || null;
+    return best;
 }
 
-/* ⭐ Tính giá sau sale của 1 item trong giỏ */
+/* ⭐ Tính giá sale cho 1 item trong giỏ */
 function tinhGiaItem(item, khuyenMaiActive) {
     const giaGoc = Number(item.chiTiet?.giaBan || item.sanPham?.giaBan || 0);
-    const km = timKhuyenMaiChoSP(item.sanPham, khuyenMaiActive);
-    if (!km || km.giaTri <= 0) return { giaGoc, gia: giaGoc, km: null };
-    const gia = Math.round(giaGoc * (1 - km.giaTri / 100));
-    return { giaGoc, gia, km };
+    const kmInfo = tinhKhuyenMai({
+        giaGoc,
+        sanPhamId: item.sanPham?.id,
+        sanPhamChiTietId: item.chiTiet?.id,
+        thuongHieuId: item.sanPham?.thuongHieu?.id,
+        kmList: khuyenMaiActive,
+    });
+    if (!kmInfo) return { giaGoc, gia: giaGoc, km: null, kmInfo: null };
+    return { giaGoc, gia: kmInfo.giaSauGiam, km: kmInfo.km, kmInfo };
 }
+
 
 /* =========================================================
    APP
@@ -252,37 +295,19 @@ function App() {
 
     const taiKhuyenMaiActive = async () => {
         try {
-            const res = await fetch(`${API}/chuong-trinh-giam-gia/trang-thai/HOAT_DONG`);
+            const res = await fetch(`${API}/chuong-trinh-giam-gia/dang-hoat-dong`);
             if (!res.ok) { setKhuyenMaiActive(null); return; }
             const data = await res.json();
             const raw = Array.isArray(data) ? data : [];
-            const now = new Date();
 
-            const active = raw.filter((km) => {
+            // Backend đã lọc HOAT_DONG + trong khoảng thời gian → giữ nguyên
+            const list = raw.filter((km) => {
                 if (String(km?.trangThai || "").toUpperCase() === "NGUNG_HOAT_DONG") return false;
-                if (km.ngayBatDau) {
-                    const bd = new Date(km.ngayBatDau);
-                    if (!Number.isNaN(bd.getTime()) && now < bd) return false;
-                }
-                if (km.ngayKetThuc) {
-                    const kt = new Date(km.ngayKetThuc);
-                    if (!Number.isNaN(kt.getTime())) {
-                        const hh = new Date(kt);
-                        hh.setHours(23, 59, 59, 999);
-                        if (now > hh) return false;
-                    }
-                }
-                return String(km.loaiGiam || "").toUpperCase() === "PHAN_TRAM";
+                const gt = Number(km.giaTriGiam);
+                if (!gt || gt <= 0) return false;
+                if (String(km.loaiGiam).toUpperCase() === "PHAN_TRAM" && gt > 100) return false;
+                return true;
             });
-
-            const list = active
-                .filter((km) => Number(km.giaTriGiam) > 0 && Number(km.giaTriGiam) <= 100)
-                .map((km) => ({
-                    id: km.id,
-                    tenChuongTrinh: km.tenChuongTrinh,
-                    giaTri: Number(km.giaTriGiam),
-                    thuongHieuId: km.thuongHieu?.id || km.thuongHieuId || null,
-                }));
 
             setKhuyenMaiActive(list.length > 0 ? list : null);
         } catch (e) {
@@ -479,6 +504,8 @@ function App() {
     };
 
     const themVaoGio = async (sp, ct = null, sl = 1) => {
+        const ok = window.confirm(
+            "Bạn có chắc chắn muốn thêm sản phẩm này vào giỏ hàng không?");
         if (!taiKhoan) { setPage("login"); return false; }
         if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") { alert("Chỉ KH mới thêm giỏ"); return false; }
         if (!ct?.id) { alert("SP chưa có biến thể"); return false; }
@@ -663,8 +690,14 @@ function App() {
                                                  brand={locBrand} setBrand={setLocBrand} danhMucLoc={locDanhMuc} setDanhMucLoc={setLocDanhMuc}
                                                  yeuThichIds={yeuThichIds} toggleYeuThich={toggleYeuThich} khuyenMaiActive={khuyenMaiActive} />}
 
-            {page === "detail" && selectedProduct && <ProductDetail sanPham={selectedProduct}
-                                                                    themVaoGio={themVaoGio} setPage={setPage} />}
+            {page === "detail" && selectedProduct && (
+                <ProductDetail
+                    sanPham={selectedProduct}
+                    themVaoGio={themVaoGio}
+                    setPage={setPage}
+                    khuyenMaiActive={khuyenMaiActive}
+                />
+            )}
 
             {page === "cart" && <Cart gioHang={gioHang} tongTien={tongTienSale} tangSoLuong={tangSoLuong}
                                       giamSoLuong={giamSoLuong} xoaKhoiGio={xoaKhoiGio} setPage={setPage} taiKhoan={taiKhoan}
@@ -967,10 +1000,15 @@ function Home({ sanPhams, loading, xemSanPham, themVaoGio, setPage,
     })();
 
     const giaGoc = Number(variant?.giaBan ?? sanPham.giaBan ?? 0);
-    const coSale = kmApDung && kmApDung.giaTri > 0;
-    const gia = coSale
-        ? Math.round(giaGoc * (1 - kmApDung.giaTri / 100))
-        : giaGoc;
+    const kmInfo = tinhKhuyenMai({
+        giaGoc,
+        sanPhamId: sanPham.id,
+        sanPhamChiTietId: variant?.id,
+        thuongHieuId: sanPham?.thuongHieu?.id,
+        kmList: khuyenMaiActive,
+    });
+    const coSale = !!kmInfo;
+    const gia = coSale ? kmInfo.giaSauGiam : giaGoc;
 
     const rating = (4.6 + (index % 4) * 0.1).toFixed(1);
     const rc = 20 + index * 13;
@@ -998,8 +1036,7 @@ function Home({ sanPhams, loading, xemSanPham, themVaoGio, setPage,
                 <div className="price-row">
                     <strong style={{ color: coSale ? "#e53935" : "" }}>{formatGia(gia)}</strong>
                     {coSale && <span style={{ textDecoration: "line-through", color: "#999", fontSize: "13px", marginLeft: "8px" }}>{formatGia(giaGoc)}</span>}
-                    {coSale && <span style={{ background: "#e53935", color: "#fff", fontSize: "11px", padding: "2px 6px", borderRadius: "4px", marginLeft: "6px", fontWeight: "600" }}>-{kmApDung.giaTri}%</span>}
-                </div>
+                    {coSale && <span style={{ background: "#e53935", color: "#fff", fontSize: "11px", padding: "2px 6px", borderRadius: "4px", marginLeft: "6px", fontWeight: "600" }}>-{kmApDung.giaTri}%</span>}                </div>
                 <div className="product-buttons">
                     <button type="button" className="detail-button" onClick={() => xemSanPham(sanPham)}>◉&nbsp; Xem chi tiết</button>
                     <button type="button" className="add-cart" onClick={() => themVaoGio(sanPham, variant)}>🛒&nbsp; Thêm vào giỏ</button>
@@ -1239,7 +1276,7 @@ function ProductList({ sanPhams, loading, search, setSearch, xemSanPham, themVao
     );
 }
 
-function ProductDetail({ sanPham, themVaoGio, setPage }) {
+function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null }) {
     const chiTiets = sanPham.chiTiets || [];
     const chiTietsHoatDong = chiTiets.filter(isVariantHoatDong);
     const firstVariant = chiTietsHoatDong[0] || null;
@@ -1262,6 +1299,16 @@ function ProductDetail({ sanPham, themVaoGio, setPage }) {
         item.kichCo?.tenKichCo === selectedSize && item.mauSac?.tenMau === selectedColor) || null;
     const gia = selectedVariant?.giaBan || sanPham.giaBan || 0;
     const stock = Number(selectedVariant?.soLuongTon ?? 0);
+
+    // ⭐ Tính KM
+    const kmInfo = tinhKhuyenMai({
+        giaGoc: Number(gia),
+        sanPhamId: sanPham.id,
+        sanPhamChiTietId: selectedVariant?.id,
+        thuongHieuId: sanPham?.thuongHieu?.id,
+        kmList: khuyenMaiActive,
+    });
+    const giaHienThi = kmInfo ? kmInfo.giaSauGiam : Number(gia);
 
     const sizeCoTheChon = (size) => chiTietsHoatDong.some((item) => item.kichCo?.tenKichCo === size && item.mauSac?.tenMau === selectedColor);
     const mauCoTheChon = (color) => chiTietsHoatDong.some((item) => item.mauSac?.tenMau === color && item.kichCo?.tenKichCo === selectedSize);
@@ -1334,8 +1381,44 @@ function ProductDetail({ sanPham, themVaoGio, setPage }) {
                                 <span>★</span> 4.8
                                 <span className="rating-count">(126 đánh giá)</span>
                             </div>
-                            <div className="detail-price">{formatGia(gia)}</div>
-                            <div className="detail-old-price">{gia ? formatGia(Number(gia) * 1.2) : ""}</div>
+                            {kmInfo ? (
+                                <>
+                                    <div className="detail-price" style={{ color: "#e53935" }}>
+                                        {formatGia(giaHienThi)}
+                                    </div>
+                                    <div className="detail-old-price" style={{ textDecoration: "line-through", color: "#999" }}>
+                                        {formatGia(kmInfo.giaGoc)}
+                                    </div>
+                                    <div style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        background: "#ffebee",
+                                        color: "#e53935",
+                                        padding: "5px 12px",
+                                        borderRadius: 8,
+                                        fontSize: 13,
+                                        fontWeight: 700,
+                                        marginTop: 6,
+                                        marginBottom: 10,
+                                    }}>
+                                        🎁 {kmInfo.km.tenChuongTrinh}
+                                        <span style={{
+                                            background: "#e53935", color: "#fff",
+                                            padding: "2px 8px", borderRadius: 6, fontSize: 12,
+                                        }}>
+                                            -{String(kmInfo.km.loaiGiam).toUpperCase() === "PHAN_TRAM"
+                                            ? `${kmInfo.km.giaTriGiam}%`
+                                            : formatGia(kmInfo.km.giaTriGiam)}
+                                        </span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="detail-price">{formatGia(gia)}</div>
+                                    <div className="detail-old-price"></div>
+                                </>
+                            )}
                             <div className="detail-line"></div>
 
                             {sizes.length > 0 && (
@@ -1480,6 +1563,8 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
         setSelectedVariantIds((p) => p.includes(vId) ? p.filter((id) => id !== vId) : [...p, vId]);
     };
     const handleCheckout = () => {
+        const xacNhan = window.confirm("Bạn có chắc chắn đặt hàng không?");
+        if (!xacNhan) return;
         if (selectedVariantIds.length === 0) { alert("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng"); return; }
         if (!taiKhoan) { setPage("login"); return; }
         setPage("checkout");
@@ -1586,7 +1671,11 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                                         background: "#e53935", color: "#fff", fontSize: 10,
                                                         padding: "1px 5px", borderRadius: 3, alignSelf: "flex-start",
                                                         fontWeight: 600,
-                                                    }}>-{km.giaTri}%</span>
+                                                    }}>
+    -{String(km.loaiGiam).toUpperCase() === "PHAN_TRAM"
+                                                        ? `${km.giaTriGiam}%`
+                                                        : formatGia(km.giaTriGiam)}
+</span>
                                                 </div>
                                             ) : (
                                                 formatGia(giaGoc)

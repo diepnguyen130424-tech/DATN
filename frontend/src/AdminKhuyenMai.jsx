@@ -12,7 +12,6 @@ const EMPTY_FORM = {
     ngayBatDau: "",
     ngayKetThuc: "",
     trangThai: "HOAT_DONG",
-    thuongHieuId: "",   // ⭐ MỚI
 };
 
 function formatGia(gia) {
@@ -29,10 +28,6 @@ function formatDate(str) {
     }
 }
 
-/* ⭐ Trạng thái THỰC TẾ: chỉ 2 giá trị
-   - HOAT_DONG: trong khoảng + admin đang bật
-   - NGUNG_HOAT_DONG: admin tắt / hết hạn / chưa bắt đầu
-*/
 function getTrangThaiThuc(item) {
     if (item?.trangThai === "NGUNG_HOAT_DONG") {
         return "NGUNG_HOAT_DONG";
@@ -90,6 +85,13 @@ function writeCache(data) {
     } catch {}
 }
 
+const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 700,
+    marginBottom: 6,
+};
+
 export default function AdminKhuyenMai() {
     const [danhSach, setDanhSach] = useState(() => readCache() || []);
     const [loading, setLoading] = useState(() => !readCache());
@@ -101,9 +103,22 @@ export default function AdminKhuyenMai() {
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState("");
 
-    // ⭐ MỚI: thương hiệu
+    // ⭐ Thương hiệu
     const [thuongHieuList, setThuongHieuList] = useState([]);
-    const [apDungCho, setApDungCho] = useState("TAT_CA"); // TAT_CA | THUONG_HIEU
+    const [thuongHieuId, setThuongHieuId] = useState("");
+
+    // ⭐ Phạm vi áp dụng
+    const [phamViApDung, setPhamViApDung] = useState("TAT_CA");
+
+    // ⭐ Sản phẩm
+    const [sanPhamList, setSanPhamList] = useState([]);
+    const [filterThuongHieuId, setFilterThuongHieuId] = useState("");
+    const [selectedSanPhamIds, setSelectedSanPhamIds] = useState([]);
+
+    // ⭐ Biến thể
+    const [bienTheList, setBienTheList] = useState([]);
+    const [selectedBienTheIds, setSelectedBienTheIds] = useState([]);
+    const [chonSanPhamChoBienThe, setChonSanPhamChoBienThe] = useState("");
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
@@ -183,16 +198,54 @@ export default function AdminKhuyenMai() {
             .catch(() => setThuongHieuList([]));
     }, []);
 
+    // ⭐ Load danh sách sản phẩm
+    useEffect(() => {
+        fetch(`${API}/san-pham`)
+            .then((r) => (r.ok ? r.json() : []))
+            .then((d) => setSanPhamList(Array.isArray(d) ? d : []))
+            .catch(() => setSanPhamList([]));
+    }, []);
+
+    // ⭐ Load biến thể khi chọn 1 sản phẩm
+    useEffect(() => {
+        if (!chonSanPhamChoBienThe) {
+            setBienTheList([]);
+            return;
+        }
+        fetch(`${API}/san-pham-chi-tiet/san-pham/${chonSanPhamChoBienThe}`)
+            .then((r) => (r.ok ? r.json() : []))
+            .then((d) => setBienTheList(Array.isArray(d) ? d : []))
+            .catch(() => setBienTheList([]));
+    }, [chonSanPhamChoBienThe]);
+
     useEffect(() => {
         loadDanhSach();
     }, []);
 
+    const resetFormExtra = () => {
+        setPhamViApDung("TAT_CA");
+        setThuongHieuId("");
+        setFilterThuongHieuId("");
+        setSelectedSanPhamIds([]);
+        setSelectedBienTheIds([]);
+        setChonSanPhamChoBienThe("");
+        setBienTheList([]);
+    };
+
     const openCreate = () => {
         setEditing(null);
         setForm(EMPTY_FORM);
-        setApDungCho("TAT_CA");
+        resetFormExtra();
         setFormError("");
         setShowModal(true);
+    };
+
+    // ⭐ Tìm thương hiệu của 1 SP từ sanPhamList
+    const timThuongHieuCuaSanPham = (spId) => {
+        const sp = sanPhamList.find((s) => s.id === spId);
+        if (!sp) return "";
+        const hangId = sp.thuongHieu?.id ?? sp.thuongHieuId;
+        return hangId ? String(hangId) : "";
     };
 
     const openEdit = (v) => {
@@ -204,9 +257,35 @@ export default function AdminKhuyenMai() {
             ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
             ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
             trangThai: v.trangThai || "HOAT_DONG",
-            thuongHieuId: v.thuongHieu?.id || v.thuongHieuId || "",   // ⭐ nested
         });
-        setApDungCho(v.thuongHieu?.id || v.thuongHieuId ? "THUONG_HIEU" : "TAT_CA");
+
+        const pv = v.phamViApDung || "TAT_CA";
+        setPhamViApDung(pv);
+        setThuongHieuId(v.thuongHieuId || "");
+
+        // ⭐ Set danh sách đã chọn
+        const spIds = (v.sanPhams || []).map((x) => x.sanPhamId);
+        const btIds = (v.bienThes || []).map((x) => x.sanPhamChiTietId);
+        setSelectedSanPhamIds(spIds);
+        setSelectedBienTheIds(btIds);
+
+        // ⭐ Nếu là BIEN_THE → set SP đang chọn → useEffect sẽ load lại biến thể
+        if (pv === "BIEN_THE" && v.bienThes && v.bienThes.length > 0) {
+            const spId = v.bienThes[0].sanPhamId;
+            setChonSanPhamChoBienThe(spId);
+            setFilterThuongHieuId(timThuongHieuCuaSanPham(spId));
+        }
+        // ⭐ Nếu là SAN_PHAM → lọc theo hãng của SP đầu tiên
+        else if (pv === "SAN_PHAM" && v.sanPhams && v.sanPhams.length > 0) {
+            const spId = v.sanPhams[0].sanPhamId;
+            setFilterThuongHieuId(timThuongHieuCuaSanPham(spId));
+            setChonSanPhamChoBienThe("");
+        } else {
+            setFilterThuongHieuId("");
+            setChonSanPhamChoBienThe("");
+        }
+
+        setBienTheList([]);
         setFormError("");
         setShowModal(true);
     };
@@ -216,7 +295,7 @@ export default function AdminKhuyenMai() {
         setShowModal(false);
         setEditing(null);
         setForm(EMPTY_FORM);
-        setApDungCho("TAT_CA");
+        resetFormExtra();
         setFormError("");
     };
 
@@ -235,9 +314,13 @@ export default function AdminKhuyenMai() {
         if (!form.ngayKetThuc) return "Vui lòng chọn ngày kết thúc";
         if (new Date(form.ngayBatDau) >= new Date(form.ngayKetThuc))
             return "Ngày kết thúc phải sau ngày bắt đầu";
-        // ⭐ Nếu chọn theo thương hiệu → bắt buộc chọn hãng
-        if (apDungCho === "THUONG_HIEU" && !form.thuongHieuId)
+
+        if (phamViApDung === "THUONG_HIEU" && !thuongHieuId)
             return "Vui lòng chọn thương hiệu áp dụng";
+        if (phamViApDung === "SAN_PHAM" && selectedSanPhamIds.length === 0)
+            return "Vui lòng chọn ít nhất 1 sản phẩm";
+        if (phamViApDung === "BIEN_THE" && selectedBienTheIds.length === 0)
+            return "Vui lòng chọn ít nhất 1 biến thể";
         return "";
     };
 
@@ -259,12 +342,13 @@ export default function AdminKhuyenMai() {
                 ngayBatDau: form.ngayBatDau + ":00",
                 ngayKetThuc: form.ngayKetThuc + ":00",
                 trangThai: form.trangThai,
-
-                // ⭐ Gửi NESTED OBJECT (khớp entity backend)
-                thuongHieu:
-                    apDungCho === "THUONG_HIEU" && form.thuongHieuId
-                        ? { id: Number(form.thuongHieuId) }
-                        : null,
+                phamViApDung,
+                thuongHieuId:
+                    phamViApDung === "THUONG_HIEU" ? Number(thuongHieuId) : null,
+                sanPhamIds:
+                    phamViApDung === "SAN_PHAM" ? selectedSanPhamIds : null,
+                bienTheIds:
+                    phamViApDung === "BIEN_THE" ? selectedBienTheIds : null,
             };
 
             const url = editing
@@ -361,6 +445,14 @@ export default function AdminKhuyenMai() {
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
     );
+
+    // ⭐ Danh sách SP đã lọc theo hãng
+    const sanPhamFiltered = filterThuongHieuId
+        ? sanPhamList.filter((sp) => {
+            const spHangId = sp.thuongHieu?.id ?? sp.thuongHieuId;
+            return String(spHangId) === String(filterThuongHieuId);
+        })
+        : sanPhamList;
 
     const showSkeleton = loading && danhSach.length === 0;
 
@@ -474,27 +566,58 @@ export default function AdminKhuyenMai() {
                                 <td>{formatDate(v.ngayBatDau)}</td>
                                 <td>{formatDate(v.ngayKetThuc)}</td>
 
-                                {/* ⭐ Cột áp dụng cho */}
                                 <td>
-                                    {v.thuongHieu?.tenThuongHieu ? (
-                                        <span
-                                            style={{
-                                                background: "#fff3f0",
-                                                color: "#e53935",
-                                                padding: "4px 10px",
-                                                borderRadius: 12,
-                                                fontSize: 12,
-                                                fontWeight: 600,
-                                                whiteSpace: "nowrap",
-                                            }}
-                                        >
-                                            {v.thuongHieu.tenThuongHieu}
-                                        </span>
-                                    ) : (
-                                        <span style={{ color: "#888", fontSize: 12 }}>
-                                            Tất cả SP
-                                        </span>
-                                    )}
+                                    {(() => {
+                                        const pv = v.phamViApDung || "TAT_CA";
+
+                                        if (pv === "THUONG_HIEU" && v.tenThuongHieu) {
+                                            return (
+                                                <span style={{
+                                                    background: "#fff3f0",
+                                                    color: "#e53935",
+                                                    padding: "4px 10px",
+                                                    borderRadius: 12,
+                                                    fontSize: 12,
+                                                    fontWeight: 600,
+                                                    whiteSpace: "nowrap",
+                                                }}>
+                                                    {v.tenThuongHieu}
+                                                </span>
+                                            );
+                                        }
+
+                                        if (pv === "SAN_PHAM") {
+                                            const list = v.sanPhams || [];
+                                            return (
+                                                <span style={{ fontSize: 12 }}>
+                                                    {list.length} SP:{" "}
+                                                    {list.slice(0, 2).map((x) => x.tenSanPham).join(", ")}
+                                                    {list.length > 2 && ` +${list.length - 2}`}
+                                                </span>
+                                            );
+                                        }
+
+                                        if (pv === "BIEN_THE") {
+                                            return (
+                                                <span style={{
+                                                    background: "#e8f5e9",
+                                                    color: "#2e7d32",
+                                                    padding: "4px 10px",
+                                                    borderRadius: 12,
+                                                    fontSize: 12,
+                                                    fontWeight: 600,
+                                                }}>
+                                                    {(v.bienThes || []).length} biến thể
+                                                </span>
+                                            );
+                                        }
+
+                                        return (
+                                            <span style={{ color: "#888", fontSize: 12 }}>
+                                                Tất cả SP
+                                            </span>
+                                        );
+                                    })()}
                                 </td>
 
                                 <td>
@@ -683,16 +806,7 @@ export default function AdminKhuyenMai() {
                         >
                             {editing && (
                                 <div style={{ gridColumn: "1 / -1" }}>
-                                    <label
-                                        style={{
-                                            display: "block",
-                                            fontSize: 12,
-                                            fontWeight: 700,
-                                            marginBottom: 6,
-                                        }}
-                                    >
-                                        ID
-                                    </label>
+                                    <label style={labelStyle}>ID</label>
                                     <input
                                         className="price-input"
                                         type="text"
@@ -708,14 +822,7 @@ export default function AdminKhuyenMai() {
                             )}
 
                             <div style={{ gridColumn: "1 / -1" }}>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        marginBottom: 6,
-                                    }}
-                                >
+                                <label style={labelStyle}>
                                     Tên chương trình *
                                 </label>
                                 <input
@@ -732,16 +839,7 @@ export default function AdminKhuyenMai() {
                             </div>
 
                             <div>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        marginBottom: 6,
-                                    }}
-                                >
-                                    Loại giảm
-                                </label>
+                                <label style={labelStyle}>Loại giảm</label>
                                 <select
                                     className="price-input"
                                     value={form.loaiGiam}
@@ -757,14 +855,7 @@ export default function AdminKhuyenMai() {
                             </div>
 
                             <div>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        marginBottom: 6,
-                                    }}
-                                >
+                                <label style={labelStyle}>
                                     Giá trị giảm *
                                 </label>
                                 <input
@@ -786,14 +877,7 @@ export default function AdminKhuyenMai() {
                             </div>
 
                             <div>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        marginBottom: 6,
-                                    }}
-                                >
+                                <label style={labelStyle}>
                                     Ngày bắt đầu *
                                 </label>
                                 <input
@@ -810,14 +894,7 @@ export default function AdminKhuyenMai() {
                             </div>
 
                             <div>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        marginBottom: 6,
-                                    }}
-                                >
+                                <label style={labelStyle}>
                                     Ngày kết thúc *
                                 </label>
                                 <input
@@ -835,39 +912,37 @@ export default function AdminKhuyenMai() {
 
                             {/* ⭐ ÁP DỤNG CHO */}
                             <div style={{ gridColumn: "1 / -1" }}>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        marginBottom: 6,
-                                    }}
-                                >
-                                    Áp dụng cho
-                                </label>
+                                <label style={labelStyle}>Áp dụng cho</label>
                                 <select
                                     className="price-input"
-                                    value={apDungCho}
+                                    value={phamViApDung}
                                     onChange={(e) => {
-                                        const val = e.target.value;
-                                        setApDungCho(val);
-                                        if (val === "TAT_CA") {
-                                            handleChange("thuongHieuId", "");
-                                        }
+                                        setPhamViApDung(e.target.value);
+                                        setThuongHieuId("");
+                                        setFilterThuongHieuId("");
+                                        setSelectedSanPhamIds([]);
+                                        setSelectedBienTheIds([]);
+                                        setChonSanPhamChoBienThe("");
+                                        setBienTheList([]);
                                     }}
                                 >
                                     <option value="TAT_CA">Tất cả sản phẩm</option>
                                     <option value="THUONG_HIEU">Theo thương hiệu</option>
+                                    <option value="SAN_PHAM">Theo sản phẩm cụ thể</option>
+                                    <option value="BIEN_THE">Theo size & màu (biến thể)</option>
                                 </select>
+                            </div>
 
-                                {apDungCho === "THUONG_HIEU" && (
+                            {/* ⭐ CHỌN THƯƠNG HIỆU */}
+                            {phamViApDung === "THUONG_HIEU" && (
+                                <div style={{ gridColumn: "1 / -1" }}>
+                                    <label style={labelStyle}>
+                                        Chọn thương hiệu *
+                                    </label>
                                     <select
                                         className="price-input"
-                                        style={{ marginTop: 10 }}
-                                        value={form.thuongHieuId}
-                                        onChange={(e) =>
-                                            handleChange("thuongHieuId", e.target.value)
-                                        }
+                                        value={thuongHieuId}
+                                        onChange={(e) => setThuongHieuId(e.target.value)}
                                     >
                                         <option value="">-- Chọn thương hiệu --</option>
                                         {thuongHieuList.map((th) => (
@@ -876,20 +951,207 @@ export default function AdminKhuyenMai() {
                                             </option>
                                         ))}
                                     </select>
-                                )}
-                            </div>
+                                </div>
+                            )}
+
+                            {/* ⭐ SAN_PHAM */}
+                            {phamViApDung === "SAN_PHAM" && (
+                                <>
+                                    <div style={{ gridColumn: "1 / -1" }}>
+                                        <label style={labelStyle}>
+                                            Lọc theo thương hiệu (tuỳ chọn)
+                                        </label>
+                                        <select
+                                            className="price-input"
+                                            value={filterThuongHieuId}
+                                            onChange={(e) => {
+                                                setFilterThuongHieuId(e.target.value);
+                                                setSelectedSanPhamIds([]);
+                                            }}
+                                        >
+                                            <option value="">-- Tất cả thương hiệu --</option>
+                                            {thuongHieuList.map((th) => (
+                                                <option key={th.id} value={th.id}>
+                                                    {th.tenThuongHieu}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div style={{ gridColumn: "1 / -1" }}>
+                                        <label style={labelStyle}>
+                                            Chọn sản phẩm * ({selectedSanPhamIds.length} đã chọn)
+                                        </label>
+                                        <div style={{
+                                            maxHeight: 220,
+                                            overflowY: "auto",
+                                            border: "1px solid #ddd",
+                                            borderRadius: 8,
+                                            padding: 10,
+                                        }}>
+                                            {sanPhamFiltered.length === 0 && (
+                                                <div style={{ color: "#999", fontSize: 13 }}>
+                                                    Không có sản phẩm nào.
+                                                </div>
+                                            )}
+                                            {sanPhamFiltered.map((sp) => {
+                                                const checked = selectedSanPhamIds.includes(sp.id);
+                                                return (
+                                                    <label
+                                                        key={sp.id}
+                                                        style={{
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            gap: 8,
+                                                            padding: "6px 4px",
+                                                            fontSize: 13,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked)
+                                                                    setSelectedSanPhamIds((p) => [...p, sp.id]);
+                                                                else
+                                                                    setSelectedSanPhamIds((p) =>
+                                                                        p.filter((x) => x !== sp.id)
+                                                                    );
+                                                            }}
+                                                        />
+                                                        <span>
+                                                            {sp.tenSanPham}
+                                                            {sp.thuongHieu?.tenThuongHieu && (
+                                                                <span style={{ color: "#999", fontSize: 11 }}>
+                                                                    {" "}({sp.thuongHieu.tenThuongHieu})
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* ⭐ BIEN_THE */}
+                            {phamViApDung === "BIEN_THE" && (
+                                <>
+                                    <div style={{ gridColumn: "1 / -1" }}>
+                                        <label style={labelStyle}>
+                                            Bước 1: Lọc theo thương hiệu (tuỳ chọn)
+                                        </label>
+                                        <select
+                                            className="price-input"
+                                            value={filterThuongHieuId}
+                                            onChange={(e) => {
+                                                setFilterThuongHieuId(e.target.value);
+                                                setChonSanPhamChoBienThe("");
+                                                setBienTheList([]);
+                                                setSelectedBienTheIds([]);
+                                            }}
+                                        >
+                                            <option value="">-- Tất cả thương hiệu --</option>
+                                            {thuongHieuList.map((th) => (
+                                                <option key={th.id} value={th.id}>
+                                                    {th.tenThuongHieu}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div style={{ gridColumn: "1 / -1" }}>
+                                        <label style={labelStyle}>
+                                            Bước 2: Chọn sản phẩm *
+                                        </label>
+                                        <select
+                                            className="price-input"
+                                            value={chonSanPhamChoBienThe}
+                                            onChange={(e) => {
+                                                setChonSanPhamChoBienThe(e.target.value);
+                                                setSelectedBienTheIds([]);
+                                            }}
+                                        >
+                                            <option value="">-- Chọn sản phẩm --</option>
+                                            {sanPhamFiltered.map((sp) => (
+                                                <option key={sp.id} value={sp.id}>
+                                                    {sp.tenSanPham}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {sanPhamFiltered.length === 0 && (
+                                            <div style={{ color: "#999", fontSize: 12, marginTop: 6 }}>
+                                                Không có sản phẩm nào thuộc hãng đã lọc.
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {chonSanPhamChoBienThe && (
+                                        <div style={{ gridColumn: "1 / -1" }}>
+                                            <label style={labelStyle}>
+                                                Bước 3: Chọn size & màu * ({selectedBienTheIds.length} đã chọn)
+                                            </label>
+                                            <div style={{
+                                                maxHeight: 240,
+                                                overflowY: "auto",
+                                                border: "1px solid #ddd",
+                                                borderRadius: 8,
+                                                padding: 10,
+                                            }}>
+                                                {bienTheList.length === 0 && (
+                                                    <div style={{ color: "#999", fontSize: 13 }}>
+                                                        Sản phẩm này chưa có biến thể.
+                                                    </div>
+                                                )}
+                                                {bienTheList.map((bt) => {
+                                                    const checked = selectedBienTheIds.includes(bt.id);
+                                                    return (
+                                                        <label
+                                                            key={bt.id}
+                                                            style={{
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                gap: 8,
+                                                                padding: "6px 4px",
+                                                                fontSize: 13,
+                                                                cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked)
+                                                                        setSelectedBienTheIds((p) => [...p, bt.id]);
+                                                                    else
+                                                                        setSelectedBienTheIds((p) =>
+                                                                            p.filter((x) => x !== bt.id)
+                                                                        );
+                                                                }}
+                                                            />
+                                                            <span>
+                                                                {bt.mauSac?.tenMau || "?"}
+                                                                {" — Size "}
+                                                                {bt.kichCo?.tenKichCo || "?"}
+                                                                {bt.maSku && (
+                                                                    <span style={{ color: "#999" }}>
+                                                                        {" "}({bt.maSku})
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
 
                             <div>
-                                <label
-                                    style={{
-                                        display: "block",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        marginBottom: 6,
-                                    }}
-                                >
-                                    Trạng thái
-                                </label>
+                                <label style={labelStyle}>Trạng thái</label>
                                 <select
                                     className="price-input"
                                     value={form.trangThai}
