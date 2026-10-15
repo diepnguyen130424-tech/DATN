@@ -485,3 +485,145 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+/* =========================================================
+   POS — TỐC ĐỘ & THAO TÁC NHANH
+   ========================================================= */
+.pos-shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.pos-shortcuts kbd {
+    display: inline-block;
+    min-width: 24px;
+    padding: 2px 6px;
+    margin-right: 4px;
+    border: 1px solid #cbd5e1;
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: #fff;
+    font: 600 11px/1.4 ui-monospace, Consolas, monospace;
+    color: #0f172a;
+    text-align: center;
+}
+
+.pos-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+}
+
+.pos-tab {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    white-space: nowrap;
+}
+
+.pos-tab.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.pos-tab button {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    color: #0f172a;
+    padding: 8px 12px;
+}
+
+.pos-tab button b {
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 11px;
+}
+
+.pos-tab .pos-tab-close {
+    padding: 8px 10px 8px 0;
+    color: #94a3b8;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.pos-tab .pos-tab-close:hover {
+    color: #dc2626;
+}
+
+.pos-tab-add {
+    width: 36px;
+    height: 36px;
+    border: 1px dashed #94a3b8;
+    border-radius: 10px;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.pos-tab-add:hover {
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+.pos-load-more {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #334155;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pos-load-more:hover {
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+.pos-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    z-index: 3000;
+    transform: translateX(-50%);
+    max-width: min(92vw, 460px);
+    padding: 11px 18px;
+    border-radius: 12px;
+    background: #0f172a;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+    animation: pos-toast-in 0.18s ease-out;
+}
+
+.pos-toast.ok { background: #15803d; }
+.pos-toast.warn { background: #b45309; }
+.pos-toast.error { background: #b91c1c; }
+
+@keyframes pos-toast-in {
+    from { opacity: 0; transform: translate(-50%, 8px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.pos-product-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 300px;
+}

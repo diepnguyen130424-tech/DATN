@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react";
+import {memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState} from "react";
 import "./EmployeeCounterSale.css";
 
 const API = "http://localhost:8080/api";
@@ -268,12 +268,14 @@ function PaymentModal({
     const [cashReceived, setCashReceived] = useState("");
     const [note, setNote] = useState("");
     const [paidConfirmed, setPaidConfirmed] = useState(false);
+    const [payCode, setPayCode] = useState("");
 
     useEffect(() => {
         if (open) {
             setCashReceived("");
             setNote("");
             setPaidConfirmed(false);
+            setPayCode(`POS${Date.now().toString().slice(-6)}`);
         }
     }, [open, method]);
 
@@ -281,23 +283,40 @@ function PaymentModal({
     const change = received - total;
     const isCashEnough = received >= total;
 
-    const transferContent = useMemo(() => {
-        const base = note.trim() || "Thanh toan don hang";
-        const code = `POS${Date.now().toString().slice(-6)}`;
-        return `${base} ${code}`;
-    }, [note]);
+    const transferContent = `${note.trim() || "Thanh toan don hang"} ${payCode}`;
 
     const qrUrl = useMemo(
         () => buildVietQrUrl(total, transferContent),
         [total, transferContent]
     );
 
-    if (!open) return null;
-
-    const QUICK_CASH = [1500000, 2000000, 2500000, 3000000];
+    // Gợi ý mệnh giá làm tròn lên theo tổng tiền
+    const quickCash = useMemo(() => {
+        const set = new Set();
+        [50000, 100000, 200000, 500000].forEach((step) =>
+            set.add(Math.ceil(total / step) * step)
+        );
+        return [...set].filter((v) => v > total).slice(0, 4);
+    }, [total]);
 
     const canConfirm =
         method === "TIEN_MAT" ? isCashEnough : paidConfirmed;
+
+    // Enter = xác nhận · Esc = đóng
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKey = (e) => {
+            if (e.key === "Escape" && !loading) onClose();
+            if (e.key === "Enter" && canConfirm && !loading) {
+                e.preventDefault();
+                onConfirm({method, total});
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open, canConfirm, loading, method, total, onClose, onConfirm]);
+
+    if (!open) return null;
 
     return (
         <div className="pos-pay-backdrop" onClick={onClose}>
@@ -349,7 +368,7 @@ function PaymentModal({
                         </div>
 
                         <div className="pos-quick-cash">
-                            {QUICK_CASH.map((amt) => (
+                            {quickCash.map((amt) => (
                                 <button
                                     key={amt}
                                     type="button"
@@ -561,6 +580,24 @@ function VariantPickerModal({open, product, variants, onClose, onConfirm}) {
         setSelectedSize(firstSize);
     };
 
+    // Enter = thêm vào giỏ · Esc = đóng
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKey = (e) => {
+            if (e.key === "Escape") onClose();
+            if (
+                e.key === "Enter" &&
+                currentVariant &&
+                Number(currentVariant.soLuongTon || 0) > 0
+            ) {
+                e.preventDefault();
+                onConfirm(currentVariant);
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open, currentVariant, onClose, onConfirm]);
+
     if (!open || !product) return null;
 
     const handleConfirm = () => {
@@ -642,175 +679,474 @@ function VariantPickerModal({open, product, variants, onClose, onConfirm}) {
     );
 }
 /* =========================================================
-   COMPONENT CHÍNH
+   COMPONENT CHÍNH — BÁN TẠI QUẦY (POS)
+   Ưu tiên tốc độ xử lý:
+   - 1 request duy nhất để tải toàn bộ biến thể (thay vì N request)
+   - Quét mã SKU / nhập mã + Enter là thêm vào giỏ ngay
+   - Sản phẩm chỉ có 1 biến thể còn hàng → thêm thẳng, không hỏi
+   - Nhiều hóa đơn chờ (tab), giữ giỏ khi tải lại trang
+   - Phím tắt: F2 tìm kiếm · F4 hóa đơn mới · F8 đổi PT thanh toán · F9 thanh toán
    ========================================================= */
 
-export default function EmployeeCounterSale({products, onRefresh}) {
+const STORAGE_KEY = "fshop_pos_orders_v1";
+const MAX_TABS = 5;
+const PAGE_SIZE = 40;
+const FALLBACK_IMG =
+    "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=600&q=80";
+
+const isSellable = (v) =>
+    Number(v?.soLuongTon || 0) > 0 &&
+    ["HOAT_DONG", "ACTIVE"].includes(String(v?.trangThai || "").toUpperCase());
+
+function createOrder(id) {
+    return {id, cart: [], method: "TIEN_MAT"};
+}
+
+function loadSavedOrders() {
+    try {
+        const raw = sessionStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed?.orders?.length) return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+}
+
+async function fetchAllVariants(products) {
+    // Cách nhanh: 1 request cho tất cả biến thể
+    try {
+        const all = await readJson(`${API}/san-pham-chi-tiet`);
+        if (Array.isArray(all)) {
+            const map = {};
+            products.forEach((p) => (map[p.id] = []));
+            all.forEach((v) => {
+                const pid = v.sanPham?.id;
+                if (pid != null && map[pid]) map[pid].push(v);
+            });
+            return map;
+        }
+    } catch {
+        /* rơi xuống cách dự phòng */
+    }
+
+    // Dự phòng: gọi theo từng sản phẩm
+    const entries = await Promise.all(
+        products.map(async (p) => {
+            try {
+                const data = await readJson(`${API}/san-pham/${p.id}/chi-tiet`);
+                return [p.id, Array.isArray(data) ? data : []];
+            } catch {
+                return [p.id, []];
+            }
+        })
+    );
+    return Object.fromEntries(entries);
+}
+
+const ProductCard = memo(function ProductCard({product, stats, onSelect}) {
+    const {loaded, minPrice, stock} = stats;
+    const out = loaded && stock <= 0;
+    const low = loaded && stock > 0 && stock <= 5;
+    const price = minPrice > 0 ? minPrice : Number(product.giaBan || 0);
+
+    return (
+        <button
+            type="button"
+            className={`pos-product-card ${out ? "sold-out" : ""}`}
+            onClick={() => onSelect(product)}
+        >
+            <div className="pos-product-image">
+                <img
+                    src={product.hinhAnh || FALLBACK_IMG}
+                    alt={product.tenSanPham}
+                    loading="lazy"
+                    decoding="async"
+                />
+                <span className="pos-product-add">＋</span>
+            </div>
+
+            <div className="pos-product-brand">
+                {product.thuongHieu?.tenThuongHieu || "FShop"}
+            </div>
+
+            <strong>{product.tenSanPham}</strong>
+
+            <span className="pos-product-code">{product.maSanPham || "-"}</span>
+
+            <div className="pos-product-price">
+                {price > 0 ? formatMoney(price) : "Chưa có giá"}
+            </div>
+
+            <div className="pos-product-meta">
+                <span className={`pos-stock-dot ${out ? "out" : low ? "low" : ""}`}></span>
+                <span>
+                    {!loaded
+                        ? "Đang tải..."
+                        : out
+                            ? "Hết hàng"
+                            : low
+                                ? `Sắp hết (${stock})`
+                                : `Còn hàng (${stock})`}
+                </span>
+            </div>
+
+            <div className="pos-product-bottom">
+                <small>Thêm vào giỏ</small>
+                <span>＋</span>
+            </div>
+        </button>
+    );
+});
+
+export default function EmployeeCounterSale({products = [], onRefresh}) {
+    const saved = useMemo(() => loadSavedOrders(), []);
+
     const [search, setSearch] = useState("");
+    const deferredSearch = useDeferredValue(search);
     const [category, setCategory] = useState("Tất cả");
-    const [cart, setCart] = useState([]);
-    const [loadingVariant, setLoadingVariant] = useState(false);
-    const [loadingCheckout, setLoadingCheckout] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState("TIEN_MAT");
+    const [pageState, setPageState] = useState({key: "", count: PAGE_SIZE});
+
+    const [orders, setOrders] = useState(saved?.orders || [createOrder(1)]);
+    const [activeId, setActiveId] = useState(saved?.activeId || 1);
+    const nextIdRef = useRef(
+        Math.max(1, ...(saved?.orders || [{id: 1}]).map((o) => o.id)) + 1
+    );
+
     const [variantMap, setVariantMap] = useState({});
+    const [loadingCheckout, setLoadingCheckout] = useState(false);
     const [showPayment, setShowPayment] = useState(false);
     const [invoice, setInvoice] = useState(null);
-    // ⭐ State cho modal chọn biến thể
-    const [variantModal, setVariantModal] = useState({open: false, product: null, variants: [],});
+    const [variantModal, setVariantModal] = useState({
+        open: false,
+        product: null,
+        variants: [],
+    });
+    const [toast, setToast] = useState(null);
 
-    // -----------------------------------------------------
-    // DANH MỤC
-    // -----------------------------------------------------
-    const categories = useMemo(() => {
-        const values = products
-            .map((p) => p.danhMuc?.tenDanhMuc)
-            .filter(Boolean);
-        return ["Tất cả", ...new Set(values)];
-    }, [products]);
+    const searchRef = useRef(null);
+    const toastTimer = useRef(null);
 
-    // -----------------------------------------------------
-    // LOAD BIẾN THỂ
-    // -----------------------------------------------------
+    const activeOrder = orders.find((o) => o.id === activeId) || orders[0];
+    const cart = activeOrder.cart;
+    const paymentMethod = activeOrder.method;
+
+    /* ---------- TOAST (thay alert, không chặn thao tác) ---------- */
+    const showToast = useCallback((message, type = "warn") => {
+        setToast({message, type});
+        clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(null), 2600);
+    }, []);
+
+    useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+    /* ---------- LƯU HÓA ĐƠN CHỜ (giữ khi F5) ---------- */
+    useEffect(() => {
+        try {
+            sessionStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify({orders, activeId})
+            );
+        } catch {
+            /* bỏ qua nếu storage không khả dụng */
+        }
+    }, [orders, activeId]);
+
+    const patchActive = useCallback(
+        (patch) =>
+            setOrders((old) =>
+                old.map((o) =>
+                    o.id === activeId
+                        ? {...o, ...(typeof patch === "function" ? patch(o) : patch)}
+                        : o
+                )
+            ),
+        [activeId]
+    );
+
+    /* ---------- TẢI BIẾN THỂ (1 REQUEST) ---------- */
     useEffect(() => {
         let cancelled = false;
+        if (!products.length) return undefined;
 
-        async function loadVariants() {
-            if (!products.length) {
-                setVariantMap({});
-                return;
-            }
-
-            const entries = await Promise.all(
-                products.map(async (product) => {
-                    try {
-                        const data = await readJson(
-                            `${API}/san-pham/${product.id}/chi-tiet`
-                        );
-                        return [product.id, Array.isArray(data) ? data : []];
-                    } catch {
-                        return [product.id, []];
-                    }
-                })
-            );
-
-            if (!cancelled) {
-                setVariantMap(Object.fromEntries(entries));
-            }
-        }
-
-        loadVariants();
+        fetchAllVariants(products).then((map) => {
+            if (!cancelled) setVariantMap(map);
+        });
 
         return () => {
             cancelled = true;
         };
     }, [products]);
 
-    // -----------------------------------------------------
-    // LỌC SẢN PHẨM
-    // -----------------------------------------------------
+    /* ---------- CHỈ MỤC / THỐNG KÊ (tính 1 lần) ---------- */
+    const {productStats, variantById, skuIndex, searchText} = useMemo(() => {
+        const stats = {};
+        const byId = new Map();
+        const skus = new Map();
+        const text = {};
+
+        products.forEach((p) => {
+            const vs = variantMap[p.id];
+            if (!vs) {
+                stats[p.id] = {loaded: false, minPrice: 0, stock: 0};
+                text[p.id] = "";
+                return;
+            }
+            let stock = 0;
+            let min = 0;
+            const skuList = [];
+            vs.forEach((v) => {
+                byId.set(v.id, v);
+                stock += Number(v.soLuongTon || 0);
+                const price = Number(v.giaBan || 0);
+                if (price > 0 && (min === 0 || price < min)) min = price;
+                if (v.maSku) {
+                    const key = String(v.maSku).toLowerCase();
+                    skus.set(key, {product: p, variant: v});
+                    skuList.push(key);
+                }
+            });
+            stats[p.id] = {loaded: true, minPrice: min, stock};
+            text[p.id] = skuList.join(" ");
+        });
+
+        return {
+            productStats: stats,
+            variantById: byId,
+            skuIndex: skus,
+            searchText: text,
+        };
+    }, [products, variantMap]);
+
+    /* ---------- DANH MỤC ---------- */
+    const {categories, categoryCount} = useMemo(() => {
+        const count = {};
+        products.forEach((p) => {
+            const c = p.danhMuc?.tenDanhMuc;
+            if (c) count[c] = (count[c] || 0) + 1;
+        });
+        return {categories: ["Tất cả", ...Object.keys(count)], categoryCount: count};
+    }, [products]);
+
+    /* ---------- LỌC SẢN PHẨM ---------- */
     const filteredProducts = useMemo(() => {
-        const keyword = search.trim().toLowerCase();
+        const keyword = deferredSearch.trim().toLowerCase();
         return products.filter((product) => {
-            const name = String(product.tenSanPham || "").toLowerCase();
-            const code = String(product.maSanPham || "").toLowerCase();
-            const brand = String(
-                product.thuongHieu?.tenThuongHieu || ""
-            ).toLowerCase();
-            const cat = product.danhMuc?.tenDanhMuc || "";
+            if (
+                category !== "Tất cả" &&
+                (product.danhMuc?.tenDanhMuc || "") !== category
+            ) {
+                return false;
+            }
+            if (!keyword) return true;
             return (
-                (!keyword ||
-                    name.includes(keyword) ||
-                    code.includes(keyword) ||
-                    brand.includes(keyword)) &&
-                (category === "Tất cả" || cat === category)
+                String(product.tenSanPham || "").toLowerCase().includes(keyword) ||
+                String(product.maSanPham || "").toLowerCase().includes(keyword) ||
+                String(product.thuongHieu?.tenThuongHieu || "")
+                    .toLowerCase()
+                    .includes(keyword) ||
+                (searchText[product.id] || "").includes(keyword)
             );
         });
-    }, [products, search, category]);
+    }, [products, deferredSearch, category, searchText]);
 
-    // -----------------------------------------------------
-    // THÊM SẢN PHẨM
-    // -----------------------------------------------------
-    // ⭐ Mở modal chọn biến thể (thay cho addProduct cũ)
-    const openVariantPicker = async (product) => {
-        try {
-            setLoadingVariant(true);
-            const cachedVariants = variantMap[product.id];
-            const variants = cachedVariants
-                ? cachedVariants
-                : await readJson(`${API}/san-pham/${product.id}/chi-tiet`);
-            const list = Array.isArray(variants) ? variants : [];
+    const filterKey = `${deferredSearch}|${category}`;
+    const visibleCount =
+        pageState.key === filterKey ? pageState.count : PAGE_SIZE;
 
-            if (!list.length) {
-                alert("Sản phẩm này chưa có biến thể.");
+    const visibleProducts = filteredProducts.slice(0, visibleCount);
+
+    /* ---------- GIỎ HÀNG ---------- */
+    const liveStock = useCallback(
+        (variant) =>
+            Number((variantById.get(variant.id) || variant).soLuongTon || 0),
+        [variantById]
+    );
+
+    const addToCart = useCallback(
+        (product, variant, qty = 1) => {
+            const stock = liveStock(variant);
+            const existing = cart.find((i) => i.variant.id === variant.id);
+            const current = existing ? existing.quantity : 0;
+
+            if (current + qty > stock) {
+                showToast(`Chỉ còn ${stock} sản phẩm (${variant.maSku || "biến thể này"}).`);
+                return false;
+            }
+
+            patchActive((o) => ({
+                cart: existing
+                    ? o.cart.map((i) =>
+                        i.variant.id === variant.id
+                            ? {...i, quantity: i.quantity + qty}
+                            : i
+                    )
+                    : [...o.cart, {product, variant, quantity: qty}],
+            }));
+            showToast(
+                `Đã thêm ${product.tenSanPham} · Size ${variant.kichCo?.tenKichCo || "-"}`,
+                "ok"
+            );
+            return true;
+        },
+        [cart, liveStock, patchActive, showToast]
+    );
+
+    const updateQty = (variantId, delta) => {
+        const item = cart.find((i) => i.variant.id === variantId);
+        if (!item) return;
+        const next = item.quantity + delta;
+        if (next > liveStock(item.variant)) {
+            showToast(`Chỉ còn ${liveStock(item.variant)} sản phẩm.`);
+            return;
+        }
+        patchActive((o) => ({
+            cart: o.cart
+                .map((i) => (i.variant.id === variantId ? {...i, quantity: next} : i))
+                .filter((i) => i.quantity > 0),
+        }));
+    };
+
+    const removeItem = (variantId) =>
+        patchActive((o) => ({cart: o.cart.filter((i) => i.variant.id !== variantId)}));
+
+    const total = useMemo(
+        () =>
+            cart.reduce(
+                (sum, item) => sum + Number(item.variant.giaBan || 0) * item.quantity,
+                0
+            ),
+        [cart]
+    );
+    const totalQty = cart.reduce((s, i) => s + i.quantity, 0);
+
+    /* ---------- CHỌN SẢN PHẨM ---------- */
+    const selectProduct = useCallback(
+        async (product) => {
+            let variants = variantMap[product.id];
+
+            if (!variants) {
+                try {
+                    const data = await readJson(`${API}/san-pham/${product.id}/chi-tiet`);
+                    variants = Array.isArray(data) ? data : [];
+                } catch (e) {
+                    showToast(e.message || "Không thể lấy biến thể sản phẩm.");
+                    return;
+                }
+            }
+
+            if (!variants.length) {
+                showToast("Sản phẩm này chưa có biến thể.");
                 return;
             }
 
-            const hasStock = list.some(item => Number(item.soLuongTon || 0) > 0);
-            if (!hasStock) {
-                alert("Sản phẩm này hiện không còn tồn kho.");
+            const sellable = variants.filter(isSellable);
+            if (!sellable.length) {
+                showToast("Sản phẩm này hiện không còn tồn kho.");
                 return;
             }
 
-            setVariantModal({open: true, product, variants: list});
-        } catch (error) {
-            alert(error.message || "Không thể lấy biến thể sản phẩm.");
-        } finally {
-            setLoadingVariant(false);
+            // Chỉ có 1 lựa chọn → thêm thẳng, bỏ bước chọn
+            if (sellable.length === 1) {
+                addToCart(product, sellable[0]);
+                return;
+            }
+
+            setVariantModal({open: true, product, variants});
+        },
+        [variantMap, addToCart, showToast]
+    );
+
+    const closeVariantModal = useCallback(
+        () => setVariantModal({open: false, product: null, variants: []}),
+        []
+    );
+
+    const addVariantFromModal = useCallback(
+        (variant) => {
+            const ok = addToCart(variantModal.product, variant);
+            if (ok) closeVariantModal();
+        },
+        [addToCart, variantModal.product, closeVariantModal]
+    );
+
+    /* ---------- ENTER Ở Ô TÌM KIẾM (máy quét mã vạch) ---------- */
+    const handleSearchKeyDown = (e) => {
+        if (e.key === "Escape") {
+            setSearch("");
+            return;
+        }
+        if (e.key !== "Enter") return;
+
+        const kw = search.trim().toLowerCase();
+        if (!kw) return;
+        e.preventDefault();
+
+        // 1) Trùng SKU → thêm thẳng biến thể
+        const hit = skuIndex.get(kw);
+        if (hit) {
+            if (isSellable(hit.variant)) {
+                addToCart(hit.product, hit.variant);
+            } else {
+                showToast(`${hit.variant.maSku} đã hết hàng hoặc ngừng bán.`);
+            }
+            setSearch("");
+            return;
+        }
+
+        // 2) Trùng mã sản phẩm, hoặc chỉ còn 1 kết quả → chọn sản phẩm đó
+        const exact = products.find(
+            (p) => String(p.maSanPham || "").toLowerCase() === kw
+        );
+        const target = exact || (filteredProducts.length === 1 ? filteredProducts[0] : null);
+
+        if (target) {
+            selectProduct(target);
+            setSearch("");
+        } else if (!filteredProducts.length) {
+            showToast("Không tìm thấy sản phẩm / mã SKU này.");
         }
     };
 
-    // ⭐ Thêm biến thể vào giỏ từ modal
-    const addVariantToCart = (variant) => {
-        const product = variantModal.product;
-        setCart((old) => {
-            const existing = old.find(item => item.variant.id === variant.id);
-            if (existing) {
-                if (existing.quantity >= Number(variant.soLuongTon || 0)) {
-                    alert(`Chỉ còn ${variant.soLuongTon} sản phẩm.`);
-                    return old;
-                }
-                return old.map(item =>
-                    item.variant.id === variant.id
-                        ? {...item, quantity: item.quantity + 1}
-                        : item
-                );
-            }
-            return [...old, {product, variant, quantity: 1}];
-        });
-        setVariantModal({open: false, product: null, variants: []});
-    };
-    const updateQty = (variantId, delta) => {
-        setCart((old) =>
-            old
-                .map((item) => {
-                    if (item.variant.id !== variantId) return item;
-                    const max = Number(item.variant.soLuongTon || 0);
-                    const next = item.quantity + delta;
-                    if (next > max) {
-                        alert(`Chỉ còn ${max} sản phẩm.`);
-                        return item;
-                    }
-                    return {...item, quantity: next};
-                })
-                .filter((item) => item.quantity > 0)
-        );
+    /* ---------- HÓA ĐƠN CHỜ ---------- */
+    const newOrderTab = useCallback(() => {
+        if (orders.length >= MAX_TABS) {
+            showToast(`Tối đa ${MAX_TABS} hóa đơn chờ.`);
+            return;
+        }
+        const id = nextIdRef.current++;
+        setOrders((old) => [...old, createOrder(id)]);
+        setActiveId(id);
+    }, [orders.length, showToast]);
+
+    const closeOrderTab = (id) => {
+        const target = orders.find((o) => o.id === id);
+        if (
+            target?.cart.length &&
+            !window.confirm("Hóa đơn này còn sản phẩm trong giỏ. Bạn muốn xóa?")
+        ) {
+            return;
+        }
+        const rest = orders.filter((o) => o.id !== id);
+        if (!rest.length) {
+            const fresh = createOrder(nextIdRef.current++);
+            setOrders([fresh]);
+            setActiveId(fresh.id);
+            return;
+        }
+        setOrders(rest);
+        if (activeId === id) setActiveId(rest[0].id);
     };
 
-    const total = cart.reduce(
-        (sum, item) => sum + Number(item.variant.giaBan || 0) * item.quantity,
-        0
-    );
-
-    const openPaymentModal = () => {
+    /* ---------- THANH TOÁN ---------- */
+    const openPaymentModal = useCallback(() => {
         if (!cart.length) return;
         setShowPayment(true);
-    };
+    }, [cart.length]);
 
-    // -----------------------------------------------------
-    // XÁC NHẬN THANH TOÁN
-    // -----------------------------------------------------
     const confirmPayment = async () => {
-        if (loadingCheckout) return;
+        if (loadingCheckout || !cart.length) return;
 
         try {
             setLoadingCheckout(true);
@@ -829,7 +1165,6 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                 body: JSON.stringify(payload),
             });
 
-            // Snapshot giỏ hàng trước khi clear
             const cartSnapshot = [...cart];
             const totalPaid = Number(result?.tongThanhToan || total);
 
@@ -846,34 +1181,86 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                     mauSac: item.variant.mauSac?.tenMau,
                     soLuong: item.quantity,
                     donGia: Number(item.variant.giaBan || 0),
-                    thanhTien:
-                        Number(item.variant.giaBan || 0) * item.quantity,
+                    thanhTien: Number(item.variant.giaBan || 0) * item.quantity,
                 })),
             });
 
-            setCart([]);
-            setVariantMap({});
+            // Trừ tồn kho ngay trên giao diện (không phải tải lại toàn bộ)
+            setVariantMap((old) => {
+                const next = {...old};
+                cartSnapshot.forEach(({product, variant, quantity}) => {
+                    if (!next[product.id]) return;
+                    next[product.id] = next[product.id].map((v) =>
+                        v.id === variant.id
+                            ? {...v, soLuongTon: Math.max(0, Number(v.soLuongTon || 0) - quantity)}
+                            : v
+                    );
+                });
+                return next;
+            });
+
+            patchActive({cart: []});
         } catch (err) {
             console.error(err);
-            alert(err.message || "Không thể tạo hóa đơn tại quầy.");
+            showToast(err.message || "Không thể tạo hóa đơn tại quầy.", "error");
         } finally {
             setLoadingCheckout(false);
         }
     };
 
-    // -----------------------------------------------------
-    // ĐÓNG HÓA ĐƠN
-    // -----------------------------------------------------
-    const closeInvoice = async () => {
+    const closeInvoice = useCallback(() => {
         setInvoice(null);
+        // Đồng bộ dữ liệu ở nền — không chặn nhân viên bán đơn kế tiếp
         if (onRefresh) {
-            try {
-                await onRefresh();
-            } catch (e) {
-                console.error(e);
-            }
+            Promise.resolve(onRefresh()).catch((e) => console.error(e));
         }
-    };
+        setTimeout(() => searchRef.current?.focus(), 0);
+    }, [onRefresh]);
+
+    /* ---------- PHÍM TẮT ---------- */
+    useEffect(() => {
+        searchRef.current?.focus();
+    }, []);
+
+    useEffect(() => {
+        const onKey = (e) => {
+            if (invoice) {
+                if (e.key === "Escape" || e.key === "Enter") {
+                    e.preventDefault();
+                    closeInvoice();
+                }
+                return;
+            }
+            if (variantModal.open || showPayment) return;
+
+            if (e.key === "F2") {
+                e.preventDefault();
+                searchRef.current?.focus();
+                searchRef.current?.select();
+            } else if (e.key === "F4") {
+                e.preventDefault();
+                newOrderTab();
+            } else if (e.key === "F8") {
+                e.preventDefault();
+                patchActive((o) => ({
+                    method: o.method === "TIEN_MAT" ? "CHUYEN_KHOAN" : "TIEN_MAT",
+                }));
+            } else if (e.key === "F9") {
+                e.preventDefault();
+                openPaymentModal();
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [
+        invoice,
+        variantModal.open,
+        showPayment,
+        closeInvoice,
+        newOrderTab,
+        patchActive,
+        openPaymentModal,
+    ]);
 
     /* =========================================================
        RENDER
@@ -882,8 +1269,52 @@ export default function EmployeeCounterSale({products, onRefresh}) {
         <div className="employee-content">
             <PageHeading
                 title="Bán hàng tại quầy"
-                description="Chọn sản phẩm, thêm vào giỏ hàng và tiến hành thanh toán."
+                description="Quét mã SKU hoặc tìm sản phẩm, thêm vào giỏ và thanh toán."
+                action={
+                    <div className="pos-shortcuts">
+                        <span><kbd>F2</kbd> Tìm</span>
+                        <span><kbd>F4</kbd> Đơn mới</span>
+                        <span><kbd>F8</kbd> Đổi thanh toán</span>
+                        <span><kbd>F9</kbd> Thanh toán</span>
+                    </div>
+                }
             />
+
+            {/* ---------- HÓA ĐƠN CHỜ ---------- */}
+            <div className="pos-tabs">
+                {orders.map((o, idx) => {
+                    const qty = o.cart.reduce((s, i) => s + i.quantity, 0);
+                    return (
+                        <div
+                            key={o.id}
+                            className={`pos-tab ${o.id === activeId ? "active" : ""}`}
+                        >
+                            <button type="button" onClick={() => setActiveId(o.id)}>
+                                Đơn {idx + 1}
+                                {qty > 0 && <b>{qty}</b>}
+                            </button>
+                            {(orders.length > 1 || o.cart.length > 0) && (
+                                <button
+                                    type="button"
+                                    className="pos-tab-close"
+                                    title="Xóa hóa đơn này"
+                                    onClick={() => closeOrderTab(o.id)}
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
+                <button
+                    type="button"
+                    className="pos-tab-add"
+                    onClick={newOrderTab}
+                    title="Hóa đơn mới (F4)"
+                >
+                    ＋
+                </button>
+            </div>
 
             <div className="pos-layout">
                 {/* ---------- DANH MỤC ---------- */}
@@ -892,9 +1323,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                         <span className="pos-category-icon">☷</span>
                         <div>
                             <h2>Danh mục</h2>
-                            <p>
-                                {Math.max(categories.length - 1, 0)} danh mục
-                            </p>
+                            <p>{Math.max(categories.length - 1, 0)} danh mục</p>
                         </div>
                     </div>
 
@@ -909,12 +1338,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                                 <span>{item === "Tất cả" ? "▦" : "□"}</span>
                                 <strong>{item}</strong>
                                 <small>
-                                    {item === "Tất cả"
-                                        ? products.length
-                                        : products.filter(
-                                            (p) =>
-                                                p.danhMuc?.tenDanhMuc === item
-                                        ).length}
+                                    {item === "Tất cả" ? products.length : categoryCount[item]}
                                 </small>
                             </button>
                         ))}
@@ -926,7 +1350,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                     <div className="pos-products-head">
                         <div>
                             <h2>Sản phẩm</h2>
-                            <p>Chọn sản phẩm để thêm vào hóa đơn</p>
+                            <p>Nhấn Enter khi nhập đúng mã SKU để thêm ngay vào hóa đơn</p>
                         </div>
                         <span className="pos-product-count">
                             {filteredProducts.length} sản phẩm
@@ -936,130 +1360,28 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                     <div className="pos-search-box">
                         <span>⌕</span>
                         <input
+                            ref={searchRef}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Tìm sản phẩm, mã sản phẩm, thương hiệu..."
+                            onKeyDown={handleSearchKeyDown}
+                            placeholder="Quét mã SKU hoặc tìm theo tên, mã sản phẩm, thương hiệu... (F2)"
                         />
                         {search && (
-                            <button
-                                type="button"
-                                onClick={() => setSearch("")}
-                            >
+                            <button type="button" onClick={() => setSearch("")}>
                                 ×
                             </button>
                         )}
                     </div>
 
-                    {loadingVariant && (
-                        <div className="employee-loading-inline">
-                            Đang lấy biến thể sản phẩm...
-                        </div>
-                    )}
-
                     <div className="pos-product-grid">
-                        {filteredProducts.length ? (
-                            filteredProducts.map((product) => (
-                                <button
-                                    type="button"
-                                    className={`pos-product-card ${(() => {
-                                        const variants =
-                                            variantMap[product.id] || [];
-                                        const stock = variants.reduce(
-                                            (s, i) =>
-                                                s + Number(i.soLuongTon || 0),
-                                            0
-                                        );
-                                        return variants.length && stock <= 0
-                                            ? "sold-out"
-                                            : "";
-                                    })()}`}
+                        {visibleProducts.length ? (
+                            visibleProducts.map((product) => (
+                                <ProductCard
                                     key={product.id}
-                                    onClick={() => openVariantPicker(product)}                                >
-                                    <div className="pos-product-image">
-                                        <img
-                                            src={
-                                                product.hinhAnh ||
-                                                "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=600&q=80"
-                                            }
-                                            alt={product.tenSanPham}
-                                        />
-                                        <span className="pos-product-add">
-                                            ＋
-                                        </span>
-                                    </div>
-
-                                    <div className="pos-product-brand">
-                                        {product.thuongHieu?.tenThuongHieu ||
-                                            "FShop"}
-                                    </div>
-
-                                    <strong>{product.tenSanPham}</strong>
-
-                                    <span className="pos-product-code">
-                                        {product.maSanPham || "-"}
-                                    </span>
-
-                                    <div className="pos-product-price">
-                                        {(() => {
-                                            const variants =
-                                                variantMap[product.id] || [];
-                                            const prices = variants
-                                                .map((i) =>
-                                                    Number(i.giaBan || 0)
-                                                )
-                                                .filter((v) => v > 0);
-                                            const min = prices.length
-                                                ? Math.min(...prices)
-                                                : Number(product.giaBan || 0);
-                                            return min > 0
-                                                ? formatMoney(min)
-                                                : "Chưa có giá";
-                                        })()}
-                                    </div>
-
-                                    <div className="pos-product-meta">
-                                        {(() => {
-                                            const variants =
-                                                variantMap[product.id] || [];
-                                            const stock = variants.reduce(
-                                                (s, i) =>
-                                                    s +
-                                                    Number(i.soLuongTon || 0),
-                                                0
-                                            );
-                                            const out =
-                                                variants.length > 0 &&
-                                                stock <= 0;
-                                            return (
-                                                <>
-                                                    <span
-                                                        className={`pos-stock-dot ${
-                                                            out
-                                                                ? "out"
-                                                                : stock <= 5
-                                                                    ? "low"
-                                                                    : ""
-                                                        }`}
-                                                    ></span>
-                                                    <span>
-                                                        {variants.length
-                                                            ? out
-                                                                ? "Hết hàng"
-                                                                : stock <= 5
-                                                                    ? `Sắp hết (${stock})`
-                                                                    : `Còn hàng (${stock})`
-                                                            : "Đang tải..."}
-                                                    </span>
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-
-                                    <div className="pos-product-bottom">
-                                        <small>Thêm vào giỏ</small>
-                                        <span>＋</span>
-                                    </div>
-                                </button>
+                                    product={product}
+                                    stats={productStats[product.id]}
+                                    onSelect={selectProduct}
+                                />
                             ))
                         ) : (
                             <div className="pos-no-products">
@@ -1068,20 +1390,32 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                             </div>
                         )}
                     </div>
+
+                    {filteredProducts.length > visibleCount && (
+                        <button
+                            type="button"
+                            className="pos-load-more"
+                            onClick={() =>
+                                setPageState({key: filterKey, count: visibleCount + PAGE_SIZE})
+                            }
+                        >
+                            Xem thêm {filteredProducts.length - visibleCount} sản phẩm
+                        </button>
+                    )}
                 </section>
 
                 {/* ---------- GIỎ HÀNG ---------- */}
                 <aside className="employee-card pos-cart">
                     <div className="employee-card-heading">
                         <div>
-                            <h2>Giỏ hàng ({cart.length})</h2>
+                            <h2>Giỏ hàng ({totalQty})</h2>
                             <p>Hóa đơn tại quầy</p>
                         </div>
                         {cart.length > 0 && (
                             <button
                                 type="button"
                                 className="employee-link"
-                                onClick={() => setCart([])}
+                                onClick={() => patchActive({cart: []})}
                             >
                                 Xóa tất cả
                             </button>
@@ -1091,54 +1425,34 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                     <div className="pos-cart-list">
                         {cart.length ? (
                             cart.map((item) => (
-                                <div
-                                    className="pos-cart-item"
-                                    key={item.variant.id}
-                                >
+                                <div className="pos-cart-item" key={item.variant.id}>
                                     <img
-                                        src={
-                                            item.product.hinhAnh ||
-                                            "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=300&q=80"
-                                        }
+                                        src={item.product.hinhAnh || FALLBACK_IMG}
                                         alt={item.product.tenSanPham}
                                     />
                                     <div className="pos-cart-info">
-                                        <strong>
-                                            {item.product.tenSanPham}
-                                        </strong>
+                                        <strong>{item.product.tenSanPham}</strong>
                                         <small>
-                                            Size{" "}
-                                            {item.variant.kichCo?.tenKichCo ||
-                                                "-"}{" "}
-                                            ·{" "}
-                                            {item.variant.mauSac?.tenMau ||
-                                                "-"}
+                                            Size {item.variant.kichCo?.tenKichCo || "-"} ·{" "}
+                                            {item.variant.mauSac?.tenMau || "-"}
                                         </small>
                                         <b>
-                                            {formatMoney(item.variant.giaBan)}
+                                            {formatMoney(
+                                                Number(item.variant.giaBan || 0) * item.quantity
+                                            )}
                                         </b>
 
                                         <div className="quantity-control">
                                             <button
                                                 type="button"
-                                                onClick={() =>
-                                                    updateQty(
-                                                        item.variant.id,
-                                                        -1
-                                                    )
-                                                }
+                                                onClick={() => updateQty(item.variant.id, -1)}
                                             >
                                                 −
                                             </button>
                                             <span>{item.quantity}</span>
                                             <button
                                                 type="button"
-                                                onClick={() =>
-                                                    updateQty(
-                                                        item.variant.id,
-                                                        1
-                                                    )
-                                                }
+                                                onClick={() => updateQty(item.variant.id, 1)}
                                             >
                                                 +
                                             </button>
@@ -1148,15 +1462,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                                     <button
                                         type="button"
                                         className="pos-remove"
-                                        onClick={() =>
-                                            setCart((old) =>
-                                                old.filter(
-                                                    (r) =>
-                                                        r.variant.id !==
-                                                        item.variant.id
-                                                )
-                                            )
-                                        }
+                                        onClick={() => removeItem(item.variant.id)}
                                     >
                                         ×
                                     </button>
@@ -1166,7 +1472,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                             <div className="pos-empty-cart">
                                 <div>🛒</div>
                                 <strong>Chưa có sản phẩm</strong>
-                                <span>Chọn sản phẩm bên trái.</span>
+                                <span>Quét mã hoặc chọn sản phẩm bên trái.</span>
                             </div>
                         )}
                     </div>
@@ -1188,7 +1494,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
 
                     <div className="pos-payment-section">
                         <div className="pos-payment-title">
-                            <span>Phương thức thanh toán</span>
+                            <span>Phương thức thanh toán (F8)</span>
                         </div>
 
                         <div className="pos-payment-options">
@@ -1202,11 +1508,9 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                                     className={`pos-payment-option ${
                                         paymentMethod === value ? "active" : ""
                                     }`}
-                                    onClick={() => setPaymentMethod(value)}
+                                    onClick={() => patchActive({method: value})}
                                 >
-                                    <span className="pos-payment-icon">
-                                        {icon}
-                                    </span>
+                                    <span className="pos-payment-icon">{icon}</span>
                                     <span>{label}</span>
                                 </button>
                             ))}
@@ -1220,7 +1524,7 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                         onClick={openPaymentModal}
                     >
                         <span>▣</span>
-                        <strong>Thanh toán</strong>
+                        <strong>Thanh toán (F9)</strong>
                         <b>{formatMoney(total)}</b>
                     </button>
 
@@ -1230,7 +1534,12 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                 </aside>
             </div>
 
-            {/* MODAL THANH TOÁN */}
+            {toast && (
+                <div className={`pos-toast ${toast.type}`} role="status">
+                    {toast.message}
+                </div>
+            )}
+
             <PaymentModal
                 open={showPayment}
                 onClose={() => !loadingCheckout && setShowPayment(false)}
@@ -1240,19 +1549,14 @@ export default function EmployeeCounterSale({products, onRefresh}) {
                 onConfirm={confirmPayment}
             />
 
-            {/* MODAL HÓA ĐƠN */}
-            <InvoiceModal
-                invoice={invoice}
-                onClose={closeInvoice}
-            />
+            <InvoiceModal invoice={invoice} onClose={closeInvoice} />
 
-            {/* ⭐ MODAL CHỌN BIẾN THỂ (MỚI THÊM) */}
             <VariantPickerModal
                 open={variantModal.open}
                 product={variantModal.product}
                 variants={variantModal.variants}
-                onClose={() => setVariantModal({open: false, product: null, variants: []})}
-                onConfirm={addVariantToCart}
+                onClose={closeVariantModal}
+                onConfirm={addVariantFromModal}
             />
         </div>
     );
