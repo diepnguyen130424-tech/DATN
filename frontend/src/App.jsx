@@ -295,7 +295,6 @@ function App() {
             const data = await res.json();
             const raw = Array.isArray(data) ? data : [];
 
-            // Backend đã lọc HOAT_DONG + trong khoảng thời gian → giữ nguyên
             const list = raw.filter((km) => {
                 if (String(km?.trangThai || "").toUpperCase() === "NGUNG_HOAT_DONG") return false;
                 const gt = Number(km.giaTriGiam);
@@ -1297,7 +1296,6 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     });
     const giaHienThi = kmInfo ? kmInfo.giaSauGiam : Number(gia);
 
-    // ⭐ Reset số lượng khi đổi size/màu mà số cũ vượt tồn kho mới
     useEffect(() => {
         if (selectedVariant && stock > 0 && Number(soLuong) > stock) {
             setSoLuong(stock);
@@ -1308,7 +1306,6 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedVariant?.id]);
 
-    // ⭐ Xử lý nhập số lượng trực tiếp
     const handleSoLuongChange = (val) => {
         setQtyError("");
         const raw = String(val).replace(/[^\d]/g, "");
@@ -1517,7 +1514,6 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                                 {selectedVariant ? stock > 0 ? `Còn ${stock} sản phẩm` : "Sản phẩm đã hết hàng" : "Vui lòng chọn size và màu"}
                             </div>
 
-                            {/* ⭐ Ô SỐ LƯỢNG — cho phép nhập trực tiếp, chặn vượt tồn kho */}
                             <div className="quantity-row">
                                 <div className="quantity-control">
                                     <button
@@ -1988,18 +1984,20 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [dangDatHang, setDangDatHang] = useState(false);
     const [bill, setBill] = useState(null);
     const [vouchers, setVouchers] = useState([]);
-    const [maVoucher, setMaVoucher] = useState("");
     const [voucherError, setVoucherError] = useState("");
     const [checkingVoucher, setCheckingVoucher] = useState(false);
-    const [danhSachVoucherActive, setDanhSachVoucherActive] = useState([]);
-    // Danh sách voucher có sẵn trong màn hình thanh toán
+    // Danh sách voucher có sẵn
     const [showVoucherList, setShowVoucherList] = useState(false);
     const [voucherList, setVoucherList] = useState([]);
     const [loadingVoucherList, setLoadingVoucherList] = useState(false);
-    const [dangTaiVoucher, setDangTaiVoucher] = useState(false);
-    const [loiTaiVoucher, setLoiTaiVoucher] = useState("");
-    const MAX_VOUCHER = 2;
-    const coVoucherFreeship = vouchers.some(isVoucherFreeship);
+
+    // ⭐ Phân loại voucher đã chọn
+    const voucherGiamGia = vouchers.filter((v) => !isVoucherFreeship(v));
+    const voucherFreeshipList = vouchers.filter((v) => isVoucherFreeship(v));
+    const daCoGiamGia = voucherGiamGia.length > 0;
+    const daCoFreeship = voucherFreeshipList.length > 0;
+
+    const coVoucherFreeship = daCoFreeship;
     const diaChiDangChon = addresses.find((a) => String(a.id) === String(selectedAddressId));
     const phiShipDiaChi = Number(diaChiDangChon?.phiShip ?? phiShipMoi ?? PHI_SHIP_MAC_DINH);
     const phiVanChuyen = coVoucherFreeship ? 0 : phiShipDiaChi;
@@ -2031,44 +2029,47 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
         loadVoucherList();
     }, []);
 
-    const apDungVoucher = async () => {
-        const code = maVoucher.trim().toUpperCase();
-        if (!code) { setVoucherError("Vui lòng nhập mã"); return; }
-        if (vouchers.length >= MAX_VOUCHER) { setVoucherError(`Tối đa ${MAX_VOUCHER} mã`); return; }
-        if (vouchers.some((v) => String(v.maVoucher || "").toUpperCase() === code)) { setVoucherError("Mã đã dùng"); return; }
-        setCheckingVoucher(true); setVoucherError("");
+    const xoaVoucher = (idx) => { setVouchers((p) => p.filter((_, i) => i !== idx)); setVoucherError(""); };
+
+    // ⭐ Chọn voucher từ danh sách
+    const chonVoucherTuDanhSach = async (v) => {
+        setCheckingVoucher(true);
+        setVoucherError("");
         try {
             const khId = (() => {
-                try { const raw = localStorage.getItem("taiKhoan"); return raw ? JSON.parse(raw).khachHangId : null; }
-                catch { return null; }
+                try {
+                    const raw = localStorage.getItem("taiKhoan");
+                    return raw ? JSON.parse(raw).khachHangId : null;
+                } catch { return null; }
             })();
             const r = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    ma: code,
-                    maVoucher: code,
+                    ma: v.maVoucher,
+                    maVoucher: v.maVoucher,
                     tongTien: Number(tongTienSale) || 0,
                     tongTienHang: Number(tongTienSale) || 0,
-                    khachHangId: khId ?? null,
+                    khachHangId: (khId && !Number.isNaN(Number(khId))) ? Number(khId) : null,
                 }),
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
-            // ⭐ Ghép id gốc từ voucherList (nếu API không trả id)
-            const found = voucherList.find((x) => String(x.maVoucher || "").toUpperCase() === code);
             setVouchers((p) => [...p, {
                 ...d,
-                id: d.id ?? d.voucherId ?? found?.id,
-                maVoucher: d.maVoucher || code,
-                tenVoucher: d.tenVoucher || found?.tenVoucher || code,
-                loaiGiam: d.loaiGiam || found?.loaiGiam,
-                giaTriGiam: d.giaTriGiam ?? found?.giaTriGiam,
+                id: d.id ?? d.voucherId ?? v.id,
+                maVoucher: d.maVoucher || v.maVoucher,
+                tenVoucher: d.tenVoucher || v.tenVoucher || v.maVoucher,
+                loaiGiam: d.loaiGiam || v.loaiGiam,
+                giaTriGiam: d.giaTriGiam ?? v.giaTriGiam,
             }]);
-            setMaVoucher("");
-        } catch (e) { setVoucherError(e.message || "Mã không hợp lệ"); }
-        finally { setCheckingVoucher(false); }
+            setShowVoucherList(false);
+        } catch (e) {
+            setVoucherError(e.message || "Mã không hợp lệ");
+        } finally {
+            setCheckingVoucher(false);
+        }
     };
-    const xoaVoucher = (idx) => { setVouchers((p) => p.filter((_, i) => i !== idx)); setVoucherError(""); };
 
     const NGAN_HANG_QR = "MB";
     const SO_TAI_KHOAN = "0857325488";
@@ -2150,7 +2151,8 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                 body: JSON.stringify({
                     hoTen: hoTen.trim(), soDienThoai: soDienThoai.trim(), diaChi: diaChi.trim(),
                     ghiChu: ghiChu.trim(), phuongThuc,
-                    voucherId: vouchers[0]?.id || null,
+                    voucherId: voucherGiamGia[0]?.id || null,
+                    voucherFreeshipId: voucherFreeshipList[0]?.id || null,
                     maVoucher: vouchers.map((v) => v.maVoucher).filter(Boolean).join("+") || null,
                     tienGiam,
                     danhSachVoucherId: vouchers.map((v) => v.id).filter((x) => x != null),
@@ -2349,89 +2351,99 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                 </label>
                                 <input className="price-input" type="tel" value={soDienThoai} onChange={(e) => setSoDienThoai(e.target.value)} placeholder="Nhập số điện thoại" />
                             </div>
+
+                            {/* ⭐ VOUCHER — chỉ chọn từ danh sách, mỗi loại tối đa 1 mã */}
                             <div>
                                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
                                     🎫 Mã giảm giá
                                     <span style={{ marginLeft: 8, color: "#777", fontWeight: 400 }}>
-                                        ({vouchers.length}/{MAX_VOUCHER})
+                                        (tối đa 1 giảm giá + 1 freeship)
                                     </span>
                                 </label>
-                                <div className="voucher-input-row">
-                                    <input className="price-input" type="text" placeholder="Nhập mã (VD: SALE10)"
-                                           value={maVoucher} onChange={(e) => setMaVoucher(e.target.value.toUpperCase())}
-                                           disabled={vouchers.length >= MAX_VOUCHER} />
-                                    <button type="button" className="voucher-apply-btn" onClick={apDungVoucher}
-                                            disabled={checkingVoucher || vouchers.length >= MAX_VOUCHER}>
-                                        {checkingVoucher ? "..." : "Áp dụng"}
-                                    </button>
-                                </div>
-                                <div style={{ marginTop: 14 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 9 }}>
-                                        <strong style={{ fontSize: 13 }}>Voucher đang hoạt động</strong>
-                                        <span style={{ color: "#777", fontSize: 11 }}>Chọn mã rồi nhấn Áp dụng</span>
-                                    </div>
-                                    {dangTaiVoucher ? (
-                                        <p style={{ margin: 0, color: "#777", fontSize: 12 }}>Đang tải voucher...</p>
-                                    ) : danhSachVoucherActive.length === 0 ? (
-                                        <p style={{ margin: 0, color: "#777", fontSize: 12 }}>{loiTaiVoucher || "Hiện chưa có voucher khả dụng."}</p>
-                                    ) : (
-                                        <div style={{ display: "grid", gap: 8 }}>
-                                            {danhSachVoucherActive.map((v) => {
-                                                const ma = String(v.maVoucher || "").toUpperCase();
-                                                const daApDung = vouchers.some((x) => String(x.maVoucher || "").toUpperCase() === ma);
-                                                const free = String(v.loaiGiam || "").toUpperCase() === "FREESHIP";
-                                                const giaTri = Number(v.giaTriGiam || 0);
-                                                const moTaGiam = free ? "Miễn phí vận chuyển" : String(v.loaiGiam || "").toUpperCase() === "PHAN_TRAM" ? `Giảm ${giaTri}%${v.giamToiDa != null ? ` · tối đa ${formatGia(v.giamToiDa)}` : ""}` : `Giảm ${formatGia(giaTri)}`;
-                                                return (
-                                                    <div key={v.id ?? ma} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 12px", border: "1px dashed #e7b6a9", borderRadius: 9, background: daApDung ? "#f1faf2" : "#fffaf8" }}>
-                                                        <div style={{ minWidth: 0 }}>
-                                                            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
-                                                                <strong style={{ color: "#d94d32" }}>{ma || "VOUCHER"}</strong>
-                                                                <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: free ? "#e8f5e9" : "#fff0e9", color: free ? "#287b38" : "#d94d32" }}>{moTaGiam}</span>
-                                                            </div>
-                                                            <div style={{ color: "#555", fontSize: 12, marginTop: 4 }}>{v.tenVoucher || "Ưu đãi dành cho đơn hàng"}</div>
-                                                            {Number(v.donToiThieu || 0) > 0 && <div style={{ color: "#777", fontSize: 11, marginTop: 3 }}>Đơn tối thiểu {formatGia(v.donToiThieu)}</div>}
-                                                            {v.ngayKetThuc && <div style={{ color: "#888", fontSize: 11, marginTop: 2 }}>Hạn dùng: {new Date(v.ngayKetThuc).toLocaleString("vi-VN")}</div>}
-                                                        </div>
-                                                        <button type="button" onClick={() => chonVoucherCoSan(v)} disabled={daApDung || vouchers.length >= MAX_VOUCHER} style={{ flexShrink: 0, border: "1px solid #e65336", borderRadius: 6, padding: "7px 10px", background: daApDung ? "#f1faf2" : "#fff", color: daApDung ? "#287b38" : "#e65336", fontWeight: 700, fontSize: 12, cursor: daApDung || vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer", opacity: vouchers.length >= MAX_VOUCHER && !daApDung ? .55 : 1 }}>{daApDung ? "Đã chọn" : "Chọn mã"}</button>
-                                                    </div>
-                                                );
-                                            })}
+
+                                {/* 2 slot hiển thị */}
+                                <div style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "1fr 1fr",
+                                    gap: 10,
+                                    marginBottom: 10,
+                                }}>
+                                    {/* Slot giảm giá */}
+                                    <div style={{
+                                        padding: "10px 12px",
+                                        border: `1.5px dashed ${daCoGiamGia ? "#2e7d32" : "#e65336"}`,
+                                        borderRadius: 10,
+                                        background: daCoGiamGia ? "#f1f8f2" : "#fffaf8",
+                                        fontSize: 12.5,
+                                        minHeight: 62,
+                                    }}>
+                                        <div style={{ fontWeight: 700, color: "#666", marginBottom: 4 }}>
+                                            ◆ Mã giảm giá {daCoGiamGia && "✓"}
                                         </div>
-                                    )}
+                                        {daCoGiamGia ? (
+                                            <strong style={{ color: "#2e7d32" }}>
+                                                {voucherGiamGia[0].maVoucher}
+                                            </strong>
+                                        ) : (
+                                            <span style={{ color: "#999" }}>Chưa chọn</span>
+                                        )}
+                                    </div>
+
+                                    {/* Slot freeship */}
+                                    <div style={{
+                                        padding: "10px 12px",
+                                        border: `1.5px dashed ${daCoFreeship ? "#2e7d32" : "#1680d6"}`,
+                                        borderRadius: 10,
+                                        background: daCoFreeship ? "#f1f8f2" : "#f5faff",
+                                        fontSize: 12.5,
+                                        minHeight: 62,
+                                    }}>
+                                        <div style={{ fontWeight: 700, color: "#666", marginBottom: 4 }}>
+                                            🚚 Miễn phí ship {daCoFreeship && "✓"}
+                                        </div>
+                                        {daCoFreeship ? (
+                                            <strong style={{ color: "#2e7d32" }}>
+                                                {voucherFreeshipList[0].maVoucher}
+                                            </strong>
+                                        ) : (
+                                            <span style={{ color: "#999" }}>Chưa chọn</span>
+                                        )}
+                                    </div>
                                 </div>
 
-                                {/* ⭐ Nút mở danh sách voucher có sẵn */}
+                                {/* Nút mở danh sách voucher */}
                                 <button
                                     type="button"
                                     onClick={() => setShowVoucherList((v) => !v)}
-                                    disabled={vouchers.length >= MAX_VOUCHER}
+                                    disabled={daCoGiamGia && daCoFreeship}
                                     style={{
-                                        marginTop: 10,
                                         width: "100%",
                                         padding: "10px 14px",
                                         border: "1px dashed #e65336",
                                         borderRadius: 8,
-                                        background: "#fffaf8",
-                                        color: "#e65336",
+                                        background: (daCoGiamGia && daCoFreeship) ? "#f5f5f5" : "#fffaf8",
+                                        color: (daCoGiamGia && daCoFreeship) ? "#999" : "#e65336",
                                         fontWeight: 700,
                                         fontSize: 13,
-                                        cursor: vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer",
-                                        opacity: vouchers.length >= MAX_VOUCHER ? 0.5 : 1,
+                                        cursor: (daCoGiamGia && daCoFreeship) ? "not-allowed" : "pointer",
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "space-between",
                                     }}
                                 >
-                                    <span>🎁 {showVoucherList ? "Ẩn danh sách" : "Chọn voucher có sẵn"}</span>
+                                    <span>
+                                        🎁 {(daCoGiamGia && daCoFreeship)
+                                        ? "Đã chọn đủ 2 loại voucher"
+                                        : (showVoucherList ? "Ẩn danh sách" : "Chọn voucher có sẵn")}
+                                    </span>
                                     <span>{showVoucherList ? "▲" : "▼"}</span>
                                 </button>
 
-                                {/* ⭐ Danh sách voucher khả dụng */}
+                                {/* Danh sách voucher */}
                                 {showVoucherList && (
                                     <div style={{
                                         marginTop: 10,
-                                        maxHeight: 360,
+                                        maxHeight: 380,
                                         overflowY: "auto",
                                         border: "1px solid #eee",
                                         borderRadius: 8,
@@ -2443,46 +2455,56 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                                 Đang tải voucher...
                                             </div>
                                         )}
+
                                         {!loadingVoucherList && voucherList.length === 0 && (
                                             <div style={{ padding: 20, textAlign: "center", color: "#777", fontSize: 13 }}>
                                                 Hiện chưa có voucher nào khả dụng.
                                             </div>
                                         )}
+
                                         {!loadingVoucherList && voucherList.map((v) => {
+                                            const laFreeship = isVoucherFreeship(v);
                                             const daApDung = vouchers.some((x) => String(x.id) === String(v.id));
                                             const tongTienHang = Number(tongTienSale || 0);
                                             const donToiThieu = Number(v.donToiThieu || 0);
                                             const chuaDuDieuKien = donToiThieu > 0 && tongTienHang < donToiThieu;
                                             const hetLuot = (v.soLuong ?? 0) > 0 && (v.soLuongDaDung ?? 0) >= v.soLuong;
-                                            const disabled = daApDung || chuaDuDieuKien || hetLuot || vouchers.length >= MAX_VOUCHER;
+
+                                            // ⭐ Chặn theo loại: đã có 1 mã cùng loại thì không cho chọn nữa
+                                            const biChanBoiLoai = laFreeship
+                                                ? (daCoFreeship && !daApDung)
+                                                : (daCoGiamGia && !daApDung);
+
+                                            const disabled = daApDung || chuaDuDieuKien || hetLuot || biChanBoiLoai;
 
                                             return (
-                                                <div
-                                                    key={v.id}
-                                                    style={{
-                                                        display: "flex",
-                                                        gap: 12,
-                                                        alignItems: "center",
-                                                        padding: "12px 10px",
-                                                        borderBottom: "1px dashed #eee",
-                                                        opacity: disabled ? 0.5 : 1,
-                                                    }}
-                                                >
+                                                <div key={v.id} style={{
+                                                    display: "flex",
+                                                    gap: 12,
+                                                    alignItems: "center",
+                                                    padding: "12px 10px",
+                                                    borderBottom: "1px dashed #eee",
+                                                    opacity: disabled ? 0.5 : 1,
+                                                    background: daApDung ? "#f1f8f2" : "transparent",
+                                                }}>
                                                     <div style={{
                                                         flexShrink: 0,
-                                                        minWidth: 70,
+                                                        minWidth: 74,
                                                         textAlign: "center",
                                                         padding: "10px 6px",
                                                         borderRadius: 8,
-                                                        background: "#fff3f0",
-                                                        color: "#e53935",
+                                                        background: laFreeship ? "#e6f2ff" : "#fff3f0",
+                                                        color: laFreeship ? "#1680d6" : "#e53935",
                                                         fontWeight: 700,
-                                                        fontSize: 15,
+                                                        fontSize: 14,
                                                     }}>
-                                                        {v.loaiGiam === "PHAN_TRAM"
-                                                            ? `-${v.giaTriGiam}%`
-                                                            : `-${formatGia(v.giaTriGiam)}`}
+                                                        {laFreeship
+                                                            ? "FREESHIP"
+                                                            : (String(v.loaiGiam).toUpperCase() === "PHAN_TRAM"
+                                                                ? `-${v.giaTriGiam}%`
+                                                                : `-${formatGia(v.giaTriGiam)}`)}
                                                     </div>
+
                                                     <div style={{ flex: 1, minWidth: 0 }}>
                                                         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
                                                             {v.tenVoucher || v.maVoucher}
@@ -2496,7 +2518,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                                                 {chuaDuDieuKien && " (chưa đủ)"}
                                                             </div>
                                                         )}
-                                                        {v.giamToiDa > 0 && v.loaiGiam === "PHAN_TRAM" && (
+                                                        {v.giamToiDa > 0 && String(v.loaiGiam).toUpperCase() === "PHAN_TRAM" && (
                                                             <div style={{ fontSize: 12, color: "#666" }}>
                                                                 Giảm tối đa: <strong>{formatGia(v.giamToiDa)}</strong>
                                                             </div>
@@ -2509,63 +2531,38 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                                                 Đã hết lượt sử dụng
                                                             </div>
                                                         )}
+                                                        {biChanBoiLoai && (
+                                                            <div style={{ fontSize: 12, color: "#ef6c00", fontWeight: 600 }}>
+                                                                Chỉ được chọn 1 mã {laFreeship ? "FREESHIP" : "giảm giá"}
+                                                            </div>
+                                                        )}
                                                     </div>
+
                                                     <button
                                                         type="button"
-                                                        disabled={disabled}
-                                                        onClick={async () => {
-                                                            if (disabled) return;
-                                                            setCheckingVoucher(true);
-                                                            setVoucherError("");
-                                                            try {
-                                                                const khId = (() => {
-                                                                    try {
-                                                                        const raw = localStorage.getItem("taiKhoan");
-                                                                        return raw ? JSON.parse(raw).khachHangId : null;
-                                                                    } catch { return null; }
-                                                                })();
-                                                                const r = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
-                                                                    method: "POST",
-                                                                    headers: { "Content-Type": "application/json" },
-                                                                    body: JSON.stringify({
-                                                                        ma: v.maVoucher,
-                                                                        maVoucher: v.maVoucher,
-                                                                        tongTien: Number(tongTienSale) || 0,
-                                                                        tongTienHang: Number(tongTienSale) || 0,
-                                                                        khachHangId: (khId && !Number.isNaN(Number(khId))) ? Number(khId) : null,
-                                                                    }),
-                                                                });
-                                                                const d = await r.json();
-                                                                if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
-                                                                // ⭐ Ghép id gốc từ voucher vừa chọn
-                                                                setVouchers((p) => [...p, {
-                                                                    ...d,
-                                                                    id: d.id ?? d.voucherId ?? v.id,
-                                                                    maVoucher: d.maVoucher || v.maVoucher,
-                                                                    tenVoucher: d.tenVoucher || v.tenVoucher || v.maVoucher,
-                                                                    loaiGiam: d.loaiGiam || v.loaiGiam,
-                                                                    giaTriGiam: d.giaTriGiam ?? v.giaTriGiam,
-                                                                }]);
-                                                                setShowVoucherList(false);
-                                                            } catch (e) {
-                                                                setVoucherError(e.message || "Mã không hợp lệ");
-                                                            } finally {
-                                                                setCheckingVoucher(false);
-                                                            }
-                                                        }}
+                                                        disabled={disabled || checkingVoucher}
+                                                        onClick={() => !disabled && chonVoucherTuDanhSach(v)}
                                                         style={{
                                                             flexShrink: 0,
                                                             padding: "8px 14px",
                                                             border: daApDung ? "none" : "1px solid #e65336",
                                                             borderRadius: 6,
-                                                            background: daApDung ? "#eee" : "#fff",
-                                                            color: daApDung ? "#999" : "#e65336",
+                                                            background: daApDung ? "#e8f5e9" : "#fff",
+                                                            color: daApDung ? "#2e7d32" : "#e65336",
                                                             fontWeight: 700,
                                                             fontSize: 12,
                                                             cursor: disabled ? "not-allowed" : "pointer",
                                                         }}
                                                     >
-                                                        {daApDung ? "Đã dùng" : chuaDuDieuKien ? "Chưa đủ" : hetLuot ? "Hết" : "Chọn"}
+                                                        {daApDung
+                                                            ? "✓ Đã dùng"
+                                                            : chuaDuDieuKien
+                                                                ? "Chưa đủ"
+                                                                : hetLuot
+                                                                    ? "Hết"
+                                                                    : biChanBoiLoai
+                                                                        ? "Đã có mã"
+                                                                        : "Chọn"}
                                                     </button>
                                                 </div>
                                             );
@@ -2573,16 +2570,24 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                     </div>
                                 )}
 
-                                {voucherError && <span style={{ color: "#e53935", fontSize: 12, marginTop: 6, display: "block" }}>{voucherError}</span>}
+                                {voucherError && (
+                                    <span style={{ color: "#e53935", fontSize: 12, marginTop: 6, display: "block" }}>
+                                        {voucherError}
+                                    </span>
+                                )}
+
+                                {/* Voucher đã áp dụng — có thể xóa */}
                                 {vouchers.length > 0 && (
-                                    <div className="voucher-list">
+                                    <div className="voucher-list" style={{ marginTop: 10 }}>
                                         {vouchers.map((v, i) => {
                                             const isFree = isVoucherFreeship(v);
                                             return (
                                                 <div key={`${v.id || v.maVoucher}-${i}`} className={`voucher-item ${isFree ? "is-freeship" : ""}`}>
                                                     <span>
                                                         ✓ <strong>{v.maVoucher}</strong>
-                                                        {isFree ? <> — <strong>Miễn phí vận chuyển</strong></> : <> — giảm <strong>{formatGia(v.tienGiam)}</strong></>}
+                                                        {isFree
+                                                            ? <> — <strong>Miễn phí vận chuyển</strong></>
+                                                            : <> — giảm <strong>{formatGia(v.tienGiam)}</strong></>}
                                                     </span>
                                                     <button type="button" className="voucher-remove-btn" onClick={() => xoaVoucher(i)}>Xóa</button>
                                                 </div>
@@ -2594,6 +2599,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                     </div>
                                 )}
                             </div>
+
                             <div>
                                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>Địa chỉ nhận hàng <span style={{ color: "#e53935" }}>*</span></label>
                                 <button type="button" onClick={() => { setAddingAddress(false); setAddressModalOpen(true); }} style={{ width: "100%", textAlign: "left", padding: "16px", border: "1px solid #eee", borderRadius: 12, background: "#fff", display: "flex", gap: 12, alignItems: "center" }}>
@@ -2601,7 +2607,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                     <span style={{ flex: 1, minWidth: 0 }}>
                                         <span style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontWeight: 700, marginBottom: 6 }}><span>{hoTen || "Chưa có người nhận"}</span><span style={{ color: "#777", fontWeight: 400 }}>{soDienThoai}</span>{diaChiDangChon?.macDinh && <span style={{ color: "#e65336", border: "1px solid #e65336", borderRadius: 3, padding: "1px 5px", fontSize: 11 }}>Mặc định</span>}</span>
                                         <span style={{ display: "block", color: diaChi ? "#555" : "#999", fontSize: 13, lineHeight: 1.5, overflowWrap: "anywhere" }}>{diaChi || "Chọn hoặc thêm địa chỉ giao hàng"}</span>
-
                                     </span>
                                     <span style={{ color: "#888", fontSize: 24 }}>›</span>
                                 </button>
