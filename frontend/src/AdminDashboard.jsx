@@ -1079,8 +1079,9 @@ function HoaDonContent() {
         }
     };
     useEffect(() => {
+        // Luôn tải danh sách mới nhất khi mở mục Hóa đơn, bỏ qua cache cũ.
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        taiHoaDon();
+        taiHoaDon(true);
     }, []);
     const xemChiTiet = async (hoaDon) => {
         try {
@@ -1255,15 +1256,16 @@ function HoaDonContent() {
 
             </div>
 
-            <button type="button" onClick={taiHoaDon} style={{
+            <button type="button" onClick={() => taiHoaDon(true)} disabled={loading} style={{
                 border: "1px solid #ddd",
                 background: "#fff",
                 padding: "10px 16px",
                 borderRadius: "8px",
-                cursor: "pointer",
+                cursor: loading ? "wait" : "pointer",
                 fontWeight: 600,
+                opacity: loading ? 0.7 : 1,
             }}>
-                ↻ Làm mới
+                {loading ? "Đang tải..." : "↻ Làm mới"}
             </button>
 
         </div>
@@ -1639,7 +1641,9 @@ function HoaDonContent() {
         {selectedHoaDon && (<div onClick={() => setSelectedHoaDon(null)} style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,.45)",
+            background: "rgba(15, 18, 25, .58)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
             zIndex: 9999,
             display: "flex",
             alignItems: "center",
@@ -1648,36 +1652,80 @@ function HoaDonContent() {
         }}>
 
             <div onClick={(e) => e.stopPropagation()} style={{
-                width: "min(1100px,100%)",
-                maxHeight: "90vh",
+                width: "min(1150px, 100%)",
+                maxHeight: "92vh",
                 overflowY: "auto",
-                background: "#fff",
-                borderRadius: "14px",
-                padding: "28px",
+                background: "linear-gradient(180deg, #ffffff 0%, #fffefe 100%)",
+                border: "1px solid rgba(255,255,255,.8)",
+                borderRadius: "22px",
+                padding: "28px 30px",
+                boxShadow: "0 28px 90px rgba(15, 23, 42, .28)",
+                position: "relative",
             }}>
 
                 <div style={{
                     display: "flex",
+                    alignItems: "flex-start",
                     justifyContent: "space-between",
+                    gap: "18px",
                     marginBottom: "24px",
                 }}>
 
                     <div>
 
                         <div style={{
-                            color: "#888",
+                            color: "#8791a2",
                             fontSize: "12px",
+                            fontWeight: 700,
+                            letterSpacing: ".08em",
                         }}>
                             CHI TIẾT HÓA ĐƠN
                         </div>
 
-                        <h2>
+                        <h2 style={{
+                            margin: "8px 0 0",
+                            color: "#111827",
+                            fontSize: "27px",
+                            fontWeight: 800,
+                            letterSpacing: "-.025em",
+                        }}>
                             {selectedHoaDon.maHoaDon}
                         </h2>
 
                     </div>
 
-                    <button type="button" onClick={() => setSelectedHoaDon(null)}>
+                    <button
+                        type="button"
+                        aria-label="Đóng chi tiết hóa đơn"
+                        title="Đóng"
+                        onClick={() => setSelectedHoaDon(null)}
+                        style={{
+                            flex: "0 0 46px",
+                            width: "46px",
+                            height: "46px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            border: "1px solid #ffe0e3",
+                            borderRadius: "50%",
+                            background: "linear-gradient(145deg, #fff5f6, #ffe8eb)",
+                            color: "#e11d48",
+                            fontSize: "28px",
+                            fontWeight: 400,
+                            lineHeight: 1,
+                            cursor: "pointer",
+                            boxShadow: "0 5px 15px rgba(225,29,72,.13)",
+                            transition: "transform .18s ease, box-shadow .18s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = "rotate(90deg) scale(1.05)";
+                            e.currentTarget.style.boxShadow = "0 8px 20px rgba(225,29,72,.2)";
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = "none";
+                            e.currentTarget.style.boxShadow = "0 5px 15px rgba(225,29,72,.13)";
+                        }}
+                    >
                         ×
                     </button>
 
@@ -1692,9 +1740,9 @@ function HoaDonContent() {
 
                 <div style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(4,1fr)",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
                     gap: "12px",
-                    marginBottom: "25px",
+                    marginBottom: "22px",
                 }}>
 
                     <div>
@@ -1754,6 +1802,81 @@ function HoaDonContent() {
 
                 </div>
 
+                {/* VOUCHER ĐÃ ÁP DỤNG */}
+                <section style={{
+                    marginBottom: "25px",
+                    padding: "18px",
+                    border: "1px solid #ffdadd",
+                    borderRadius: "14px",
+                    background: "linear-gradient(135deg, #fff7f8 0%, #fffafa 100%)",
+                    boxShadow: "0 5px 18px rgba(225, 29, 72, .035)",
+                }}>
+                    <h3 style={{ marginTop: 0, marginBottom: "16px", display: "flex", alignItems: "center", gap: "10px", color: "#1f2937", fontSize: "19px", fontWeight: 800 }}>
+                        <span style={{ display: "inline-flex", width: "30px", height: "30px", alignItems: "center", justifyContent: "center", borderRadius: "9px", background: "#ffe4e8", color: "#e11d48", fontSize: "16px" }}>◆</span>
+                        Voucher áp dụng cho đơn hàng
+                    </h3>
+
+                    {(() => {
+                        const voucher = selectedHoaDon.voucher;
+                        const voucherShip = selectedHoaDon.voucherFreeship;
+                        const coVoucherGiam = Boolean(voucher);
+                        const coFreeship = Boolean(voucherShip);
+                        const loaiGiam = String(voucher?.loaiGiam || "").toUpperCase();
+                        const giaTriGiam = Number(voucher?.giaTriGiam || 0);
+                        const giamToiDa = voucher?.giamToiDa;
+                        const tienGiamThucTe = Number(selectedHoaDon.tienGiam || 0);
+                        const labelLoaiGiam = loaiGiam === "PHAN_TRAM"
+                            ? `${giaTriGiam}%`
+                            : loaiGiam === "SO_TIEN"
+                                ? formatTien(giaTriGiam)
+                                : (loaiGiam || "Không rõ");
+
+                        if (!coVoucherGiam && !coFreeship) {
+                            return <div style={{ color: "#777" }}>Đơn hàng này không có thông tin voucher được lưu.</div>;
+                        }
+
+                        return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "14px" }}>
+                            {coVoucherGiam && <div style={{ padding: "17px", borderRadius: "14px", background: "#fff", border: "1px solid #f0e5e7", boxShadow: "0 4px 14px rgba(31,41,55,.035)" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "13px" }}>
+                                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "44px", height: "44px", borderRadius: "12px", background: "#ffe7eb", color: "#e11d48", fontSize: "22px" }}>◆</span>
+                                    <div>
+                                        <div style={{ fontSize: "12px", color: "#667085", fontWeight: 700, marginBottom: "5px" }}>VOUCHER GIẢM GIÁ</div>
+                                        <strong style={{ display: "inline-block", fontSize: "18px", color: "#c81e1e", marginRight: "8px" }}>
+                                            {voucher.maVoucher || voucher.maGiamGia || "Voucher giảm giá"}
+                                        </strong>
+                                        {loaiGiam === "PHAN_TRAM" && <span style={{ display: "inline-block", padding: "5px 9px", borderRadius: "7px", background: "#fff0f2", color: "#c81e1e", fontSize: "12px", fontWeight: 800 }}>↓ Giảm {giaTriGiam}%</span>}
+                                    </div>
+                                </div>
+                                {voucher.tenVoucher && <div style={{ marginBottom: "11px", color: "#667085", fontSize: "13px" }}>{voucher.tenVoucher}</div>}
+                                <div style={{ display: "grid", gap: "0", fontSize: "14px" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "9px 0", borderBottom: "1px solid #f0f1f3" }}><span>Loại giảm</span><strong>{labelLoaiGiam}</strong></div>
+                                    {loaiGiam === "PHAN_TRAM" && <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "9px 0", borderBottom: "1px solid #f0f1f3" }}><span>Giảm tối đa</span><strong>{giamToiDa != null ? formatTien(giamToiDa) : "Không giới hạn"}</strong></div>}
+                                    {loaiGiam === "SO_TIEN" && <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "9px 0", borderBottom: "1px solid #f0f1f3" }}><span>Mức giảm</span><strong>{formatTien(giaTriGiam)}</strong></div>}
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "9px 0 2px" }}><span>Số tiền đã giảm</span><strong style={{ color: "#159447" }}>{formatTien(tienGiamThucTe)}</strong></div>
+                                </div>
+                            </div>}
+
+                            {coFreeship && <div style={{ padding: "17px", borderRadius: "14px", background: "#fff", border: "1px solid #e1edf9", boxShadow: "0 4px 14px rgba(31,41,55,.035)" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "13px" }}>
+                                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "44px", height: "44px", borderRadius: "12px", background: "#e6f2ff", color: "#1680d6", fontSize: "22px" }}>➜</span>
+                                    <div>
+                                        <div style={{ fontSize: "12px", color: "#667085", fontWeight: 700, marginBottom: "5px" }}>VOUCHER FREESHIP</div>
+                                        <strong style={{ display: "inline-block", fontSize: "18px", color: "#c81e1e", marginRight: "8px" }}>
+                                            {voucherShip.maVoucher || voucherShip.maGiamGia || "FREESHIP"}
+                                        </strong>
+                                        <span style={{ display: "inline-block", padding: "5px 9px", borderRadius: "7px", background: "#eaf4ff", color: "#1670b9", fontSize: "12px", fontWeight: 800 }}>Miễn phí vận chuyển</span>
+                                    </div>
+                                </div>
+                                {voucherShip.tenVoucher && <div style={{ marginBottom: "11px", color: "#667085", fontSize: "13px" }}>{voucherShip.tenVoucher}</div>}
+                                <div style={{ display: "grid", gap: "0", fontSize: "14px" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "9px 0", borderBottom: "1px solid #f0f1f3" }}><span>Loại giảm</span><strong>Miễn phí vận chuyển</strong></div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "9px 0 2px" }}><span>Phí vận chuyển sau giảm</span><strong style={{ color: "#159447" }}>{formatTien(selectedHoaDon.phiVanChuyen || 0)}</strong></div>
+                                </div>
+                            </div>}
+                        </div>;
+                    })()}
+                </section>
+
                 <section style={{ marginBottom: "25px" }}>
                     <h3>Xử lý hóa đơn</h3>
 
@@ -1785,50 +1908,42 @@ function HoaDonContent() {
                             );
                         }
 
-                        // Còn trong quy trình → chỉ cho chọn bước tiếp theo
                         return (
                             <>
                                 <select
-                                    value=""
+                                    value={selectedHoaDon?.trangThai || ""}
                                     disabled={updatingStatus}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (!val) return;
-                                        const ok = window.confirm(
-                                            `Chuyển trạng thái sang "${tenTrangThaiHoaDon(val)}"?`
-                                        );
-                                        if (!ok) return;
-                                        capNhatTrangThai(val);
-                                    }}
+                                    onChange={(e) => capNhatTrangThai(e.target.value)}
                                     style={{
                                         padding: "10px",
                                         border: "1px solid #ddd",
                                         borderRadius: "8px",
                                         minWidth: "250px",
-                                        cursor: updatingStatus ? "not-allowed" : "pointer",
                                     }}
                                 >
-                                    <option value="">
-                                        -- Chọn bước tiếp theo --
-                                    </option>
-                                    {dsChoPhep.map((tt) => (
-                                        <option key={tt} value={tt}>
-                                            {tenTrangThaiHoaDon(tt)}
+                                    {TRANG_THAI_HOA_DON.map((item) => (
+                                        <option key={item} value={item}>
+                                            {tenTrangThaiHoaDon(item)}
                                         </option>
                                     ))}
                                 </select>
 
-                                <div style={{
-                                    marginTop: 8,
-                                    fontSize: 12,
-                                    color: "#777",
-                                }}>
+                                <div
+                                    style={{
+                                        marginTop: 8,
+                                        fontSize: 12,
+                                        color: "#777",
+                                    }}
+                                >
                                     Trạng thái hiện tại:{" "}
                                     <strong style={{ color: "#111" }}>
                                         {tenTrangThaiHoaDon(ttHienTai)}
                                     </strong>
+
                                     {dsChoPhep.length > 0 && (
-                                        <> · Chỉ có thể chuyển sang {dsChoPhep.length} bước tiếp theo</>
+                                        <>
+                                            {" "}· Chỉ có thể chuyển sang {dsChoPhep.length} bước tiếp theo
+                                        </>
                                     )}
                                 </div>
                             </>
@@ -1840,8 +1955,8 @@ function HoaDonContent() {
                     marginBottom: "25px",
                 }}>
 
-                    <h3>
-                        Chi tiết sản phẩm
+                    <h3 style={{ margin: "0 0 14px", color: "#1f2937", fontSize: "19px", fontWeight: 800 }}>
+                        <span style={{ color: "#e11d48", marginRight: "9px" }}>🛒</span> Chi tiết sản phẩm
                     </h3>
 
                     {loadingDetail ? (<div>
@@ -1929,8 +2044,8 @@ function HoaDonContent() {
                     marginBottom: "25px",
                 }}>
 
-                    <h3>
-                        Thanh toán
+                    <h3 style={{ margin: "0 0 14px", color: "#168a52", fontSize: "19px", fontWeight: 800 }}>
+                        <span style={{ marginRight: "9px" }}>▣</span> Thanh toán
                     </h3>
 
                     {thanhToan ? (<div style={{
@@ -1996,8 +2111,8 @@ function HoaDonContent() {
 
                 <section>
 
-                    <h3>
-                        Lịch sử hóa đơn
+                    <h3 style={{ margin: "0 0 14px", color: "#1675c5", fontSize: "19px", fontWeight: 800 }}>
+                        <span style={{ marginRight: "9px" }}>◷</span> Lịch sử hóa đơn
                     </h3>
 
                     {lichSu.length ===

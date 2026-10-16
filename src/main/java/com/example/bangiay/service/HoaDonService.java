@@ -453,28 +453,21 @@ public class HoaDonService {
         // 10. TẠO ĐỊA CHỈ NHẬN HÀNG
         // -----------------------------------------------------
 
+
         DiaChi diaChi =
                 DiaChi.builder()
-                        .khachHang(
-                                gioHang.getKhachHang()
-                        )
-                        .tenNguoiNhan(
-                                request
-                                        .getHoTen()
-                                        .trim()
-                        )
-                        .soDienThoai(
-                                request
-                                        .getSoDienThoai()
-                                        .trim()
-                        )
-                        .diaChi(
-                                request
-                                        .getDiaChi()
-                                        .trim()
-                        )
+                        .khachHang(gioHang.getKhachHang())
+                        .tenNguoiNhan(request.getHoTen().trim())
+                        .soDienThoai(request.getSoDienThoai().trim())
+                        .diaChi(request.getDiaChi().trim())
                         .macDinh(false)
+                        .phiShip(
+                                voucherFreeship != null
+                                        ? 0
+                                        : phiVanChuyen.intValue()
+                        )
                         .build();
+
 
 
         DiaChi diaChiDaLuu =
@@ -507,9 +500,11 @@ public class HoaDonService {
 
 
         // ⭐ GÁN VOUCHER GIẢM GIÁ
-        hoaDon.setVoucher(
-                voucher
-        );
+        // GÁN VOUCHER GIẢM GIÁ
+        hoaDon.setVoucher(voucher);
+
+// GÁN VOUCHER FREESHIP
+        hoaDon.setVoucherFreeship(voucherFreeship);
 
 
         hoaDon.setLoaiHoaDon(

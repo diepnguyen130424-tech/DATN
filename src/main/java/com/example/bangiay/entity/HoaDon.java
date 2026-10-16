@@ -38,6 +38,10 @@ public class HoaDon {
     @JoinColumn(name = "voucher_id")
     private MaGiamGia voucher;
 
+    @ManyToOne
+    @JoinColumn(name = "voucher_freeship_id")
+    private MaGiamGia voucherFreeship;
+
     @Column(name = "loai_hoa_don", nullable = false)
     private String loaiHoaDon;
 

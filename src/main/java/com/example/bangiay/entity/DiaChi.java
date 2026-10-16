@@ -33,5 +33,6 @@ public class DiaChi {
     private Boolean macDinh;
 
     @Column(name = "phi_ship", nullable = false)
+    @Builder.Default
     private Integer phiShip = 30000;
 }

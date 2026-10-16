@@ -94,7 +94,7 @@ function isVoucherFreeship(v) {
     if (!v) return false;
     if (v.mienPhiVanChuyen === true) return true;
     if (v.freeShip === true || v.freeship === true) return true;
-    const loai = String(v.loaiVoucher || v.loai || v.type || v.loaiGiamGia || "").toUpperCase().replace(/[\s_-]+/g, "");
+    const loai = String(v.loaiVoucher || v.loai || v.type || v.loaiGiamGia || v.loaiGiam || "").toUpperCase().replace(/[\s_-]+/g, "");
     if (loai.includes("FREESHIP") || loai.includes("MIENPHI")) return true;
     const ma = String(v.maVoucher || v.ma || v.code || "").toUpperCase().trim().replace(/[\s_-]+/g, "");
     if (!ma) return false;
@@ -499,8 +499,6 @@ function App() {
     };
 
     const themVaoGio = async (sp, ct = null, sl = 1) => {
-        const ok = window.confirm("Bạn có chắc chắn muốn thêm sản phẩm này vào giỏ hàng không?");
-        if (!ok) return false;
         if (!taiKhoan) { setPage("login"); return false; }
         if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") { alert("Chỉ KH mới thêm giỏ"); return false; }
         if (!ct?.id) { alert("SP chưa có biến thể"); return false; }
@@ -1975,13 +1973,10 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [maVoucher, setMaVoucher] = useState("");
     const [voucherError, setVoucherError] = useState("");
     const [checkingVoucher, setCheckingVoucher] = useState(false);
+    const [danhSachVoucherActive, setDanhSachVoucherActive] = useState([]);
+    const [dangTaiVoucher, setDangTaiVoucher] = useState(false);
+    const [loiTaiVoucher, setLoiTaiVoucher] = useState("");
     const MAX_VOUCHER = 2;
-
-    // ⭐ Danh sách voucher khả dụng
-    const [voucherList, setVoucherList] = useState([]);
-    const [loadingVoucherList, setLoadingVoucherList] = useState(false);
-    const [showVoucherList, setShowVoucherList] = useState(false);
-
     const coVoucherFreeship = vouchers.some(isVoucherFreeship);
     const diaChiDangChon = addresses.find((a) => String(a.id) === String(selectedAddressId));
     const phiShipDiaChi = Number(diaChiDangChon?.phiShip ?? phiShipMoi ?? PHI_SHIP_MAC_DINH);
@@ -2348,6 +2343,41 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                         {checkingVoucher ? "..." : "Áp dụng"}
                                     </button>
                                 </div>
+                                <div style={{ marginTop: 14 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 9 }}>
+                                        <strong style={{ fontSize: 13 }}>Voucher đang hoạt động</strong>
+                                        <span style={{ color: "#777", fontSize: 11 }}>Chọn mã rồi nhấn Áp dụng</span>
+                                    </div>
+                                    {dangTaiVoucher ? (
+                                        <p style={{ margin: 0, color: "#777", fontSize: 12 }}>Đang tải voucher...</p>
+                                    ) : danhSachVoucherActive.length === 0 ? (
+                                        <p style={{ margin: 0, color: "#777", fontSize: 12 }}>{loiTaiVoucher || "Hiện chưa có voucher khả dụng."}</p>
+                                    ) : (
+                                        <div style={{ display: "grid", gap: 8 }}>
+                                            {danhSachVoucherActive.map((v) => {
+                                                const ma = String(v.maVoucher || "").toUpperCase();
+                                                const daApDung = vouchers.some((x) => String(x.maVoucher || "").toUpperCase() === ma);
+                                                const free = String(v.loaiGiam || "").toUpperCase() === "FREESHIP";
+                                                const giaTri = Number(v.giaTriGiam || 0);
+                                                const moTaGiam = free ? "Miễn phí vận chuyển" : String(v.loaiGiam || "").toUpperCase() === "PHAN_TRAM" ? `Giảm ${giaTri}%${v.giamToiDa != null ? ` · tối đa ${formatGia(v.giamToiDa)}` : ""}` : `Giảm ${formatGia(giaTri)}`;
+                                                return (
+                                                    <div key={v.id ?? ma} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 12px", border: "1px dashed #e7b6a9", borderRadius: 9, background: daApDung ? "#f1faf2" : "#fffaf8" }}>
+                                                        <div style={{ minWidth: 0 }}>
+                                                            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
+                                                                <strong style={{ color: "#d94d32" }}>{ma || "VOUCHER"}</strong>
+                                                                <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: free ? "#e8f5e9" : "#fff0e9", color: free ? "#287b38" : "#d94d32" }}>{moTaGiam}</span>
+                                                            </div>
+                                                            <div style={{ color: "#555", fontSize: 12, marginTop: 4 }}>{v.tenVoucher || "Ưu đãi dành cho đơn hàng"}</div>
+                                                            {Number(v.donToiThieu || 0) > 0 && <div style={{ color: "#777", fontSize: 11, marginTop: 3 }}>Đơn tối thiểu {formatGia(v.donToiThieu)}</div>}
+                                                            {v.ngayKetThuc && <div style={{ color: "#888", fontSize: 11, marginTop: 2 }}>Hạn dùng: {new Date(v.ngayKetThuc).toLocaleString("vi-VN")}</div>}
+                                                        </div>
+                                                        <button type="button" onClick={() => chonVoucherCoSan(v)} disabled={daApDung || vouchers.length >= MAX_VOUCHER} style={{ flexShrink: 0, border: "1px solid #e65336", borderRadius: 6, padding: "7px 10px", background: daApDung ? "#f1faf2" : "#fff", color: daApDung ? "#287b38" : "#e65336", fontWeight: 700, fontSize: 12, cursor: daApDung || vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer", opacity: vouchers.length >= MAX_VOUCHER && !daApDung ? .55 : 1 }}>{daApDung ? "Đã chọn" : "Chọn mã"}</button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* ⭐ Nút mở danh sách voucher có sẵn */}
                                 <button
@@ -2549,7 +2579,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                     <span style={{ flex: 1, minWidth: 0 }}>
                                         <span style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontWeight: 700, marginBottom: 6 }}><span>{hoTen || "Chưa có người nhận"}</span><span style={{ color: "#777", fontWeight: 400 }}>{soDienThoai}</span>{diaChiDangChon?.macDinh && <span style={{ color: "#e65336", border: "1px solid #e65336", borderRadius: 3, padding: "1px 5px", fontSize: 11 }}>Mặc định</span>}</span>
                                         <span style={{ display: "block", color: diaChi ? "#555" : "#999", fontSize: 13, lineHeight: 1.5, overflowWrap: "anywhere" }}>{diaChi || "Chọn hoặc thêm địa chỉ giao hàng"}</span>
-                                        <span style={{ display: "block", color: "#777", fontSize: 12, marginTop: 6 }}>Phí vận chuyển: <strong style={{ color: "#e65336" }}>{phiVanChuyen === 0 ? "Miễn phí" : formatGia(phiVanChuyen)}</strong></span>
+
                                     </span>
                                     <span style={{ color: "#888", fontSize: 24 }}>›</span>
                                 </button>

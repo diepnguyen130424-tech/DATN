@@ -114,10 +114,8 @@ public class HoaDonController {
             @PathVariable Long gioHangId,
             @RequestBody DatHangRequest request
     ) {
-        // ⭐ Voucher giảm giá (có thể null)
         Long voucherId = request.getVoucherId();
 
-        // ⭐ Voucher freeship (có thể null)
         Long voucherFreeshipId = request.getVoucherFreeshipId();
         return ResponseEntity.ok(
                 hoaDonService.datHang(
@@ -198,7 +196,6 @@ public class HoaDonController {
         );
     }
 
-    /** Khách xác nhận đã nhận hàng (đơn phải ở trạng thái DA_GIAO) */
     @PutMapping("/{id}/xac-nhan-nhan-hang")
     public ResponseEntity<HoaDon> xacNhanNhanHang(
             @PathVariable Long id,
