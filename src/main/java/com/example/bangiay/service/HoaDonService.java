@@ -304,7 +304,7 @@ public class HoaDonService {
 
 
             // -------------------------------------------------
-            // KIỂM TRA TỒN KHO
+            // KIỂM TRA TỒN KHO (chỉ kiểm tra, KHÔNG trừ)
             // -------------------------------------------------
 
             if (spct.getSoLuongTon() == null
@@ -760,28 +760,9 @@ public class HoaDonService {
 
 
         // -----------------------------------------------------
-        // 15. LẤY CHI TIẾT HÓA ĐƠN ĐÃ LƯU
-        // -----------------------------------------------------
-
-        List<ChiTietHoaDon> chiTietDaLuu =
-                chiTietHoaDonRepository
-                        .findByHoaDon_Id(
-                                hoaDonDaLuu.getId()
-                        );
-
-
-        // -----------------------------------------------------
-        // 16. XUẤT KHO
-        // -----------------------------------------------------
-
-        khoService.xuatKhoTuHoaDon(
-                hoaDonDaLuu.getMaHoaDon(),
-                chiTietDaLuu
-        );
-
-
-        // -----------------------------------------------------
-        // 17. XÓA GIỎ HÀNG
+        // 15. XÓA GIỎ HÀNG
+        //    (KHÔNG trừ kho ở đây — kho sẽ bị trừ khi Admin
+        //     chuyển trạng thái CHO_XAC_NHAN → DA_XAC_NHAN)
         // -----------------------------------------------------
 
         chiTietGioHangRepository.deleteAll(
@@ -1161,7 +1142,7 @@ public class HoaDonService {
 
         // -----------------------------------------------------
         // 8. XUẤT KHO
-        //    (khoService tự trừ tồn kho, giống datHang)
+        //    (Đơn tại quầy: trừ kho ngay vì đã thanh toán & giao hàng)
         // -----------------------------------------------------
 
         try {
@@ -1491,6 +1472,26 @@ public class HoaDonService {
                                 )
                         );
 
+        // ⭐ Lưu trạng thái cũ để quyết định trừ / hoàn kho
+        String trangThaiCu = hoaDon.getTrangThai();
+
+        // -----------------------------------------------------
+        // ⭐ TRỪ KHO khi Admin xác nhận đơn (CHO_XAC_NHAN → DA_XAC_NHAN)
+        //    Chỉ trừ duy nhất 1 lần khi chuyển sang DA_XAC_NHAN
+        // -----------------------------------------------------
+        if ("DA_XAC_NHAN".equalsIgnoreCase(trangThai)
+                && !"DA_XAC_NHAN".equalsIgnoreCase(trangThaiCu)) {
+            truKhoTheoHoaDon(hoaDon);
+        }
+
+        // -----------------------------------------------------
+        // ⭐ HOÀN KHO khi hủy đơn, CHỈ khi trước đó đã trừ
+        //    (tức là đã ở DA_XAC_NHAN hoặc xa hơn)
+        // -----------------------------------------------------
+        if ("DA_HUY".equalsIgnoreCase(trangThai)
+                && daTruKhoRoi(trangThaiCu)) {
+            hoanKhoTheoHoaDon(hoaDon);
+        }
 
         hoaDon.setTrangThai(
                 trangThai
@@ -1547,6 +1548,114 @@ public class HoaDonService {
 
 
         return hoaDonDaLuu;
+    }
+
+
+    // =========================================================
+    // ⭐ HELPER: TRỪ / HOÀN KHO THEO HÓA ĐƠN
+    // =========================================================
+
+    /**
+     * Kiểm tra trạng thái cũ đã từng trừ kho chưa.
+     * Chỉ những trạng thái từ DA_XAC_NHAN trở đi mới coi là đã trừ.
+     */
+    private boolean daTruKhoRoi(String trangThaiCu) {
+        if (trangThaiCu == null) return false;
+        String s = trangThaiCu.trim().toUpperCase();
+        return "DA_XAC_NHAN".equals(s)
+                || "DANG_CHUAN_BI".equals(s)
+                || "DANG_GIAO".equals(s)
+                || "DA_GIAO".equals(s)
+                || "DA_THANH_TOAN".equals(s);
+    }
+
+    /**
+     * Trừ tồn kho cho từng sản phẩm trong hóa đơn.
+     * Ném lỗi nếu bất kỳ sản phẩm nào không đủ tồn.
+     * @Transactional: nếu 1 dòng lỗi → rollback toàn bộ.
+     */
+    private void truKhoTheoHoaDon(HoaDon hoaDon) {
+
+        List<ChiTietHoaDon> chiTiets =
+                chiTietHoaDonRepository.findByHoaDon_Id(hoaDon.getId());
+
+        if (chiTiets == null || chiTiets.isEmpty()) {
+            throw new RuntimeException(
+                    "Hóa đơn không có chi tiết sản phẩm để trừ kho"
+            );
+        }
+
+        for (ChiTietHoaDon ct : chiTiets) {
+
+            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
+
+            if (spct == null) {
+                throw new RuntimeException(
+                        "Chi tiết hóa đơn thiếu thông tin sản phẩm"
+                );
+            }
+
+            // Query lại để lấy số tồn kho MỚI NHẤT
+            Long spctId = spct.getId();
+            SanPhamChiTiet fresh = sanPhamChiTietRepository
+                    .findById(spctId)
+                    .orElseThrow(() -> new RuntimeException(
+                            "Không tìm thấy sản phẩm chi tiết #" + spctId
+                    ));
+
+            int tonCu = fresh.getSoLuongTon() != null
+                    ? fresh.getSoLuongTon() : 0;
+            int soLuong = ct.getSoLuong() != null
+                    ? ct.getSoLuong() : 0;
+
+            if (tonCu < soLuong) {
+                String sku = fresh.getMaSku() != null
+                        ? fresh.getMaSku()
+                        : ("#" + spctId);
+                throw new RuntimeException(
+                        "Sản phẩm " + sku + " không đủ tồn kho. " +
+                                "Còn " + tonCu + ", cần " + soLuong
+                );
+            }
+
+            fresh.setSoLuongTon(tonCu - soLuong);
+            sanPhamChiTietRepository.save(fresh);
+        }
+    }
+
+    /**
+     * Hoàn tồn kho cho từng sản phẩm (khi hủy đơn).
+     * Không ném lỗi — chỉ cộng lại số lượng.
+     */
+    private void hoanKhoTheoHoaDon(HoaDon hoaDon) {
+
+        List<ChiTietHoaDon> chiTiets =
+                chiTietHoaDonRepository.findByHoaDon_Id(hoaDon.getId());
+
+        if (chiTiets == null || chiTiets.isEmpty()) {
+            return;
+        }
+
+        for (ChiTietHoaDon ct : chiTiets) {
+
+            SanPhamChiTiet spct = ct.getSanPhamChiTiet();
+            if (spct == null) continue;
+
+            Long spctId = spct.getId();
+            SanPhamChiTiet fresh = sanPhamChiTietRepository
+                    .findById(spctId)
+                    .orElse(null);
+
+            if (fresh == null) continue;
+
+            int tonCu = fresh.getSoLuongTon() != null
+                    ? fresh.getSoLuongTon() : 0;
+            int soLuong = ct.getSoLuong() != null
+                    ? ct.getSoLuong() : 0;
+
+            fresh.setSoLuongTon(tonCu + soLuong);
+            sanPhamChiTietRepository.save(fresh);
+        }
     }
 
 

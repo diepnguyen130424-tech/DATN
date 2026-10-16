@@ -136,6 +136,7 @@ const menuItems = [
     { id: "khach-hang", icon: "◎", label: "Khách hàng" },
     { id: "nhan-vien", icon: "♙", label: "Nhân viên" },
 ];
+/* ⭐ DANH SÁCH TẤT CẢ TRẠNG THÁI HÓA ĐƠN (dùng cho dropdown filter) */
 const TRANG_THAI_HOA_DON = [
     "CHO_XAC_NHAN",
     "DA_XAC_NHAN",
@@ -145,6 +146,29 @@ const TRANG_THAI_HOA_DON = [
     "DA_THANH_TOAN",
     "DA_HUY",
 ];
+
+/* ⭐ BẢNG CHUYỂN TRẠNG THÁI — BẮT BUỘC tuần tự, không nhảy cóc */
+const TRANSITION_HOA_DON = {
+    CHO_XAC_NHAN:  ["DA_XAC_NHAN", "DA_HUY"],
+    DA_XAC_NHAN:   ["DANG_CHUAN_BI", "DA_HUY"],
+    DANG_CHUAN_BI: ["DANG_GIAO", "DA_HUY"],
+    DANG_GIAO:     ["DA_GIAO", "DA_HUY"],
+    DA_GIAO:       ["DA_THANH_TOAN"],
+    DA_THANH_TOAN: [],
+    DA_HUY:        [],
+};
+
+/* ⭐ Lấy danh sách trạng thái được phép chuyển từ trạng thái hiện tại */
+function layTrangThaiChoPhep(trangThaiHienTai) {
+    const key = String(trangThaiHienTai || "").trim().toUpperCase();
+    return TRANSITION_HOA_DON[key] || [];
+}
+
+/* ⭐ Đang ở trạng thái kết thúc (không đổi được nữa)? */
+function laTrangThaiKetThuc(trangThai) {
+    const key = String(trangThai || "").trim().toUpperCase();
+    return key === "DA_THANH_TOAN" || key === "DA_HUY";
+}
 const TRANG_THAI_THANH_TOAN = [
     "CHO_THANH_TOAN",
     "DA_THANH_TOAN",
@@ -1730,29 +1754,86 @@ function HoaDonContent() {
 
                 </div>
 
-                <section style={{
-                    marginBottom: "25px",
-                }}>
+                <section style={{ marginBottom: "25px" }}>
+                    <h3>Xử lý hóa đơn</h3>
 
-                    <h3>
-                        Xử lý hóa đơn
-                    </h3>
+                    {(() => {
+                        const ttHienTai = String(selectedHoaDon.trangThai || "").toUpperCase();
+                        const dsChoPhep = layTrangThaiChoPhep(ttHienTai);
+                        const ketThuc = laTrangThaiKetThuc(ttHienTai);
 
-                    <select value={selectedHoaDon.trangThai ||
-                        ""} disabled={updatingStatus} onChange={(e) => capNhatTrangThai(e.target
-                        .value)} style={{
-                        padding: "10px",
-                        border: "1px solid #ddd",
-                        borderRadius: "8px",
-                        minWidth: "250px",
-                    }}>
+                        // 🔒 Trạng thái kết thúc → không cho đổi
+                        if (ketThuc) {
+                            const laHuy = ttHienTai === "DA_HUY";
+                            return (
+                                <div style={{
+                                    padding: "14px 18px",
+                                    background: laHuy ? "#fdecea" : "#eaf7ed",
+                                    color: laHuy ? "#c0392b" : "#24833b",
+                                    borderRadius: 8,
+                                    fontWeight: 700,
+                                    fontSize: 14,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    minWidth: 250,
+                                }}>
+                                    {laHuy
+                                        ? "❌ Hóa đơn đã bị hủy — không thể thay đổi"
+                                        : "✅ Hóa đơn đã hoàn tất — không thể thay đổi"}
+                                </div>
+                            );
+                        }
 
-                        {TRANG_THAI_HOA_DON.map((item) => (<option key={item} value={item}>
-                            {tenTrangThaiHoaDon(item)}
-                        </option>))}
+                        // Còn trong quy trình → chỉ cho chọn bước tiếp theo
+                        return (
+                            <>
+                                <select
+                                    value=""
+                                    disabled={updatingStatus}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (!val) return;
+                                        const ok = window.confirm(
+                                            `Chuyển trạng thái sang "${tenTrangThaiHoaDon(val)}"?`
+                                        );
+                                        if (!ok) return;
+                                        capNhatTrangThai(val);
+                                    }}
+                                    style={{
+                                        padding: "10px",
+                                        border: "1px solid #ddd",
+                                        borderRadius: "8px",
+                                        minWidth: "250px",
+                                        cursor: updatingStatus ? "not-allowed" : "pointer",
+                                    }}
+                                >
+                                    <option value="">
+                                        -- Chọn bước tiếp theo --
+                                    </option>
+                                    {dsChoPhep.map((tt) => (
+                                        <option key={tt} value={tt}>
+                                            {tenTrangThaiHoaDon(tt)}
+                                        </option>
+                                    ))}
+                                </select>
 
-                    </select>
-
+                                <div style={{
+                                    marginTop: 8,
+                                    fontSize: 12,
+                                    color: "#777",
+                                }}>
+                                    Trạng thái hiện tại:{" "}
+                                    <strong style={{ color: "#111" }}>
+                                        {tenTrangThaiHoaDon(ttHienTai)}
+                                    </strong>
+                                    {dsChoPhep.length > 0 && (
+                                        <> · Chỉ có thể chuyển sang {dsChoPhep.length} bước tiếp theo</>
+                                    )}
+                                </div>
+                            </>
+                        );
+                    })()}
                 </section>
 
                 <section style={{
