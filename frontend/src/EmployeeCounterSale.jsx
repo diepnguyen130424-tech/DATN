@@ -919,23 +919,24 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
         };
     }, [products, variantMap]);
 
-    /* ---------- DANH MỤC ---------- */
+    /* ---------- THƯƠNG HIỆU ---------- */
+    // Nhóm bộ lọc bên trái theo thương hiệu thay vì danh mục sản phẩm.
     const {categories, categoryCount} = useMemo(() => {
         const count = {};
         products.forEach((p) => {
-            const c = p.danhMuc?.tenDanhMuc;
-            if (c) count[c] = (count[c] || 0) + 1;
+            const brand = p.thuongHieu?.tenThuongHieu?.trim();
+            if (brand) count[brand] = (count[brand] || 0) + 1;
         });
-        return {categories: ["Tất cả", ...Object.keys(count)], categoryCount: count};
+        return {categories: ["Tất cả", ...Object.keys(count).sort((a, b) => a.localeCompare(b, "vi"))], categoryCount: count};
     }, [products]);
 
-    /* ---------- LỌC SẢN PHẨM ---------- */
+    /* ---------- LỌC SẢN PHẨM THEO THƯƠNG HIỆU ---------- */
     const filteredProducts = useMemo(() => {
         const keyword = deferredSearch.trim().toLowerCase();
         return products.filter((product) => {
             if (
                 category !== "Tất cả" &&
-                (product.danhMuc?.tenDanhMuc || "") !== category
+                (product.thuongHieu?.tenThuongHieu || "") !== category
             ) {
                 return false;
             }
@@ -1322,8 +1323,8 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
                     <div className="pos-category-heading">
                         <span className="pos-category-icon">☷</span>
                         <div>
-                            <h2>Danh mục</h2>
-                            <p>{Math.max(categories.length - 1, 0)} danh mục</p>
+                            <h2>Thương hiệu</h2>
+                            <p>{Math.max(categories.length - 1, 0)} thương hiệu</p>
                         </div>
                     </div>
 

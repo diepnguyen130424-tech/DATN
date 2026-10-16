@@ -12179,3 +12179,78 @@ body { background: #fff; color: #171717; }
 
 
 
+
+
+/* ===== GIỎ HÀNG: CĂN CHỈNH THÀNH TIỀN VÀ NÚT XÓA ===== */
+.cart-table-head,
+.cart-item-row {
+  grid-template-columns: minmax(260px, 1.9fr) minmax(105px, .8fr) minmax(110px, .8fr) minmax(155px, 1.15fr) !important;
+}
+
+.cart-total-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.cart-total-actions .cart-total {
+  display: inline-block;
+  flex: 0 0 auto;
+  margin: 0 !important;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.cart-total-actions .cart-remove-inline {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin: 0 !important;
+  padding: 6px 10px !important;
+  border: 1px solid #ffd8d4 !important;
+  border-radius: 8px !important;
+  background: #fff7f6 !important;
+  color: #d92d20 !important;
+  font-family: inherit;
+  font-size: 12px !important;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.cart-total-actions .cart-remove-inline span {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.cart-total-actions .cart-remove-inline:hover {
+  background: #ffebe8 !important;
+  border-color: #f4a49b !important;
+  color: #b42318 !important;
+  text-decoration: none !important;
+}
+
+/* Nút Xóa chỉ xuất hiện một lần, cạnh thành tiền. */
+.cart-product-info .remove-cart,
+.cart-product-actions {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .cart-table-head,
+  .cart-item-row {
+    grid-template-columns: minmax(210px, 1.6fr) minmax(90px, .7fr) minmax(100px, .8fr) minmax(145px, 1fr) !important;
+  }
+  .cart-total-actions { gap: 7px !important; }
+  .cart-total-actions .cart-remove-inline { padding: 5px 7px !important; }
+}
+
+@media (max-width: 700px) {
+  .cart-total-actions { flex-wrap: wrap; gap: 6px !important; }
+}

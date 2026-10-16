@@ -505,10 +505,14 @@ function App() {
         const vId = ct.id;
         const ton = Number(ct.soLuongTon ?? 0);
         if (ton <= 0) { alert("SP đã hết hàng"); return false; }
+        const slThem = Math.max(1, Number(sl) || 1);
+        const xacNhanThem = window.confirm(
+            "Bạn có muốn thêm sản phẩm vào giỏ hàng không?"
+        );
+        if (!xacNhanThem) return false;
         let ghId = gioHangId;
         if (!ghId) ghId = await taiGioHang(taiKhoan, sanPhams);
         if (!ghId) { alert("Không khởi tạo được giỏ"); return false; }
-        const slThem = Math.max(1, Number(sl) || 1);
         const ex = gioHang.find((i) => i.variantId === vId);
         try {
             if (ex) {
@@ -1767,9 +1771,23 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                             <button type="button" onClick={() => tangSoLuong(item.variantId)}>+</button>
                                         </div>
 
-                                        <strong className="cart-total" style={{ color: km ? "#e53935" : undefined }}>
-                                            {formatGia(gia * item.soLuong)}
-                                        </strong>
+                                        <div className="cart-total-actions" onClick={(e) => e.stopPropagation()}>
+                                            <strong
+                                                className="cart-total"
+                                                style={{ color: km ? "#e53935" : undefined }}
+                                            >
+                                                {formatGia(gia * item.soLuong)}
+                                            </strong>
+
+                                            <button
+                                                type="button"
+                                                className="remove-cart cart-remove-inline"
+                                                aria-label={`Xóa ${item.sanPham.tenSanPham} khỏi giỏ hàng`}
+                                                onClick={() => xoaKhoiGio(item.variantId)}
+                                            >
+                                                Xóa
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -1974,6 +1992,10 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [voucherError, setVoucherError] = useState("");
     const [checkingVoucher, setCheckingVoucher] = useState(false);
     const [danhSachVoucherActive, setDanhSachVoucherActive] = useState([]);
+    // Danh sách voucher có sẵn trong màn hình thanh toán
+    const [showVoucherList, setShowVoucherList] = useState(false);
+    const [voucherList, setVoucherList] = useState([]);
+    const [loadingVoucherList, setLoadingVoucherList] = useState(false);
     const [dangTaiVoucher, setDangTaiVoucher] = useState(false);
     const [loiTaiVoucher, setLoiTaiVoucher] = useState("");
     const MAX_VOUCHER = 2;
