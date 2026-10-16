@@ -27,8 +27,6 @@ const danhMuc = [
 
 const thuongHieu = ["Nike", "adidas", "Puma Sport", "Converse"];
 
-
-
 function layTenThuongHieu(sp) {
     return String(sp?.thuongHieu?.tenThuongHieu || sp?.tenThuongHieu || "").trim().toLowerCase();
 }
@@ -110,7 +108,6 @@ function isVoucherFreeship(v) {
     return false;
 }
 
-/* ⭐ Tìm KM phù hợp với 1 sản phẩm */
 /* ⭐ Tính KM cho 1 SP/biến thể — hỗ trợ cả 4 phạm vi */
 function tinhKhuyenMai({ giaGoc, sanPhamId, sanPhamChiTietId, thuongHieuId, kmList }) {
     if (!Array.isArray(kmList) || kmList.length === 0) return null;
@@ -178,7 +175,6 @@ function tinhGiaItem(item, khuyenMaiActive) {
     if (!kmInfo) return { giaGoc, gia: giaGoc, km: null, kmInfo: null };
     return { giaGoc, gia: kmInfo.giaSauGiam, km: kmInfo.km, kmInfo };
 }
-
 
 /* =========================================================
    APP
@@ -259,7 +255,6 @@ function FavoriteProducts({ sanPhams, yeuThichIds = [], loading, xemSanPham, the
         </main>
     );
 }
-
 
 function App() {
     const tkDaLuu = (() => {
@@ -504,8 +499,8 @@ function App() {
     };
 
     const themVaoGio = async (sp, ct = null, sl = 1) => {
-        const ok = window.confirm(
-            "Bạn có chắc chắn muốn thêm sản phẩm này vào giỏ hàng không?");
+        const ok = window.confirm("Bạn có chắc chắn muốn thêm sản phẩm này vào giỏ hàng không?");
+        if (!ok) return false;
         if (!taiKhoan) { setPage("login"); return false; }
         if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") { alert("Chỉ KH mới thêm giỏ"); return false; }
         if (!ct?.id) { alert("SP chưa có biến thể"); return false; }
@@ -730,9 +725,11 @@ function App() {
             {toast && <div className="toast"><span>✓</span>{toast}</div>}
         </div>
     );
-}function Header({ page, setPage, search, setSearch, tongSoLuong, taiKhoan, dangXuat,
-                     thuongHieuList = [], danhMucList = [], chonThuongHieu, chonDanhMuc,
-                     yeuThichCount = 0, moTrangYeuThich }) {
+}
+
+function Header({ page, setPage, search, setSearch, tongSoLuong, taiKhoan, dangXuat,
+                    thuongHieuList = [], danhMucList = [], chonThuongHieu, chonDanhMuc,
+                    yeuThichCount = 0, moTrangYeuThich }) {
     const [menuMo, setMenuMo] = useState(null);
     const submitSearch = () => { setPage("products"); setMenuMo(null); };
     const vaiTro = String(taiKhoan?.vaiTro || "").toUpperCase();
@@ -966,8 +963,10 @@ function Home({ sanPhams, loading, xemSanPham, themVaoGio, setPage,
             </div>
         </section>
     </>);
-}function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "", selectedSize = "",
-                          isFavorite = false, toggleYeuThich = () => {}, khuyenMaiActive = null }) {
+}
+
+function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "", selectedSize = "",
+                         isFavorite = false, toggleYeuThich = () => {}, khuyenMaiActive = null }) {
     const chiTiets = Array.isArray(sanPham?.chiTiets) ? sanPham.chiTiets.filter(isVariantHoatDong) : [];
     const nz = (v) => String(v || "").trim().toLowerCase();
     const variant = chiTiets.find((i) => {
@@ -977,27 +976,6 @@ function Home({ sanPhams, loading, xemSanPham, themVaoGio, setPage,
     }) || chiTiets[0] || null;
     const mh = selectedColor || variant?.mauSac?.tenMau || "";
     const anh = mh ? layAnhTheoMau(sanPham, mh) : layAnhSanPham(sanPham);
-
-    // ⭐ Tìm KM phù hợp với SP này dựa theo thương hiệu
-    const kmApDung = (() => {
-        if (!Array.isArray(khuyenMaiActive) || khuyenMaiActive.length === 0) {
-            return null;
-        }
-
-        const thuongHieuIdSP = sanPham?.thuongHieu?.id;
-
-        // Ưu tiên 1: KM theo đúng thương hiệu của SP
-        const kmTheoHang = khuyenMaiActive.find(
-            (km) =>
-                km.thuongHieuId &&
-                Number(km.thuongHieuId) === Number(thuongHieuIdSP)
-        );
-        if (kmTheoHang) return kmTheoHang;
-
-        // Ưu tiên 2: KM áp dụng cho TẤT CẢ SP (thuongHieuId = null)
-        const kmTatCa = khuyenMaiActive.find((km) => !km.thuongHieuId);
-        return kmTatCa || null;
-    })();
 
     const giaGoc = Number(variant?.giaBan ?? sanPham.giaBan ?? 0);
     const kmInfo = tinhKhuyenMai({
@@ -1036,7 +1014,14 @@ function Home({ sanPhams, loading, xemSanPham, themVaoGio, setPage,
                 <div className="price-row">
                     <strong style={{ color: coSale ? "#e53935" : "" }}>{formatGia(gia)}</strong>
                     {coSale && <span style={{ textDecoration: "line-through", color: "#999", fontSize: "13px", marginLeft: "8px" }}>{formatGia(giaGoc)}</span>}
-                    {coSale && <span style={{ background: "#e53935", color: "#fff", fontSize: "11px", padding: "2px 6px", borderRadius: "4px", marginLeft: "6px", fontWeight: "600" }}>-{kmApDung.giaTri}%</span>}                </div>
+                    {coSale && (
+                        <span style={{ background: "#e53935", color: "#fff", fontSize: "11px", padding: "2px 6px", borderRadius: "4px", marginLeft: "6px", fontWeight: "600" }}>
+                            -{String(kmInfo.km.loaiGiam).toUpperCase() === "PHAN_TRAM"
+                            ? `${kmInfo.km.giaTriGiam}%`
+                            : formatGia(kmInfo.km.giaTriGiam)}
+                        </span>
+                    )}
+                </div>
                 <div className="product-buttons">
                     <button type="button" className="detail-button" onClick={() => xemSanPham(sanPham)}>◉&nbsp; Xem chi tiết</button>
                     <button type="button" className="add-cart" onClick={() => themVaoGio(sanPham, variant)}>🛒&nbsp; Thêm vào giỏ</button>
@@ -1283,6 +1268,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     const [selectedSize, setSelectedSize] = useState(firstVariant?.kichCo?.tenKichCo || "");
     const [selectedColor, setSelectedColor] = useState(firstVariant?.mauSac?.tenMau || "");
     const [soLuong, setSoLuong] = useState(1);
+    const [qtyError, setQtyError] = useState("");
     const [showAIDoSize, setShowAIDoSize] = useState(false);
     const [showSizeGuide, setShowSizeGuide] = useState(false);
     const [anh, setAnh] = useState(layAnhTheoMau(sanPham, firstVariant?.mauSac?.tenMau || ""));
@@ -1300,7 +1286,6 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     const gia = selectedVariant?.giaBan || sanPham.giaBan || 0;
     const stock = Number(selectedVariant?.soLuongTon ?? 0);
 
-    // ⭐ Tính KM
     const kmInfo = tinhKhuyenMai({
         giaGoc: Number(gia),
         sanPhamId: sanPham.id,
@@ -1309,6 +1294,55 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
         kmList: khuyenMaiActive,
     });
     const giaHienThi = kmInfo ? kmInfo.giaSauGiam : Number(gia);
+
+    // ⭐ Reset số lượng khi đổi size/màu mà số cũ vượt tồn kho mới
+    useEffect(() => {
+        if (selectedVariant && stock > 0 && Number(soLuong) > stock) {
+            setSoLuong(stock);
+            setQtyError(`Chỉ còn ${stock} sản phẩm trong kho`);
+            const t = setTimeout(() => setQtyError(""), 2500);
+            return () => clearTimeout(t);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedVariant?.id]);
+
+    // ⭐ Xử lý nhập số lượng trực tiếp
+    const handleSoLuongChange = (val) => {
+        setQtyError("");
+        const raw = String(val).replace(/[^\d]/g, "");
+        if (raw === "") { setSoLuong(""); return; }
+        const num = Number(raw);
+        if (!Number.isFinite(num) || num < 1) { setSoLuong(1); return; }
+        if (stock > 0 && num > stock) {
+            setSoLuong(stock);
+            setQtyError(`Chỉ còn ${stock} sản phẩm trong kho`);
+            setTimeout(() => setQtyError(""), 2500);
+            return;
+        }
+        setSoLuong(num);
+    };
+
+    const handleBlurSoLuong = () => {
+        if (soLuong === "" || Number(soLuong) < 1) setSoLuong(1);
+    };
+
+    const giamSoLuong = () => {
+        const cur = Number(soLuong) || 1;
+        if (cur <= 1) return;
+        setSoLuong(cur - 1);
+        setQtyError("");
+    };
+
+    const tangSoLuong = () => {
+        const cur = Number(soLuong) || 1;
+        if (stock > 0 && cur >= stock) {
+            setQtyError(`Chỉ còn ${stock} sản phẩm trong kho`);
+            setTimeout(() => setQtyError(""), 2500);
+            return;
+        }
+        setSoLuong(cur + 1);
+        setQtyError("");
+    };
 
     const sizeCoTheChon = (size) => chiTietsHoatDong.some((item) => item.kichCo?.tenKichCo === size && item.mauSac?.tenMau === selectedColor);
     const mauCoTheChon = (color) => chiTietsHoatDong.some((item) => item.mauSac?.tenMau === color && item.kichCo?.tenKichCo === selectedSize);
@@ -1480,26 +1514,75 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                             <div className="stock">
                                 {selectedVariant ? stock > 0 ? `Còn ${stock} sản phẩm` : "Sản phẩm đã hết hàng" : "Vui lòng chọn size và màu"}
                             </div>
+
+                            {/* ⭐ Ô SỐ LƯỢNG — cho phép nhập trực tiếp, chặn vượt tồn kho */}
                             <div className="quantity-row">
                                 <div className="quantity-control">
-                                    <button type="button" onClick={() => setSoLuong(Math.max(1, soLuong - 1))}>−</button>
-                                    <span>{soLuong}</span>
-                                    <button type="button" onClick={() => {
-                                        if (selectedVariant && stock > 0 && soLuong < stock) setSoLuong(soLuong + 1);
-                                    }}>+</button>
+                                    <button
+                                        type="button"
+                                        onClick={giamSoLuong}
+                                        disabled={Number(soLuong) <= 1}
+                                        style={{ opacity: Number(soLuong) <= 1 ? 0.4 : 1, cursor: Number(soLuong) <= 1 ? "not-allowed" : "pointer" }}
+                                    >−</button>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={soLuong}
+                                        onChange={(e) => handleSoLuongChange(e.target.value)}
+                                        onBlur={handleBlurSoLuong}
+                                        style={{
+                                            width: 56,
+                                            textAlign: "center",
+                                            border: "none",
+                                            outline: "none",
+                                            background: "transparent",
+                                            fontWeight: 700,
+                                            fontSize: 16,
+                                            color: "#111",
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={tangSoLuong}
+                                        disabled={stock > 0 && Number(soLuong) >= stock}
+                                        style={{
+                                            opacity: (stock > 0 && Number(soLuong) >= stock) ? 0.4 : 1,
+                                            cursor: (stock > 0 && Number(soLuong) >= stock) ? "not-allowed" : "pointer"
+                                        }}
+                                    >+</button>
                                 </div>
                                 <span className="quantity-label">Số lượng</span>
                             </div>
+
+                            {qtyError && (
+                                <div style={{
+                                    color: "#e53935",
+                                    fontSize: 13,
+                                    marginTop: 6,
+                                    fontWeight: 600,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                }}>
+                                    ⚠️ {qtyError}
+                                </div>
+                            )}
+
                             <div className="detail-buttons">
                                 <button type="button" className="detail-add-cart" onClick={async () => {
                                     if (!selectedVariant?.id) { alert("Vui lòng chọn đúng size và màu"); return; }
                                     if (stock <= 0) { alert("Sản phẩm đã hết hàng"); return; }
-                                    await themVaoGio(sanPham, selectedVariant, soLuong);
+                                    const sl = Number(soLuong) || 1;
+                                    if (sl > stock) { alert(`Chỉ còn ${stock} sản phẩm trong kho`); return; }
+                                    await themVaoGio(sanPham, selectedVariant, sl);
                                 }}>🛒 Thêm vào giỏ</button>
                                 <button type="button" className="detail-buy" onClick={async () => {
                                     if (!selectedVariant?.id) { alert("Vui lòng chọn đúng size và màu"); return; }
                                     if (stock <= 0) { alert("Sản phẩm đã hết hàng"); return; }
-                                    const daThem = await themVaoGio(sanPham, selectedVariant, soLuong);
+                                    const sl = Number(soLuong) || 1;
+                                    if (sl > stock) { alert(`Chỉ còn ${stock} sản phẩm trong kho`); return; }
+                                    const daThem = await themVaoGio(sanPham, selectedVariant, sl);
                                     if (daThem) setPage("cart");
                                 }}>Mua ngay</button>
                             </div>
@@ -1532,11 +1615,6 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     );
 }
 
-/* =========================================================
-   CART — có checkbox chọn sản phẩm / chọn tất cả
-        + BẤM VÀO CẢ Ô SẢN PHẨM để mở modal sửa màu/size
-        + ô số lượng cho gõ trực tiếp
-========================================================= */
 function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage, taiKhoan,
                   selectedVariantIds = [], setSelectedVariantIds = () => {},
                   capNhatSoLuong = async () => false, capNhatBienThe = async () => false,
@@ -1659,7 +1737,6 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                             </div>
                                         </div>
 
-                                        {/* ⭐ GIÁ ĐÃ SALE */}
                                         <div className="cart-price">
                                             {km ? (
                                                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -1672,10 +1749,10 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                                         padding: "1px 5px", borderRadius: 3, alignSelf: "flex-start",
                                                         fontWeight: 600,
                                                     }}>
-    -{String(km.loaiGiam).toUpperCase() === "PHAN_TRAM"
+                                                        -{String(km.loaiGiam).toUpperCase() === "PHAN_TRAM"
                                                         ? `${km.giaTriGiam}%`
                                                         : formatGia(km.giaTriGiam)}
-</span>
+                                                    </span>
                                                 </div>
                                             ) : (
                                                 formatGia(giaGoc)
@@ -1692,7 +1769,6 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                             <button type="button" onClick={() => tangSoLuong(item.variantId)}>+</button>
                                         </div>
 
-                                        {/* ⭐ THÀNH TIỀN ĐÃ SALE */}
                                         <strong className="cart-total" style={{ color: km ? "#e53935" : undefined }}>
                                             {formatGia(gia * item.soLuong)}
                                         </strong>
@@ -1778,8 +1854,10 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
             )}
         </main>
     );
-}function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioHang, setSelectedVariantIds,
-                       khuyenMaiActive = null }) {
+}
+
+function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioHang, setSelectedVariantIds,
+                      khuyenMaiActive = null }) {
     const [hoTen, setHoTen] = useState("");
     const [soDienThoai, setSoDienThoai] = useState("");
     const [diaChi, setDiaChi] = useState("");
@@ -1794,7 +1872,6 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
     const [newAddress, setNewAddress] = useState({ tenNguoiNhan: "", soDienThoai: "", diaChi: "", macDinh: false, phiShip: PHI_SHIP_MAC_DINH });
     const [ghiChu, setGhiChu] = useState("");
 
-    // Tự tải thông tin tài khoản và các địa chỉ đã lưu khi mở trang thanh toán.
     useEffect(() => {
         const loadCustomerInfo = async () => {
             try {
@@ -1890,6 +1967,7 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
         } catch (e) { alert(e.message || "Có lỗi khi lưu địa chỉ."); }
         finally { setSavingAddress(false); }
     };
+
     const [phuongThuc, setPhuongThuc] = useState("TIEN_MAT");
     const [dangDatHang, setDangDatHang] = useState(false);
     const [bill, setBill] = useState(null);
@@ -1898,19 +1976,43 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
     const [voucherError, setVoucherError] = useState("");
     const [checkingVoucher, setCheckingVoucher] = useState(false);
     const MAX_VOUCHER = 2;
+
+    // ⭐ Danh sách voucher khả dụng
+    const [voucherList, setVoucherList] = useState([]);
+    const [loadingVoucherList, setLoadingVoucherList] = useState(false);
+    const [showVoucherList, setShowVoucherList] = useState(false);
+
     const coVoucherFreeship = vouchers.some(isVoucherFreeship);
     const diaChiDangChon = addresses.find((a) => String(a.id) === String(selectedAddressId));
     const phiShipDiaChi = Number(diaChiDangChon?.phiShip ?? phiShipMoi ?? PHI_SHIP_MAC_DINH);
     const phiVanChuyen = coVoucherFreeship ? 0 : phiShipDiaChi;
     const tienGiam = vouchers.reduce((s, v) => s + Number(v.tienGiam || 0), 0);
 
-    // ⭐ Tính tổng tiền theo GIÁ SALE
     const tongTienSale = gioHang.reduce((sum, it) => {
         const { gia } = tinhGiaItem(it, khuyenMaiActive);
         return sum + gia * Number(it.soLuong || 0);
     }, 0);
 
     const tongThanhToan = Math.max(0, tongTienSale + phiVanChuyen - tienGiam);
+
+    // ⭐ Load danh sách voucher khả dụng
+    useEffect(() => {
+        const loadVoucherList = async () => {
+            try {
+                setLoadingVoucherList(true);
+                const res = await fetch(`${API}/ma-giam-gia/dang-hoat-dong`);
+                if (!res.ok) throw new Error("Không tải được voucher");
+                const data = await res.json();
+                setVoucherList(Array.isArray(data) ? data : []);
+            } catch (e) {
+                console.error(e);
+                setVoucherList([]);
+            } finally {
+                setLoadingVoucherList(false);
+            }
+        };
+        loadVoucherList();
+    }, []);
 
     const apDungVoucher = async () => {
         const code = maVoucher.trim().toUpperCase();
@@ -1925,11 +2027,26 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
             })();
             const r = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ma: code, tongTien: tongTienSale, khachHangId: khId }),
+                body: JSON.stringify({
+                    ma: code,
+                    maVoucher: code,
+                    tongTien: Number(tongTienSale) || 0,
+                    tongTienHang: Number(tongTienSale) || 0,
+                    khachHangId: khId ?? null,
+                }),
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
-            setVouchers((p) => [...p, d]);
+            // ⭐ Ghép id gốc từ voucherList (nếu API không trả id)
+            const found = voucherList.find((x) => String(x.maVoucher || "").toUpperCase() === code);
+            setVouchers((p) => [...p, {
+                ...d,
+                id: d.id ?? d.voucherId ?? found?.id,
+                maVoucher: d.maVoucher || code,
+                tenVoucher: d.tenVoucher || found?.tenVoucher || code,
+                loaiGiam: d.loaiGiam || found?.loaiGiam,
+                giaTriGiam: d.giaTriGiam ?? found?.giaTriGiam,
+            }]);
             setMaVoucher("");
         } catch (e) { setVoucherError(e.message || "Mã không hợp lệ"); }
         finally { setCheckingVoucher(false); }
@@ -1967,7 +2084,7 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                 sanPham: { ...it.sanPham },
                 chiTiet: it.chiTiet ? { ...it.chiTiet } : null,
                 giaSale: gia,
-                khuyenMai: km ? { id: km.id, giaTri: km.giaTri } : null,
+                khuyenMai: km ? { id: km.id, giaTri: km.giaTriGiam, loaiGiam: km.loaiGiam } : null,
             };
         });
         const variantIdsDat = itemsForBill.map((it) => it.variantId).filter(Boolean);
@@ -1995,7 +2112,6 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                 if (!r.ok) throw new Error(d?.message || d?.error || t || `Lỗi thêm SP`);
             }
 
-            // Lưu địa chỉ mới vào sổ địa chỉ nếu khách chọn.
             if (saveAddress) {
                 const tk = JSON.parse(localStorage.getItem("taiKhoan") || "null");
                 let khId = Number(tk?.khachHangId || 0);
@@ -2012,7 +2128,6 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                 }
             }
 
-            // Gửi giá sale lên backend
             const res = await fetch(`${API}/hoa-don/dat-hang/${gioHangId}`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -2020,7 +2135,8 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                     ghiChu: ghiChu.trim(), phuongThuc,
                     voucherId: vouchers[0]?.id || null,
                     maVoucher: vouchers.map((v) => v.maVoucher).filter(Boolean).join("+") || null,
-                    tienGiam, danhSachVoucherId: vouchers.map((v) => v.id),
+                    tienGiam,
+                    danhSachVoucherId: vouchers.map((v) => v.id).filter((x) => x != null),
                     tongTienHang: tongTienSale,
                     chiTiet: itemsForBill.map((it) => ({
                         sanPhamChiTietId: it.variantId,
@@ -2040,7 +2156,7 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                 hoTen: hoTen.trim(), soDienThoai: soDienThoai.trim(),
                 diaChi: diaChi.trim(), ghiChu: ghiChu.trim(), phuongThuc,
                 items: itemsForBill,
-                tamTinh: Number(tongTienSale),   // ⭐ Dùng giá SALE
+                tamTinh: Number(tongTienSale),
                 phiVanChuyen, tienGiam,
                 maVoucher: vouchers.map((v) => v.maVoucher).filter(Boolean).join(" + ") || null,
                 tongThanhToan, noiDungChuyenKhoan: taoNoiDungChuyenKhoan(maHoaDon),
@@ -2217,7 +2333,12 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                 <input className="price-input" type="tel" value={soDienThoai} onChange={(e) => setSoDienThoai(e.target.value)} placeholder="Nhập số điện thoại" />
                             </div>
                             <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>🎫 Mã giảm giá</label>
+                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
+                                    🎫 Mã giảm giá
+                                    <span style={{ marginLeft: 8, color: "#777", fontWeight: 400 }}>
+                                        ({vouchers.length}/{MAX_VOUCHER})
+                                    </span>
+                                </label>
                                 <div className="voucher-input-row">
                                     <input className="price-input" type="text" placeholder="Nhập mã (VD: SALE10)"
                                            value={maVoucher} onChange={(e) => setMaVoucher(e.target.value.toUpperCase())}
@@ -2227,6 +2348,179 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                         {checkingVoucher ? "..." : "Áp dụng"}
                                     </button>
                                 </div>
+
+                                {/* ⭐ Nút mở danh sách voucher có sẵn */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowVoucherList((v) => !v)}
+                                    disabled={vouchers.length >= MAX_VOUCHER}
+                                    style={{
+                                        marginTop: 10,
+                                        width: "100%",
+                                        padding: "10px 14px",
+                                        border: "1px dashed #e65336",
+                                        borderRadius: 8,
+                                        background: "#fffaf8",
+                                        color: "#e65336",
+                                        fontWeight: 700,
+                                        fontSize: 13,
+                                        cursor: vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer",
+                                        opacity: vouchers.length >= MAX_VOUCHER ? 0.5 : 1,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                    }}
+                                >
+                                    <span>🎁 {showVoucherList ? "Ẩn danh sách" : "Chọn voucher có sẵn"}</span>
+                                    <span>{showVoucherList ? "▲" : "▼"}</span>
+                                </button>
+
+                                {/* ⭐ Danh sách voucher khả dụng */}
+                                {showVoucherList && (
+                                    <div style={{
+                                        marginTop: 10,
+                                        maxHeight: 360,
+                                        overflowY: "auto",
+                                        border: "1px solid #eee",
+                                        borderRadius: 8,
+                                        background: "#fff",
+                                        padding: 8,
+                                    }}>
+                                        {loadingVoucherList && (
+                                            <div style={{ padding: 20, textAlign: "center", color: "#777", fontSize: 13 }}>
+                                                Đang tải voucher...
+                                            </div>
+                                        )}
+                                        {!loadingVoucherList && voucherList.length === 0 && (
+                                            <div style={{ padding: 20, textAlign: "center", color: "#777", fontSize: 13 }}>
+                                                Hiện chưa có voucher nào khả dụng.
+                                            </div>
+                                        )}
+                                        {!loadingVoucherList && voucherList.map((v) => {
+                                            const daApDung = vouchers.some((x) => String(x.id) === String(v.id));
+                                            const tongTienHang = Number(tongTienSale || 0);
+                                            const donToiThieu = Number(v.donToiThieu || 0);
+                                            const chuaDuDieuKien = donToiThieu > 0 && tongTienHang < donToiThieu;
+                                            const hetLuot = (v.soLuong ?? 0) > 0 && (v.soLuongDaDung ?? 0) >= v.soLuong;
+                                            const disabled = daApDung || chuaDuDieuKien || hetLuot || vouchers.length >= MAX_VOUCHER;
+
+                                            return (
+                                                <div
+                                                    key={v.id}
+                                                    style={{
+                                                        display: "flex",
+                                                        gap: 12,
+                                                        alignItems: "center",
+                                                        padding: "12px 10px",
+                                                        borderBottom: "1px dashed #eee",
+                                                        opacity: disabled ? 0.5 : 1,
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        flexShrink: 0,
+                                                        minWidth: 70,
+                                                        textAlign: "center",
+                                                        padding: "10px 6px",
+                                                        borderRadius: 8,
+                                                        background: "#fff3f0",
+                                                        color: "#e53935",
+                                                        fontWeight: 700,
+                                                        fontSize: 15,
+                                                    }}>
+                                                        {v.loaiGiam === "PHAN_TRAM"
+                                                            ? `-${v.giaTriGiam}%`
+                                                            : `-${formatGia(v.giaTriGiam)}`}
+                                                    </div>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
+                                                            {v.tenVoucher || v.maVoucher}
+                                                        </div>
+                                                        <div style={{ fontSize: 12, color: "#666" }}>
+                                                            Mã: <strong style={{ color: "#e65336" }}>{v.maVoucher}</strong>
+                                                        </div>
+                                                        {donToiThieu > 0 && (
+                                                            <div style={{ fontSize: 12, color: chuaDuDieuKien ? "#e53935" : "#666" }}>
+                                                                Đơn tối thiểu: <strong>{formatGia(donToiThieu)}</strong>
+                                                                {chuaDuDieuKien && " (chưa đủ)"}
+                                                            </div>
+                                                        )}
+                                                        {v.giamToiDa > 0 && v.loaiGiam === "PHAN_TRAM" && (
+                                                            <div style={{ fontSize: 12, color: "#666" }}>
+                                                                Giảm tối đa: <strong>{formatGia(v.giamToiDa)}</strong>
+                                                            </div>
+                                                        )}
+                                                        <div style={{ fontSize: 12, color: "#666" }}>
+                                                            HSD: {v.ngayKetThuc ? new Date(v.ngayKetThuc).toLocaleDateString("vi-VN") : "—"}
+                                                        </div>
+                                                        {hetLuot && (
+                                                            <div style={{ fontSize: 12, color: "#e53935", fontWeight: 600 }}>
+                                                                Đã hết lượt sử dụng
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        disabled={disabled}
+                                                        onClick={async () => {
+                                                            if (disabled) return;
+                                                            setCheckingVoucher(true);
+                                                            setVoucherError("");
+                                                            try {
+                                                                const khId = (() => {
+                                                                    try {
+                                                                        const raw = localStorage.getItem("taiKhoan");
+                                                                        return raw ? JSON.parse(raw).khachHangId : null;
+                                                                    } catch { return null; }
+                                                                })();
+                                                                const r = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
+                                                                    method: "POST",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({
+                                                                        ma: v.maVoucher,
+                                                                        maVoucher: v.maVoucher,
+                                                                        tongTien: Number(tongTienSale) || 0,
+                                                                        tongTienHang: Number(tongTienSale) || 0,
+                                                                        khachHangId: (khId && !Number.isNaN(Number(khId))) ? Number(khId) : null,
+                                                                    }),
+                                                                });
+                                                                const d = await r.json();
+                                                                if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
+                                                                // ⭐ Ghép id gốc từ voucher vừa chọn
+                                                                setVouchers((p) => [...p, {
+                                                                    ...d,
+                                                                    id: d.id ?? d.voucherId ?? v.id,
+                                                                    maVoucher: d.maVoucher || v.maVoucher,
+                                                                    tenVoucher: d.tenVoucher || v.tenVoucher || v.maVoucher,
+                                                                    loaiGiam: d.loaiGiam || v.loaiGiam,
+                                                                    giaTriGiam: d.giaTriGiam ?? v.giaTriGiam,
+                                                                }]);
+                                                                setShowVoucherList(false);
+                                                            } catch (e) {
+                                                                setVoucherError(e.message || "Mã không hợp lệ");
+                                                            } finally {
+                                                                setCheckingVoucher(false);
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            flexShrink: 0,
+                                                            padding: "8px 14px",
+                                                            border: daApDung ? "none" : "1px solid #e65336",
+                                                            borderRadius: 6,
+                                                            background: daApDung ? "#eee" : "#fff",
+                                                            color: daApDung ? "#999" : "#e65336",
+                                                            fontWeight: 700,
+                                                            fontSize: 12,
+                                                            cursor: disabled ? "not-allowed" : "pointer",
+                                                        }}
+                                                    >
+                                                        {daApDung ? "Đã dùng" : chuaDuDieuKien ? "Chưa đủ" : hetLuot ? "Hết" : "Chọn"}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
                                 {voucherError && <span style={{ color: "#e53935", fontSize: 12, marginTop: 6, display: "block" }}>{voucherError}</span>}
                                 {vouchers.length > 0 && (
                                     <div className="voucher-list">
@@ -2405,91 +2699,33 @@ function OrderHistory({ taiKhoan, setPage }) {
     const khachHangId = taiKhoan?.khachHangId;
 
     const statusMap = {
-        CHO_XAC_NHAN: {
-            label: "Chờ xác nhận",
-            step: 1,
-            className: "waiting",
-        },
-        DA_XAC_NHAN: {
-            label: "Đã xác nhận",
-            step: 2,
-            className: "confirmed",
-        },
-        DANG_CHUAN_BI: {
-            label: "Đang chuẩn bị",
-            step: 3,
-            className: "preparing",
-        },
-        DANG_GIAO: {
-            label: "Đang giao",
-            step: 4,
-            className: "shipping",
-        },
-        DA_GIAO: {
-            label: "Đã giao",
-            step: 5,
-            className: "delivered",
-        },
-        DA_HUY: {
-            label: "Đã hủy",
-            step: 0,
-            className: "cancelled",
-        },
+        CHO_XAC_NHAN: { label: "Chờ xác nhận", step: 1, className: "waiting" },
+        DA_XAC_NHAN: { label: "Đã xác nhận", step: 2, className: "confirmed" },
+        DANG_CHUAN_BI: { label: "Đang chuẩn bị", step: 3, className: "preparing" },
+        DANG_GIAO: { label: "Đang giao", step: 4, className: "shipping" },
+        DA_GIAO: { label: "Đã giao", step: 5, className: "delivered" },
+        DA_HUY: { label: "Đã hủy", step: 0, className: "cancelled" },
     };
 
     const normalizeStatus = (value) =>
-        String(value || "")
-            .trim()
-            .toUpperCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[\s-]+/g, "_");
+        String(value || "").trim().toUpperCase().normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "").replace(/[\s-]+/g, "_");
 
     const getStatus = (order) => {
-        const raw =
-            order?.trangThai ||
-            order?.trangThaiDonHang ||
-            order?.trangThaiHoaDon;
-
+        const raw = order?.trangThai || order?.trangThaiDonHang || order?.trangThaiHoaDon;
         const key = normalizeStatus(raw);
-
-        return statusMap[key] || {
-            label: raw || "Chưa cập nhật",
-            step: 1,
-            className: "unknown",
-        };
+        return statusMap[key] || { label: raw || "Chưa cập nhật", step: 1, className: "unknown" };
     };
 
-    const getOrderId = (order) =>
-        order?.id ?? order?.hoaDonId ?? order?.maHoaDon;
-
-    const getOrderCode = (order) =>
-        order?.maHoaDon || `#${order?.id ?? ""}`;
-
-    const getTotal = (order) =>
-        Number(
-            order?.tongThanhToan ??
-            order?.tongTienSauGiam ??
-            order?.tongTienHang ??
-            0
-        );
+    const getOrderId = (order) => order?.id ?? order?.hoaDonId ?? order?.maHoaDon;
+    const getOrderCode = (order) => order?.maHoaDon || `#${order?.id ?? ""}`;
+    const getTotal = (order) => Number(order?.tongThanhToan ?? order?.tongTienSauGiam ?? order?.tongTienHang ?? 0);
 
     const formatDate = (value) => {
         if (!value) return "Chưa cập nhật";
-
         const date = new Date(value);
-
-        if (Number.isNaN(date.getTime())) {
-            return String(value);
-        }
-
-        return date.toLocaleString("vi-VN", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-        });
+        if (Number.isNaN(date.getTime())) return String(value);
+        return date.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
     };
 
     const statusFilters = [
@@ -2502,140 +2738,64 @@ function OrderHistory({ taiKhoan, setPage }) {
         ["DA_HUY", "Đã hủy"],
     ];
 
-    const filteredOrders =
-        statusFilter === "ALL"
-            ? orders
-            : orders.filter((order) =>
-                normalizeStatus(
-                    order?.trangThai ||
-                    order?.trangThaiDonHang ||
-                    order?.trangThaiHoaDon
-                ) === statusFilter
-            );
+    const filteredOrders = statusFilter === "ALL"
+        ? orders
+        : orders.filter((order) =>
+            normalizeStatus(order?.trangThai || order?.trangThaiDonHang || order?.trangThaiHoaDon) === statusFilter
+        );
 
     const openOrder = async (order) => {
         setShowOrderDetail(true);
-        setSelectedOrder({
-            ...order,
-            __chiTiet: order.__chiTiet || [],
-            __lichSu: order.__lichSu || [],
-        });
-
+        setSelectedOrder({ ...order, __chiTiet: order.__chiTiet || [], __lichSu: order.__lichSu || [] });
         setDetailLoading(true);
         setDetailError("");
-
         const id = getOrderId(order);
-
-        if (!id) {
-            setDetailLoading(false);
-            return;
-        }
-
+        if (!id) { setDetailLoading(false); return; }
         try {
-            const [detailResponse, historyResponse] =
-                await Promise.all([
-                    fetch(`${API}/hoa-don/${id}/chi-tiet`),
-                    fetch(`${API}/hoa-don/${id}/lich-su`),
-                ]);
-
-            const detailData = detailResponse.ok
-                ? await detailResponse.json()
-                : [];
-
-            const historyData = historyResponse.ok
-                ? await historyResponse.json()
-                : [];
-
+            const [detailResponse, historyResponse] = await Promise.all([
+                fetch(`${API}/hoa-don/${id}/chi-tiet`),
+                fetch(`${API}/hoa-don/${id}/lich-su`),
+            ]);
+            const detailData = detailResponse.ok ? await detailResponse.json() : [];
+            const historyData = historyResponse.ok ? await historyResponse.json() : [];
             setSelectedOrder({
                 ...order,
-                __chiTiet: Array.isArray(detailData)
-                    ? detailData
-                    : [],
-                __lichSu: Array.isArray(historyData)
-                    ? historyData
-                    : [],
+                __chiTiet: Array.isArray(detailData) ? detailData : [],
+                __lichSu: Array.isArray(historyData) ? historyData : [],
             });
         } catch (err) {
             console.error("Lỗi tải chi tiết đơn hàng:", err);
-            setDetailError(
-                "Không tải được chi tiết đơn hàng. Bạn vẫn có thể xem trạng thái hiện tại."
-            );
-        } finally {
-            setDetailLoading(false);
-        }
+            setDetailError("Không tải được chi tiết đơn hàng. Bạn vẫn có thể xem trạng thái hiện tại.");
+        } finally { setDetailLoading(false); }
     };
 
     const loadOrders = async (keepSelected = false) => {
-        if (!khachHangId) {
-            setOrders([]);
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        setError("");
-
+        if (!khachHangId) { setOrders([]); setLoading(false); return; }
+        setLoading(true); setError("");
         try {
-            const response = await fetch(
-                `${API}/hoa-don/khach-hang/${khachHangId}`
-            );
-
-            if (!response.ok) {
-                throw new Error("Không thể tải danh sách đơn hàng");
-            }
-
+            const response = await fetch(`${API}/hoa-don/khach-hang/${khachHangId}`);
+            if (!response.ok) throw new Error("Không thể tải danh sách đơn hàng");
             const data = await response.json();
-
-            const list = Array.isArray(data)
-                ? data
-                : Array.isArray(data?.content)
-                    ? data.content
-                    : [];
-
+            const list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
             list.sort((a, b) => {
-                const da = new Date(
-                    a?.ngayLap || a?.ngayTao || 0
-                ).getTime();
-
-                const db = new Date(
-                    b?.ngayLap || b?.ngayTao || 0
-                ).getTime();
-
+                const da = new Date(a?.ngayLap || a?.ngayTao || 0).getTime();
+                const db = new Date(b?.ngayLap || b?.ngayTao || 0).getTime();
                 return db - da;
             });
-
             setOrders(list);
-
             if (keepSelected && selectedOrder) {
                 const selectedId = getOrderId(selectedOrder);
-
-                const fresh = list.find(
-                    (item) =>
-                        String(getOrderId(item)) ===
-                        String(selectedId)
-                );
-
-                if (fresh && showOrderDetail) {
-                    await openOrder(fresh);
-                } else if (!fresh) {
-                    setSelectedOrder(null);
-                    setShowOrderDetail(false);
-                }
+                const fresh = list.find((item) => String(getOrderId(item)) === String(selectedId));
+                if (fresh && showOrderDetail) await openOrder(fresh);
+                else if (!fresh) { setSelectedOrder(null); setShowOrderDetail(false); }
             }
         } catch (err) {
             console.error("Lỗi tải đơn hàng:", err);
-            setError(
-                err.message || "Không thể tải đơn hàng"
-            );
-        } finally {
-            setLoading(false);
-        }
+            setError(err.message || "Không thể tải đơn hàng");
+        } finally { setLoading(false); }
     };
 
-    useEffect(() => {
-        loadOrders();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [khachHangId]);
+    useEffect(() => { loadOrders(); }, [khachHangId]); // eslint-disable-line
 
     const steps = [
         ["CHO_XAC_NHAN", "Chờ xác nhận"],
@@ -2650,24 +2810,11 @@ function OrderHistory({ taiKhoan, setPage }) {
             <div className="container">
                 <div className="order-history-heading">
                     <div>
-                        <span className="section-kicker">
-                            FShop
-                        </span>
-
+                        <span className="section-kicker">FShop</span>
                         <h1>Đơn hàng của tôi</h1>
-
-                        <p>
-                            Theo dõi trạng thái và xem lại chi tiết
-                            các đơn hàng bạn đã đặt.
-                        </p>
+                        <p>Theo dõi trạng thái và xem lại chi tiết các đơn hàng bạn đã đặt.</p>
                     </div>
-
-                    <button
-                        type="button"
-                        className="order-refresh-btn"
-                        onClick={() => loadOrders(true)}
-                        disabled={loading}
-                    >
+                    <button type="button" className="order-refresh-btn" onClick={() => loadOrders(true)} disabled={loading}>
                         ↻ {loading ? "Đang tải..." : "Làm mới"}
                     </button>
                 </div>
@@ -2683,66 +2830,30 @@ function OrderHistory({ taiKhoan, setPage }) {
                         <div className="order-state-icon">!</div>
                         <h3>Không tải được đơn hàng</h3>
                         <p>{error}</p>
-
-                        <button
-                            type="button"
-                            onClick={() => loadOrders()}
-                        >
-                            Thử lại
-                        </button>
+                        <button type="button" onClick={() => loadOrders()}>Thử lại</button>
                     </div>
                 ) : orders.length === 0 ? (
                     <div className="order-state-card">
                         <div className="order-state-icon">📦</div>
                         <h3>Bạn chưa có đơn hàng nào</h3>
-                        <p>
-                            Hãy chọn sản phẩm và đặt hàng,
-                            đơn hàng của bạn sẽ xuất hiện tại đây.
-                        </p>
-
-                        <button
-                            type="button"
-                            onClick={() => setPage("products")}
-                        >
-                            Mua sắm ngay
-                        </button>
+                        <p>Hãy chọn sản phẩm và đặt hàng, đơn hàng của bạn sẽ xuất hiện tại đây.</p>
+                        <button type="button" onClick={() => setPage("products")}>Mua sắm ngay</button>
                     </div>
                 ) : (
                     <>
                         {!showOrderDetail && (
-                            <div
-                                className="order-status-filters"
-                                role="group"
-                                aria-label="Lọc trạng thái đơn hàng"
-                            >
+                            <div className="order-status-filters" role="group" aria-label="Lọc trạng thái đơn hàng">
                                 {statusFilters.map(([key, label]) => {
-                                    const count =
-                                        key === "ALL"
-                                            ? orders.length
-                                            : orders.filter(
-                                                (order) =>
-                                                    normalizeStatus(
-                                                        order?.trangThai ||
-                                                        order?.trangThaiDonHang ||
-                                                        order?.trangThaiHoaDon
-                                                    ) === key
-                                            ).length;
-
+                                    const count = key === "ALL"
+                                        ? orders.length
+                                        : orders.filter((order) =>
+                                            normalizeStatus(order?.trangThai || order?.trangThaiDonHang || order?.trangThaiHoaDon) === key
+                                        ).length;
                                     return (
-                                        <button
-                                            type="button"
-                                            key={key}
-                                            className={`order-filter-chip ${
-                                                statusFilter === key
-                                                    ? "active"
-                                                    : ""
-                                            }`}
-                                            onClick={() =>
-                                                setStatusFilter(key)
-                                            }
-                                        >
-                                            {label}
-                                            <span>{count}</span>
+                                        <button type="button" key={key}
+                                                className={`order-filter-chip ${statusFilter === key ? "active" : ""}`}
+                                                onClick={() => setStatusFilter(key)}>
+                                            {label}<span>{count}</span>
                                         </button>
                                     );
                                 })}
@@ -2755,214 +2866,100 @@ function OrderHistory({ taiKhoan, setPage }) {
                                     {filteredOrders.length ? (
                                         filteredOrders.map((order) => {
                                             const status = getStatus(order);
-
-                                            const selected =
-                                                String(getOrderId(selectedOrder)) ===
-                                                String(getOrderId(order));
-
+                                            const selected = String(getOrderId(selectedOrder)) === String(getOrderId(order));
                                             return (
-                                                <button
-                                                    type="button"
-                                                    key={
-                                                        getOrderId(order) ||
-                                                        getOrderCode(order)
-                                                    }
-                                                    className={`order-card ${
-                                                        selected ? "selected" : ""
-                                                    }`}
-                                                    onClick={() =>
-                                                        openOrder(order)
-                                                    }
-                                                >
+                                                <button type="button" key={getOrderId(order) || getOrderCode(order)}
+                                                        className={`order-card ${selected ? "selected" : ""}`}
+                                                        onClick={() => openOrder(order)}>
                                                     <div className="order-card-top">
                                                         <div>
-                                                        <span className="order-code">
-                                                            {getOrderCode(order)}
-                                                        </span>
-
-                                                            <span className="order-date">
-                                                            {formatDate(
-                                                                order.ngayLap ||
-                                                                order.ngayTao
-                                                            )}
-                                                        </span>
+                                                            <span className="order-code">{getOrderCode(order)}</span>
+                                                            <span className="order-date">{formatDate(order.ngayLap || order.ngayTao)}</span>
                                                         </div>
-
-                                                        <span
-                                                            className={`order-status-badge ${status.className}`}
-                                                        >
-                                                        {status.label}
-                                                    </span>
+                                                        <span className={`order-status-badge ${status.className}`}>{status.label}</span>
                                                     </div>
-
                                                     <div className="order-card-bottom">
-                                                        <strong>
-                                                            {formatGia(
-                                                                getTotal(order)
-                                                            )}
-                                                        </strong>
-
-                                                        <span>
-                                                        Xem chi tiết →
-                                                    </span>
+                                                        <strong>{formatGia(getTotal(order))}</strong>
+                                                        <span>Xem chi tiết →</span>
                                                     </div>
                                                 </button>
                                             );
                                         })
                                     ) : (
-                                        <div className="order-filter-empty">
-                                            Không có đơn hàng ở trạng thái này.
-                                        </div>
+                                        <div className="order-filter-empty">Không có đơn hàng ở trạng thái này.</div>
                                     )}
                                 </section>
                             )}
 
                             {showOrderDetail && selectedOrder && (
                                 <section className="order-detail-card">
-                                    <button
-                                        type="button"
-                                        className="order-back-btn"
-                                        onClick={() => {
-                                            setShowOrderDetail(false);
-                                            window.scrollTo({ top: 0, behavior: "smooth" });
-                                        }}
-                                    >
+                                    <button type="button" className="order-back-btn"
+                                            onClick={() => { setShowOrderDetail(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                                         ← Quay lại danh sách đơn hàng
                                     </button>
                                     {!selectedOrder ? (
                                         <div className="order-detail-empty">
                                             <div>📋</div>
                                             <h3>Chọn một đơn hàng</h3>
-                                            <p>
-                                                Chọn đơn hàng bên trái để xem
-                                                tiến trình và chi tiết.
-                                            </p>
+                                            <p>Chọn đơn hàng bên trái để xem tiến trình và chi tiết.</p>
                                         </div>
                                     ) : (
                                         <>
                                             <div className="order-detail-header">
                                                 <div>
-                                                <span className="section-kicker">
-                                                    Chi tiết đơn hàng
-                                                </span>
-
-                                                    <h2>
-                                                        {getOrderCode(selectedOrder)}
-                                                    </h2>
-
-                                                    <p>
-                                                        Đặt lúc{" "}
-                                                        {formatDate(
-                                                            selectedOrder.ngayLap ||
-                                                            selectedOrder.ngayTao
-                                                        )}
-                                                    </p>
+                                                    <span className="section-kicker">Chi tiết đơn hàng</span>
+                                                    <h2>{getOrderCode(selectedOrder)}</h2>
+                                                    <p>Đặt lúc {formatDate(selectedOrder.ngayLap || selectedOrder.ngayTao)}</p>
                                                 </div>
-
-                                                <span
-                                                    className={`order-status-badge ${
-                                                        getStatus(selectedOrder).className
-                                                    }`}
-                                                >
-                                                {getStatus(selectedOrder).label}
-                                            </span>
+                                                <span className={`order-status-badge ${getStatus(selectedOrder).className}`}>
+                                                    {getStatus(selectedOrder).label}
+                                                </span>
                                             </div>
 
-                                            {detailError && (
-                                                <div className="order-inline-error">
-                                                    {detailError}
-                                                </div>
-                                            )}
+                                            {detailError && <div className="order-inline-error">{detailError}</div>}
 
-                                            <div
-                                                className={`order-progress ${
-                                                    getStatus(selectedOrder).className
-                                                }`}
-                                            >
+                                            <div className={`order-progress ${getStatus(selectedOrder).className}`}>
                                                 {steps.map(([key, label], index) => {
-                                                    const currentStep =
-                                                        getStatus(selectedOrder).step;
-
-                                                    const done =
-                                                        currentStep > index + 1;
-
-                                                    const current =
-                                                        currentStep === index + 1;
-
+                                                    const currentStep = getStatus(selectedOrder).step;
+                                                    const done = currentStep > index + 1;
+                                                    const current = currentStep === index + 1;
                                                     return (
-                                                        <div
-                                                            className={`order-step ${
-                                                                done ? "done" : ""
-                                                            } ${
-                                                                current ? "current" : ""
-                                                            }`}
-                                                            key={key}
-                                                        >
-                                                        <span className="order-step-dot">
-                                                            {done ? "✓" : index + 1}
-                                                        </span>
-
+                                                        <div className={`order-step ${done ? "done" : ""} ${current ? "current" : ""}`} key={key}>
+                                                            <span className="order-step-dot">{done ? "✓" : index + 1}</span>
                                                             <span>{label}</span>
                                                         </div>
                                                     );
                                                 })}
                                             </div>
 
-                                            {getStatus(selectedOrder).className ===
-                                                "cancelled" && (
-                                                    <div className="order-cancel-note">
-                                                        Đơn hàng đã được hủy. Nếu cần hỗ trợ,
-                                                        vui lòng liên hệ cửa hàng.
-                                                    </div>
-                                                )}
+                                            {getStatus(selectedOrder).className === "cancelled" && (
+                                                <div className="order-cancel-note">
+                                                    Đơn hàng đã được hủy. Nếu cần hỗ trợ, vui lòng liên hệ cửa hàng.
+                                                </div>
+                                            )}
 
                                             <div className="order-info-grid">
-                                                <div>
-                                                    <span>Người nhận</span>
-                                                    <strong>
-                                                        {selectedOrder.khachHang?.hoTen ||
-                                                            "Chưa cập nhật"}
-                                                    </strong>
-                                                </div>
-
-                                                <div>
-                                                    <span>Số điện thoại</span>
-                                                    <strong>
-                                                        {selectedOrder.khachHang?.soDienThoai ||
-                                                            "Chưa cập nhật"}
-                                                    </strong>
-                                                </div>
-
+                                                <div><span>Người nhận</span><strong>{selectedOrder.khachHang?.hoTen || "Chưa cập nhật"}</strong></div>
+                                                <div><span>Số điện thoại</span><strong>{selectedOrder.khachHang?.soDienThoai || "Chưa cập nhật"}</strong></div>
                                                 <div>
                                                     <span>Địa chỉ</span>
                                                     <strong>
-                                                        {selectedOrder.diaChi?.diaChi ||
-                                                            selectedOrder.diaChi?.diaChiChiTiet ||
-                                                            selectedOrder.diaChi?.chiTiet ||
-                                                            selectedOrder.ghiChu ||
-                                                            "Địa chỉ giao hàng đã lưu"}
+                                                        {selectedOrder.diaChi?.diaChi || selectedOrder.diaChi?.diaChiChiTiet ||
+                                                            selectedOrder.diaChi?.chiTiet || selectedOrder.ghiChu || "Địa chỉ giao hàng đã lưu"}
                                                     </strong>
                                                 </div>
-
                                                 <div>
                                                     <span>Phương thức thanh toán</span>
                                                     <strong>
-                                                        {selectedOrder.phuongThucThanhToan ||
-                                                            selectedOrder.thanhToan?.phuongThucThanhToan ||
-                                                            selectedOrder.thanhToan?.phuongThuc ||
-                                                            selectedOrder.loaiHoaDon ||
-                                                            "Chưa cập nhật"}
+                                                        {selectedOrder.phuongThucThanhToan || selectedOrder.thanhToan?.phuongThucThanhToan ||
+                                                            selectedOrder.thanhToan?.phuongThuc || selectedOrder.loaiHoaDon || "Chưa cập nhật"}
                                                     </strong>
                                                 </div>
-
                                                 <div>
                                                     <span>Voucher</span>
                                                     <strong>
-                                                        {selectedOrder.voucher?.maVoucher ||
-                                                            selectedOrder.voucher?.maGiamGia ||
-                                                            selectedOrder.maVoucher ||
-                                                            selectedOrder.maGiamGia ||
-                                                            "Không sử dụng"}
+                                                        {selectedOrder.voucher?.maVoucher || selectedOrder.voucher?.maGiamGia ||
+                                                            selectedOrder.maVoucher || selectedOrder.maGiamGia || "Không sử dụng"}
                                                     </strong>
                                                 </div>
                                             </div>
@@ -2970,137 +2967,53 @@ function OrderHistory({ taiKhoan, setPage }) {
                                             <div className="order-section-block">
                                                 <div className="order-section-title">
                                                     <h3>Sản phẩm</h3>
-                                                    {detailLoading && (
-                                                        <span>Đang tải...</span>
-                                                    )}
+                                                    {detailLoading && <span>Đang tải...</span>}
                                                 </div>
-
                                                 {selectedOrder.__chiTiet?.length ? (
                                                     <div className="order-item-list">
-                                                        {selectedOrder.__chiTiet.map(
-                                                            (item, index) => {
-                                                                const spct =
-                                                                    item?.sanPhamChiTiet || {};
-
-                                                                const sp =
-                                                                    spct?.sanPham || {};
-
-                                                                const size =
-                                                                    spct?.kichCo?.tenKichCo ||
-                                                                    spct?.kichCo?.ten ||
-                                                                    spct?.kichCo?.size;
-
-                                                                const color =
-                                                                    spct?.mauSac?.tenMauSac ||
-                                                                    spct?.mauSac?.tenMau ||
-                                                                    spct?.mauSac?.ten;
-
-                                                                return (
-                                                                    <div
-                                                                        className="order-item-row"
-                                                                        key={item?.id || index}
-                                                                    >
-                                                                        <div className="order-item-image">
-                                                                            {sp?.hinhAnh ? (
-                                                                                <img
-                                                                                    src={anhUrl(sp.hinhAnh)}
-                                                                                    alt={
-                                                                                        sp.tenSanPham ||
-                                                                                        "Sản phẩm"
-                                                                                    }
-                                                                                />
-                                                                            ) : (
-                                                                                <span>👟</span>
-                                                                            )}
-                                                                        </div>
-
-                                                                        <div className="order-item-main">
-                                                                            <strong>
-                                                                                {sp?.tenSanPham ||
-                                                                                    spct?.maSku ||
-                                                                                    "Sản phẩm"}
-                                                                            </strong>
-
-                                                                            <span>
-                                                                            {[
-                                                                                    size && `Size ${size}`,
-                                                                                    color && `Màu ${color}`,
-                                                                                ]
-                                                                                    .filter(Boolean)
-                                                                                    .join(" · ") ||
-                                                                                "Chi tiết sản phẩm"}
-                                                                        </span>
-
-                                                                            <small>
-                                                                                x{item?.soLuong || 0}
-                                                                            </small>
-                                                                        </div>
-
-                                                                        <strong>
-                                                                            {formatGia(
-                                                                                item?.thanhTien ??
-                                                                                Number(item?.donGia || 0) *
-                                                                                Number(item?.soLuong || 0)
-                                                                            )}
-                                                                        </strong>
+                                                        {selectedOrder.__chiTiet.map((item, index) => {
+                                                            const spct = item?.sanPhamChiTiet || {};
+                                                            const sp = spct?.sanPham || {};
+                                                            const size = spct?.kichCo?.tenKichCo || spct?.kichCo?.ten || spct?.kichCo?.size;
+                                                            const color = spct?.mauSac?.tenMauSac || spct?.mauSac?.tenMau || spct?.mauSac?.ten;
+                                                            return (
+                                                                <div className="order-item-row" key={item?.id || index}>
+                                                                    <div className="order-item-image">
+                                                                        {sp?.hinhAnh ? <img src={anhUrl(sp.hinhAnh)} alt={sp.tenSanPham || "Sản phẩm"} /> : <span>👟</span>}
                                                                     </div>
-                                                                );
-                                                            }
-                                                        )}
+                                                                    <div className="order-item-main">
+                                                                        <strong>{sp?.tenSanPham || spct?.maSku || "Sản phẩm"}</strong>
+                                                                        <span>
+                                                                            {[size && `Size ${size}`, color && `Màu ${color}`].filter(Boolean).join(" · ") || "Chi tiết sản phẩm"}
+                                                                        </span>
+                                                                        <small>x{item?.soLuong || 0}</small>
+                                                                    </div>
+                                                                    <strong>
+                                                                        {formatGia(item?.thanhTien ?? Number(item?.donGia || 0) * Number(item?.soLuong || 0))}
+                                                                    </strong>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 ) : (
-                                                    <p className="order-muted">
-                                                        Chưa có dữ liệu chi tiết sản phẩm.
-                                                    </p>
+                                                    <p className="order-muted">Chưa có dữ liệu chi tiết sản phẩm.</p>
                                                 )}
                                             </div>
 
                                             <div className="order-total-box">
-                                                <div>
-                                                    <span>Tiền hàng</span>
-                                                    <strong>
-                                                        {formatGia(
-                                                            selectedOrder.tongTienHang || 0
-                                                        )}
-                                                    </strong>
-                                                </div>
-
+                                                <div><span>Tiền hàng</span><strong>{formatGia(selectedOrder.tongTienHang || 0)}</strong></div>
                                                 <div>
                                                     <span>Voucher áp dụng</span>
                                                     <strong>
-                                                        {selectedOrder.voucher?.maVoucher ||
-                                                            selectedOrder.voucher?.maGiamGia ||
-                                                            selectedOrder.maVoucher ||
-                                                            selectedOrder.maGiamGia ||
-                                                            "Không sử dụng"}
+                                                        {selectedOrder.voucher?.maVoucher || selectedOrder.voucher?.maGiamGia ||
+                                                            selectedOrder.maVoucher || selectedOrder.maGiamGia || "Không sử dụng"}
                                                     </strong>
                                                 </div>
-
-                                                <div>
-                                                    <span>Giảm giá</span>
-                                                    <strong>
-                                                        -{formatGia(
-                                                        selectedOrder.tienGiam || 0
-                                                    )}
-                                                    </strong>
-                                                </div>
-
-                                                <div>
-                                                    <span>Phí vận chuyển</span>
-                                                    <strong>
-                                                        {formatGia(
-                                                            selectedOrder.phiVanChuyen || 0
-                                                        )}
-                                                    </strong>
-                                                </div>
-
+                                                <div><span>Giảm giá</span><strong>-{formatGia(selectedOrder.tienGiam || 0)}</strong></div>
+                                                <div><span>Phí vận chuyển</span><strong>{formatGia(selectedOrder.phiVanChuyen || 0)}</strong></div>
                                                 <div className="grand">
                                                     <span>Tổng thanh toán</span>
-                                                    <strong>
-                                                        {formatGia(
-                                                            getTotal(selectedOrder)
-                                                        )}
-                                                    </strong>
+                                                    <strong>{formatGia(getTotal(selectedOrder))}</strong>
                                                 </div>
                                             </div>
 
@@ -3109,35 +3022,14 @@ function OrderHistory({ taiKhoan, setPage }) {
                                                     <div className="order-section-title">
                                                         <h3>Lịch sử trạng thái</h3>
                                                     </div>
-
                                                     <div className="order-log-list">
                                                         {[...selectedOrder.__lichSu]
-                                                            .sort(
-                                                                (a, b) =>
-                                                                    new Date(b?.thoiGian || 0) -
-                                                                    new Date(a?.thoiGian || 0)
-                                                            )
+                                                            .sort((a, b) => new Date(b?.thoiGian || 0) - new Date(a?.thoiGian || 0))
                                                             .map((item, index) => (
-                                                                <div
-                                                                    className="order-log-item"
-                                                                    key={item?.id || index}
-                                                                >
-                                                                    <strong>
-                                                                        {item?.trangThai ||
-                                                                            item?.tenTrangThai ||
-                                                                            "Cập nhật trạng thái"}
-                                                                    </strong>
-
-                                                                    <span>
-                                                                    {formatDate(
-                                                                        item?.thoiGian ||
-                                                                        item?.ngayTao
-                                                                    )}
-                                                                </span>
-
-                                                                    {item?.ghiChu && (
-                                                                        <p>{item.ghiChu}</p>
-                                                                    )}
+                                                                <div className="order-log-item" key={item?.id || index}>
+                                                                    <strong>{item?.trangThai || item?.tenTrangThai || "Cập nhật trạng thái"}</strong>
+                                                                    <span>{formatDate(item?.thoiGian || item?.ngayTao)}</span>
+                                                                    {item?.ghiChu && <p>{item.ghiChu}</p>}
                                                                 </div>
                                                             ))}
                                                     </div>
@@ -3154,8 +3046,6 @@ function OrderHistory({ taiKhoan, setPage }) {
         </main>
     );
 }
-
-
 
 function Footer({ setPage }) {
     return (
