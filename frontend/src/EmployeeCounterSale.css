@@ -335,7 +335,7 @@
     cursor: pointer;
 }
 
-/* ---------- FOOTER ---------- */
+/* ---------- FOOTER THANH TOÁN ---------- */
 .pos-pay-modal-footer {
     display: grid;
     grid-template-columns: 1fr 2fr;
@@ -378,7 +378,12 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
-/* ============ MODAL CHỌN BIẾN THỂ ============ */
+
+
+/* =========================================================
+   MODAL CHỌN BIẾN THỂ (MÀU SẮC + KÍCH THƯỚC)
+   ========================================================= */
+
 .variant-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -520,9 +525,12 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+
 /* =========================================================
-   POS — TỐC ĐỘ & THAO TÁC NHANH
+   POS — TỐC ĐỘ & THAO TÁC NHANH (Tabs, Phím tắt, Toast)
    ========================================================= */
+
 .pos-shortcuts {
     display: flex;
     flex-wrap: wrap;
@@ -632,6 +640,7 @@
     color: #2563eb;
 }
 
+/* Toast thông báo */
 .pos-toast {
     position: fixed;
     left: 50%;
@@ -658,7 +667,50 @@
     to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* Tối ưu hiệu năng render danh sách sản phẩm */
 .pos-product-card {
     content-visibility: auto;
     contain-intrinsic-size: 300px;
+}
+
+
+/* =========================================================
+   ⭐ LAYOUT CHÍNH — GỘP CHUNG 1 NỀN TRẮNG
+   ========================================================= */
+
+.pos-main-container {
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); /* Đổ bóng nhẹ */
+    padding: 24px;
+    margin-top: 16px;
+    border: 1px solid #eaeaea; /* Viền xám nhạt cho nổi bật */
+}
+
+.pos-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+/* Cột 1: Thương hiệu */
+.pos-category-panel {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid #f0f0f0;
+    padding-right: 16px;
+}
+
+/* Cột 2: Sản phẩm */
+.pos-products {
+    flex: 1;
+    min-width: 0; /* Chống tràn grid sản phẩm */
+}
+
+/* Cột 3: Giỏ hàng */
+.pos-cart {
+    width: 340px;
+    flex-shrink: 0;
+    border-left: 1px solid #f0f0f0;
+    padding-left: 16px;
 }
