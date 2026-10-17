@@ -23,6 +23,8 @@ public class HoaDonResponse {
     private String ghiChu;
     private String soDienThoaiKhach;
     private String tenKhach;
+    private Long khachHangId;
+    private String maKhachHang;   // ID khách hàng (đăng ký hoặc tại quầy), dạng "12"
 
     private List<ChiTietResponse> chiTiet;
 

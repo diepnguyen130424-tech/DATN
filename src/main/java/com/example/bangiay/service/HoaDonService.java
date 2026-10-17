@@ -33,6 +33,7 @@ public class HoaDonService {
     private final KhoService khoService;
     private final DiaChiRepository diaChiRepository;
     private final KhachHangRepository khachHangRepository;
+    private final KhachHangTaiQuayRepository khachHangTaiQuayRepository;
 
 
     // =========================================================
@@ -818,13 +819,39 @@ public class HoaDonService {
             return java.util.Map.of();
         }
 
-        String dangKhachHang = timTenKhachDaDangKy(sdt);
+        KhachHang daDangKy = timKhachDaDangKy(sdt).orElse(null);
 
-        if (dangKhachHang != null) {
+        if (daDangKy != null
+                && daDangKy.getHoTen() != null
+                && !daDangKy.getHoTen().trim().isEmpty()) {
             return java.util.Map.of(
-                    "tenKhach", dangKhachHang,
+                    "tenKhach", daDangKy.getHoTen().trim(),
+                    "khachHangId", String.valueOf(daDangKy.getId()),
+                    "maKhachHang", String.valueOf(daDangKy.getId()),
                     "nguon", "KHACH_HANG"
             );
+        }
+
+        KhachHangTaiQuay khachQuay =
+                khachHangTaiQuayRepository.findBySoDienThoai(sdt).orElse(null);
+
+        if (khachQuay != null) {
+
+            java.util.Map<String, String> kq = new java.util.HashMap<>();
+            kq.put("maKhachHang", String.valueOf(khachQuay.getId()));
+            kq.put("nguon", "KHACH_QUAY");
+
+            if (khachQuay.getHoTen() != null
+                    && !khachQuay.getHoTen().trim().isEmpty()) {
+                kq.put("tenKhach", khachQuay.getHoTen().trim());
+            } else {
+                String tuHoaDon = timTenTuHoaDonCu(sdt);
+                if (tuHoaDon != null) {
+                    kq.put("tenKhach", tuHoaDon);
+                }
+            }
+
+            return kq;
         }
 
         String tuHoaDon = timTenTuHoaDonCu(sdt);
@@ -846,7 +873,7 @@ public class HoaDonService {
         return ten != null ? ten : timTenTuHoaDonCu(sdtChuan);
     }
 
-    private String timTenKhachDaDangKy(String sdtChuan) {
+    private java.util.Optional<KhachHang> timKhachDaDangKy(String sdtChuan) {
 
         List<String> cacDang = List.of(
                 sdtChuan,
@@ -854,14 +881,55 @@ public class HoaDonService {
                 "84" + sdtChuan.substring(1)
         );
 
-        return khachHangRepository
-                .findFirstBySoDienThoaiIn(cacDang)
+        return khachHangRepository.findFirstBySoDienThoaiIn(cacDang);
+    }
+
+    private KhachHangTaiQuay luuKhachTaiQuay(String sdtChuan, String ten) {
+
+        KhachHangTaiQuay khach =
+                khachHangTaiQuayRepository
+                        .findBySoDienThoai(sdtChuan)
+                        .orElse(null);
+
+        if (khach == null) {
+
+            khach = new KhachHangTaiQuay();
+            khach.setSoDienThoai(sdtChuan);
+            khach.setHoTen(ten);
+            khach.setNgayTao(LocalDateTime.now());
+
+            return khachHangTaiQuayRepository.save(khach);
+        }
+
+        // Nhập tên mới cho SĐT đã có → cập nhật theo lần nhập gần nhất
+        if (ten != null && !ten.equals(khach.getHoTen())) {
+            khach.setHoTen(ten);
+            return khachHangTaiQuayRepository.save(khach);
+        }
+
+        return khach;
+    }
+
+    private String timTenKhachDaDangKy(String sdtChuan) {
+
+        return timKhachDaDangKy(sdtChuan)
                 .map(KhachHang::getHoTen)
                 .filter(t -> t != null && !t.trim().isEmpty())
                 .orElse(null);
     }
 
     private String timTenTuHoaDonCu(String sdtChuan) {
+
+        String tuKhachQuay =
+                khachHangTaiQuayRepository
+                        .findBySoDienThoai(sdtChuan)
+                        .map(KhachHangTaiQuay::getHoTen)
+                        .filter(t -> t != null && !t.trim().isEmpty())
+                        .orElse(null);
+
+        if (tuKhachQuay != null) {
+            return tuKhachQuay;
+        }
 
         return hoaDonRepository
                 .findFirstBySoDienThoaiKhachAndTenKhachIsNotNullOrderByNgayLapDesc(
@@ -961,6 +1029,26 @@ public class HoaDonService {
         hoaDon.setTenKhach(
                 tenKhach
         );
+
+
+        // Có SĐT: trùng khách đã đăng ký → gắn ID khách đó;
+        // chưa đăng ký → tìm/tạo "khách tại quầy" theo SĐT để có ID (Q…)
+        if (soDienThoaiKhach != null) {
+
+            KhachHang daDangKy =
+                    timKhachDaDangKy(soDienThoaiKhach).orElse(null);
+
+            if (daDangKy != null) {
+
+                hoaDon.setKhachHang(daDangKy);
+
+            } else {
+
+                hoaDon.setKhachHangQuay(
+                        luuKhachTaiQuay(soDienThoaiKhach, tenKhach)
+                );
+            }
+        }
 
 
         hoaDon.setTrangThai(
@@ -1363,6 +1451,22 @@ public class HoaDonService {
 
         response.setTenKhach(
                 hoaDonCapNhat.getTenKhach()
+        );
+
+
+        response.setKhachHangId(
+                hoaDonCapNhat.getKhachHang() != null
+                        ? hoaDonCapNhat.getKhachHang().getId()
+                        : null
+        );
+
+
+        response.setMaKhachHang(
+                hoaDonCapNhat.getKhachHang() != null
+                        ? String.valueOf(hoaDonCapNhat.getKhachHang().getId())
+                        : hoaDonCapNhat.getKhachHangQuay() != null
+                        ? String.valueOf(hoaDonCapNhat.getKhachHangQuay().getId())
+                        : null
         );
 
 

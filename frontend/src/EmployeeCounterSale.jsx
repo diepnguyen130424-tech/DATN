@@ -161,6 +161,12 @@ function InvoiceModal({invoice, onClose}) {
                             <span>Thu ngân</span>
                             <strong>{invoice.nhanVien || "Nhân viên"}</strong>
                         </div>
+                        {invoice.maKhachHang && (
+                            <div>
+                                <span>ID khách hàng</span>
+                                <strong>#{invoice.maKhachHang}</strong>
+                            </div>
+                        )}
                         {invoice.tenKhach && (
                             <div>
                                 <span>Khách hàng</span>
@@ -291,6 +297,8 @@ function PaymentModal({
     const [buyerName, setBuyerName] = useState("");
     const [phone, setPhone] = useState("");
     const [autoName, setAutoName] = useState("");   // tên được tự điền theo SĐT
+    const [customerId, setCustomerId] = useState(null); // ID khách đã biết (nếu SĐT trùng)
+    const [customerIsAccount, setCustomerIsAccount] = useState(false); // true = khách có tài khoản
     const autoNameRef = useRef("");
 
     useEffect(() => {
@@ -299,6 +307,8 @@ function PaymentModal({
             setBuyerName("");
             setPhone("");
             setAutoName("");
+            setCustomerId(null);
+            setCustomerIsAccount(false);
             autoNameRef.current = "";
             setNote("");
             setPaidConfirmed(false);
@@ -336,6 +346,8 @@ function PaymentModal({
         const digits = phone.replace(/[\s.\-()]/g, "");
 
         const clearAuto = () => {
+            setCustomerId(null);
+            setCustomerIsAccount(false);
             const prev = autoNameRef.current;
             if (!prev) return;
             autoNameRef.current = "";
@@ -359,14 +371,21 @@ function PaymentModal({
                 const data = await res.json();
                 const found = data?.tenKhach?.trim();
 
+                // Khách có ID nhưng chưa có tên: vẫn hiện ID
                 if (!found) {
                     clearAuto();
+                    if (data?.maKhachHang) {
+                        setCustomerId(data.maKhachHang);
+                        setCustomerIsAccount(data?.nguon === "KHACH_HANG");
+                    }
                     return;
                 }
 
                 const prev = autoNameRef.current;
                 autoNameRef.current = found;
                 setAutoName(found);
+                setCustomerId(data?.maKhachHang || null);
+                setCustomerIsAccount(data?.nguon === "KHACH_HANG");
                 setBuyerName((cur) =>
                     !cur.trim() || cur === prev ? found : cur
                 );
@@ -445,6 +464,15 @@ function PaymentModal({
                     {autoName && buyerName === autoName && (
                         <span className="pos-pay-phone-hint">
                             ✓ Khách quen — đã tự điền tên theo SĐT
+                        </span>
+                    )}
+                    {customerId && (
+                        <span className="pos-pay-phone-hint">
+                            🆔 ID khách hàng:{" "}
+                            <strong>#{customerId}</strong>{" "}
+                            {customerIsAccount
+                                ? "(gắn vào tài khoản đã đăng ký)"
+                                : "(khách đã mua tại quầy)"}
                         </span>
                     )}
 
@@ -1308,6 +1336,7 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
                 ngayLap: result?.ngayLap || new Date().toISOString(),
                 phuongThucThanhToan: paymentMethod,
                 tenKhach: result?.tenKhach || null,
+                maKhachHang: result?.maKhachHang || null,
                 soDienThoaiKhach: result?.soDienThoaiKhach || null,
                 tongThanhToan: totalPaid,
                 chiTiet: cartSnapshot.map((item) => ({

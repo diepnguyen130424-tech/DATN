@@ -234,7 +234,9 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                                         <strong>
                                             {order.khachHang?.id
                                                 ? `#${order.khachHang.id}`
-                                                : "-"}
+                                                : order.khachHangQuay?.id
+                                                    ? `#${order.khachHangQuay.id}`
+                                                    : "-"}
                                         </strong>
                                     </td>
                                     <td><strong>{order.maHoaDon}</strong></td>
@@ -319,7 +321,9 @@ function HoaDonPage({orders, onOpenDetail}) {
         ).toLowerCase();
 
         const idKhachHang = String(
-            item?.khachHang?.id || ""
+            item?.khachHang?.id ||
+            item?.khachHangQuay?.id ||
+            ""
         ).toLowerCase();
 
         const hoTen = String(
@@ -469,7 +473,9 @@ function HoaDonPage({orders, onOpenDetail}) {
                                         <strong>
                                             {item?.khachHang?.id
                                                 ? `#${item.khachHang.id}`
-                                                : "-"}
+                                                : item?.khachHangQuay?.id
+                                                    ? `#${item.khachHangQuay.id}`
+                                                    : "-"}
                                         </strong>
                                     </td>
 

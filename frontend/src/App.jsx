@@ -2833,7 +2833,8 @@ function OrderHistory({ taiKhoan, setPage }) {
             const response = await fetch(`${API}/hoa-don/khach-hang/${khachHangId}`);
             if (!response.ok) throw new Error("Không thể tải danh sách đơn hàng");
             const data = await response.json();
-            const list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
+            const list = (Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [])
+                .filter((item) => item?.loaiHoaDon !== "TAI_QUAY");
             list.sort((a, b) => {
                 const da = new Date(a?.ngayLap || a?.ngayTao || 0).getTime();
                 const db = new Date(b?.ngayLap || b?.ngayTao || 0).getTime();
