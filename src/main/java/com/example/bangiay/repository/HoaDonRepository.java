@@ -21,6 +21,10 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Long> {
 
     List<HoaDon> findByLoaiHoaDon(String loaiHoaDon);
 
+    // Hóa đơn gần nhất có cùng SĐT người mua và đã có tên (để tự điền tên)
+    Optional<HoaDon> findFirstBySoDienThoaiKhachAndTenKhachIsNotNullOrderByNgayLapDesc(
+            String soDienThoaiKhach);
+
     // Đơn đã giao nhưng khách chưa xác nhận nhận hàng, cập nhật trước mốc thời gian
     List<HoaDon> findByTrangThaiAndNgayNhanHangIsNullAndNgayCapNhatBefore(
             String trangThai, LocalDateTime mocThoiGian);

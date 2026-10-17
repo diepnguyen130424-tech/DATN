@@ -32,6 +32,7 @@ public class HoaDonService {
 
     private final KhoService khoService;
     private final DiaChiRepository diaChiRepository;
+    private final KhachHangRepository khachHangRepository;
 
 
     // =========================================================
@@ -799,6 +800,80 @@ public class HoaDonService {
 
 
     // =========================================================
+    // TRA CỨU TÊN KHÁCH THEO SĐT (POS tự điền tên)
+    // Ưu tiên: khách đã đăng ký  →  hóa đơn tại quầy gần nhất
+    // =========================================================
+
+    public java.util.Map<String, String> traCuuTenTheoSdt(String raw) {
+
+        String sdt;
+
+        try {
+            sdt = chuanHoaSoDienThoai(raw);
+        } catch (RuntimeException e) {
+            return java.util.Map.of();
+        }
+
+        if (sdt == null) {
+            return java.util.Map.of();
+        }
+
+        String dangKhachHang = timTenKhachDaDangKy(sdt);
+
+        if (dangKhachHang != null) {
+            return java.util.Map.of(
+                    "tenKhach", dangKhachHang,
+                    "nguon", "KHACH_HANG"
+            );
+        }
+
+        String tuHoaDon = timTenTuHoaDonCu(sdt);
+
+        if (tuHoaDon != null) {
+            return java.util.Map.of(
+                    "tenKhach", tuHoaDon,
+                    "nguon", "HOA_DON"
+            );
+        }
+
+        return java.util.Map.of();
+    }
+
+    private String timTenTheoSdt(String sdtChuan) {
+
+        String ten = timTenKhachDaDangKy(sdtChuan);
+
+        return ten != null ? ten : timTenTuHoaDonCu(sdtChuan);
+    }
+
+    private String timTenKhachDaDangKy(String sdtChuan) {
+
+        List<String> cacDang = List.of(
+                sdtChuan,
+                "+84" + sdtChuan.substring(1),
+                "84" + sdtChuan.substring(1)
+        );
+
+        return khachHangRepository
+                .findFirstBySoDienThoaiIn(cacDang)
+                .map(KhachHang::getHoTen)
+                .filter(t -> t != null && !t.trim().isEmpty())
+                .orElse(null);
+    }
+
+    private String timTenTuHoaDonCu(String sdtChuan) {
+
+        return hoaDonRepository
+                .findFirstBySoDienThoaiKhachAndTenKhachIsNotNullOrderByNgayLapDesc(
+                        sdtChuan
+                )
+                .map(HoaDon::getTenKhach)
+                .filter(t -> !t.trim().isEmpty())
+                .orElse(null);
+    }
+
+
+    // =========================================================
     // TẠO HÓA ĐƠN TẠI QUẦY (POS)
     // =========================================================
 
@@ -838,6 +913,28 @@ public class HoaDonService {
                 );
 
 
+        String tenKhach =
+                request.getTenKhach() == null
+                        ? ""
+                        : request.getTenKhach().trim().replaceAll("\\s+", " ");
+
+        if (tenKhach.length() > 100) {
+
+            throw new RuntimeException(
+                    "Tên khách hàng tối đa 100 ký tự"
+            );
+        }
+
+        if (tenKhach.isEmpty()) {
+            tenKhach = null;
+        }
+
+        // Có SĐT mà chưa nhập tên → tự lấy tên theo SĐT (nếu đã từng có)
+        if (tenKhach == null && soDienThoaiKhach != null) {
+            tenKhach = timTenTheoSdt(soDienThoaiKhach);
+        }
+
+
         // -----------------------------------------------------
         // 2. TẠO HÓA ĐƠN
         // -----------------------------------------------------
@@ -858,6 +955,11 @@ public class HoaDonService {
 
         hoaDon.setSoDienThoaiKhach(
                 soDienThoaiKhach
+        );
+
+
+        hoaDon.setTenKhach(
+                tenKhach
         );
 
 
@@ -1256,6 +1358,11 @@ public class HoaDonService {
 
         response.setSoDienThoaiKhach(
                 hoaDonCapNhat.getSoDienThoaiKhach()
+        );
+
+
+        response.setTenKhach(
+                hoaDonCapNhat.getTenKhach()
         );
 
 

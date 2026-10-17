@@ -29,6 +29,14 @@ public class HoaDonController {
         return ResponseEntity.ok(hoaDonService.getAll());
     }
 
+    // POS: nhập SĐT → trả về tên khách đã biết (rỗng nếu chưa có)
+    @GetMapping("/tra-cuu-sdt")
+    public ResponseEntity<java.util.Map<String, String>> traCuuTenTheoSdt(
+            @RequestParam String sdt
+    ) {
+        return ResponseEntity.ok(hoaDonService.traCuuTenTheoSdt(sdt));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<HoaDon> getById(@PathVariable Long id) {
         return ResponseEntity.ok(hoaDonService.getById(id));

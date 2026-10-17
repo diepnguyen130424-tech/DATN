@@ -70,6 +70,10 @@ public class HoaDon {
     @Column(name = "so_dien_thoai_khach", length = 15)
     private String soDienThoaiKhach;
 
+    /** Tên người mua (hóa đơn bán tại quầy, khách vãng lai) — có thể null */
+    @Column(name = "ten_khach", length = 100)
+    private String tenKhach;
+
     @Column(name = "ngay_cap_nhat")
     private LocalDateTime ngayCapNhat;
 

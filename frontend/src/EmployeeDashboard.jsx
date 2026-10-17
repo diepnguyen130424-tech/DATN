@@ -238,7 +238,7 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                                         </strong>
                                     </td>
                                     <td><strong>{order.maHoaDon}</strong></td>
-                                    <td>{order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</td>
+                                    <td>{order.tenKhach || order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</td>
                                     <td>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || order.soDienThoaiKhach || "-"}</td>
                                     <td><strong>{formatMoney(order.tongThanhToan)}</strong></td>
                                     <td>{order.thanhToan?.trangThai === "DA_THANH_TOAN" ? "Đã thanh toán" : "Chờ thanh toán"}</td>
@@ -323,8 +323,10 @@ function HoaDonPage({orders, onOpenDetail}) {
         ).toLowerCase();
 
         const hoTen = String(
+            item?.tenKhach ||
             item?.khachHang?.hoTen ||
             item?.diaChi?.tenNguoiNhan ||
+            item?.tenKhach ||
             ""
         ).toLowerCase();
 
@@ -479,7 +481,8 @@ function HoaDonPage({orders, onOpenDetail}) {
                                     </td>
 
                                     <td>
-                                        {item?.khachHang?.hoTen ||
+                                        {item?.tenKhach ||
+                                            item?.khachHang?.hoTen ||
                                             item?.diaChi?.tenNguoiNhan ||
                                             "Khách lẻ"}
                                     </td>
@@ -600,7 +603,7 @@ function OrderDetailModal({order, onClose}) {
 
                 <div className="order-detail-grid">
                     <div>
-                        <span>Khách hàng</span><strong>{order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</strong>
+                        <span>Khách hàng</span><strong>{order.tenKhach || order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</strong>
                     </div>
                     <div>
                         <span>Số điện thoại</span><strong>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || order.soDienThoaiKhach || "-"}</strong>
