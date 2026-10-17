@@ -770,6 +770,35 @@ public class HoaDonService {
 
 
     // =========================================================
+    // CHUẨN HÓA SĐT NGƯỜI MUA (null/rỗng = không nhập)
+    // Chấp nhận: 0912345678, 0912 345 678, +84912345678, 84912345678
+    // =========================================================
+
+    private String chuanHoaSoDienThoai(String raw) {
+
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+
+        String sdt = raw.replaceAll("[\\s.\\-()]", "");
+
+        if (sdt.startsWith("+84")) {
+            sdt = "0" + sdt.substring(3);
+        } else if (sdt.startsWith("84") && sdt.length() == 11) {
+            sdt = "0" + sdt.substring(2);
+        }
+
+        if (!sdt.matches("^0\\d{9}$")) {
+            throw new RuntimeException(
+                    "Số điện thoại không hợp lệ (cần 10 chữ số, bắt đầu bằng 0)"
+            );
+        }
+
+        return sdt;
+    }
+
+
+    // =========================================================
     // TẠO HÓA ĐƠN TẠI QUẦY (POS)
     // =========================================================
 
@@ -800,6 +829,16 @@ public class HoaDonService {
 
 
         // -----------------------------------------------------
+        // 1b. CHUẨN HÓA + KIỂM TRA SĐT NGƯỜI MUA (không bắt buộc)
+        // -----------------------------------------------------
+
+        String soDienThoaiKhach =
+                chuanHoaSoDienThoai(
+                        request.getSoDienThoaiKhach()
+                );
+
+
+        // -----------------------------------------------------
         // 2. TẠO HÓA ĐƠN
         // -----------------------------------------------------
 
@@ -814,6 +853,11 @@ public class HoaDonService {
 
         hoaDon.setLoaiHoaDon(
                 "TAI_QUAY"
+        );
+
+
+        hoaDon.setSoDienThoaiKhach(
+                soDienThoaiKhach
         );
 
 
@@ -1207,6 +1251,11 @@ public class HoaDonService {
 
         response.setGhiChu(
                 hoaDonCapNhat.getGhiChu()
+        );
+
+
+        response.setSoDienThoaiKhach(
+                hoaDonCapNhat.getSoDienThoaiKhach()
         );
 
 

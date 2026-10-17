@@ -66,6 +66,10 @@ public class HoaDon {
     @Column(name = "ghi_chu", columnDefinition = "TEXT")
     private String ghiChu;
 
+    /** SĐT người mua (hóa đơn bán tại quầy, khách vãng lai) — có thể null */
+    @Column(name = "so_dien_thoai_khach", length = 15)
+    private String soDienThoaiKhach;
+
     @Column(name = "ngay_cap_nhat")
     private LocalDateTime ngayCapNhat;
 

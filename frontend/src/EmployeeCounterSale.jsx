@@ -91,6 +91,13 @@ function buildVietQrUrl(amount, content) {
     return `${base}?${params.toString()}`;
 }
 
+/* SĐT người mua: để trống = bỏ qua; nhập thì phải đúng định dạng VN */
+function isValidPhone(value) {
+    const v = String(value || "").replace(/[\s.\-()]/g, "");
+    if (!v) return true;
+    return /^(0|\+84|84)\d{9}$/.test(v);
+}
+
 function methodLabel(method) {
     if (method === "TIEN_MAT") return "Tiền mặt";
     if (method === "CHUYEN_KHOAN") return "Chuyển khoản";
@@ -154,6 +161,12 @@ function InvoiceModal({invoice, onClose}) {
                             <span>Thu ngân</span>
                             <strong>{invoice.nhanVien || "Nhân viên"}</strong>
                         </div>
+                        {invoice.soDienThoaiKhach && (
+                            <div>
+                                <span>SĐT khách</span>
+                                <strong>{invoice.soDienThoaiKhach}</strong>
+                            </div>
+                        )}
                         <div>
                             <span>Trạng thái</span>
                             <strong className="invoice-paid">
@@ -269,10 +282,12 @@ function PaymentModal({
     const [note, setNote] = useState("");
     const [paidConfirmed, setPaidConfirmed] = useState(false);
     const [payCode, setPayCode] = useState("");
+    const [phone, setPhone] = useState("");
 
     useEffect(() => {
         if (open) {
             setCashReceived("");
+            setPhone("");
             setNote("");
             setPaidConfirmed(false);
             setPayCode(`POS${Date.now().toString().slice(-6)}`);
@@ -299,8 +314,10 @@ function PaymentModal({
         return [...set].filter((v) => v > total).slice(0, 4);
     }, [total]);
 
+    const phoneValid = isValidPhone(phone);
+
     const canConfirm =
-        method === "TIEN_MAT" ? isCashEnough : paidConfirmed;
+        (method === "TIEN_MAT" ? isCashEnough : paidConfirmed) && phoneValid;
 
     // Enter = xác nhận · Esc = đóng
     useEffect(() => {
@@ -309,12 +326,12 @@ function PaymentModal({
             if (e.key === "Escape" && !loading) onClose();
             if (e.key === "Enter" && canConfirm && !loading) {
                 e.preventDefault();
-                onConfirm({method, total});
+                onConfirm({method, total, phone});
             }
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [open, canConfirm, loading, method, total, onClose, onConfirm]);
+    }, [open, canConfirm, loading, method, total, phone, onClose, onConfirm]);
 
     if (!open) return null;
 
@@ -344,6 +361,32 @@ function PaymentModal({
                 <div className="pos-pay-amount">
                     <span>Số tiền cần thanh toán</span>
                     <strong>{formatMoney(total)}</strong>
+                </div>
+
+                <div className="pos-pay-phone">
+                    <label className="pos-pay-label" htmlFor="pos-buyer-phone">
+                        📱 Số điện thoại người mua{" "}
+                        <small>(không bắt buộc)</small>
+                    </label>
+                    <input
+                        id="pos-buyer-phone"
+                        type="tel"
+                        inputMode="tel"
+                        maxLength={15}
+                        className={`pos-pay-phone-input ${
+                            phoneValid ? "" : "invalid"
+                        }`}
+                        value={phone}
+                        onChange={(e) =>
+                            setPhone(e.target.value.replace(/[^\d+\s.]/g, ""))
+                        }
+                        placeholder="Xin SĐT khách để gắn vào hóa đơn"
+                    />
+                    {!phoneValid && (
+                        <span className="pos-pay-phone-error">
+                            SĐT chưa đúng (cần 10 chữ số, bắt đầu bằng 0)
+                        </span>
+                    )}
                 </div>
 
                 {method === "TIEN_MAT" && (
@@ -488,7 +531,7 @@ function PaymentModal({
                         type="button"
                         className="pos-btn-confirm"
                         disabled={!canConfirm || loading}
-                        onClick={() => onConfirm({method, total})}
+                        onClick={() => onConfirm({method, total, phone})}
                     >
                         {loading ? "Đang xử lý..." : "Xác nhận thanh toán"}
                     </button>
@@ -919,24 +962,23 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
         };
     }, [products, variantMap]);
 
-    /* ---------- THƯƠNG HIỆU ---------- */
-    // Nhóm bộ lọc bên trái theo thương hiệu thay vì danh mục sản phẩm.
+    /* ---------- DANH MỤC ---------- */
     const {categories, categoryCount} = useMemo(() => {
         const count = {};
         products.forEach((p) => {
-            const brand = p.thuongHieu?.tenThuongHieu?.trim();
-            if (brand) count[brand] = (count[brand] || 0) + 1;
+            const c = p.danhMuc?.tenDanhMuc;
+            if (c) count[c] = (count[c] || 0) + 1;
         });
-        return {categories: ["Tất cả", ...Object.keys(count).sort((a, b) => a.localeCompare(b, "vi"))], categoryCount: count};
+        return {categories: ["Tất cả", ...Object.keys(count)], categoryCount: count};
     }, [products]);
 
-    /* ---------- LỌC SẢN PHẨM THEO THƯƠNG HIỆU ---------- */
+    /* ---------- LỌC SẢN PHẨM ---------- */
     const filteredProducts = useMemo(() => {
         const keyword = deferredSearch.trim().toLowerCase();
         return products.filter((product) => {
             if (
                 category !== "Tất cả" &&
-                (product.thuongHieu?.tenThuongHieu || "") !== category
+                (product.danhMuc?.tenDanhMuc || "") !== category
             ) {
                 return false;
             }
@@ -1146,7 +1188,7 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
         setShowPayment(true);
     }, [cart.length]);
 
-    const confirmPayment = async () => {
+    const confirmPayment = async ({phone} = {}) => {
         if (loadingCheckout || !cart.length) return;
 
         try {
@@ -1154,6 +1196,7 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
 
             const payload = {
                 phuongThucThanhToan: paymentMethod,
+                soDienThoaiKhach: phone?.trim() || null,
                 chiTiet: cart.map((item) => ({
                     sanPhamChiTietId: item.variant.id,
                     soLuong: item.quantity,
@@ -1174,6 +1217,7 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
                 maHoaDon: result?.maHoaDon || `HD${Date.now()}`,
                 ngayLap: result?.ngayLap || new Date().toISOString(),
                 phuongThucThanhToan: paymentMethod,
+                soDienThoaiKhach: result?.soDienThoaiKhach || null,
                 tongThanhToan: totalPaid,
                 chiTiet: cartSnapshot.map((item) => ({
                     tenSanPham: item.product.tenSanPham,
@@ -1323,8 +1367,8 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
                     <div className="pos-category-heading">
                         <span className="pos-category-icon">☷</span>
                         <div>
-                            <h2>Thương hiệu</h2>
-                            <p>{Math.max(categories.length - 1, 0)} thương hiệu</p>
+                            <h2>Danh mục</h2>
+                            <p>{Math.max(categories.length - 1, 0)} danh mục</p>
                         </div>
                     </div>
 

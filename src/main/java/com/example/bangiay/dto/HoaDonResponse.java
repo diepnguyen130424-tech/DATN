@@ -21,6 +21,7 @@ public class HoaDonResponse {
     private LocalDateTime ngayLap;
     private LocalDateTime ngayCapNhat;
     private String ghiChu;
+    private String soDienThoaiKhach;
 
     private List<ChiTietResponse> chiTiet;
 

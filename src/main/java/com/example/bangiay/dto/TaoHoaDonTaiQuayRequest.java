@@ -8,6 +8,7 @@ import java.util.List;
 public class TaoHoaDonTaiQuayRequest {
 
     private String phuongThucThanhToan;   // TIEN_MAT | CHUYEN_KHOAN | MOMO
+    private String soDienThoaiKhach;      // SĐT người mua (không bắt buộc)
     private List<ChiTiet> chiTiet;
 
     @Data
