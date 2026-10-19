@@ -57,7 +57,8 @@ export default function KhuyenMai({ setPage }) {
     const [chuongTrinhs, setChuongTrinhs] = useState([]);
     const [loadingCT, setLoadingCT] = useState(true);
 
-    const [copiedList, setCopiedList] = useState([]);
+    // Danh sách mã đã LƯU
+    const [savedList, setSavedList] = useState([]);
     const [thongBao, setThongBao] = useState("");
 
     const getTenDangNhap = () => {
@@ -71,7 +72,8 @@ export default function KhuyenMai({ setPage }) {
         }
     };
 
-    const getCacheKey = () => `voucher_copied_${getTenDangNhap()}`;
+    // Dùng chung key với trang Thanh toán
+    const getCacheKey = () => `saved_vouchers_${getTenDangNhap()}`;
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -79,14 +81,14 @@ export default function KhuyenMai({ setPage }) {
                 const raw = localStorage.getItem(getCacheKey());
                 if (raw) {
                     const parsed = JSON.parse(raw);
-                    setCopiedList(Array.isArray(parsed) ? parsed : []);
+                    setSavedList(Array.isArray(parsed) ? parsed : []);
                 }
             } catch {
-                setCopiedList([]);
+                setSavedList([]);
             }
         }, 0);
         return () => clearTimeout(timer);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         const load = async () => {
@@ -108,7 +110,6 @@ export default function KhuyenMai({ setPage }) {
         return () => clearTimeout(timer);
     }, []);
 
-    // ⭐ ĐỔI URL sang /dang-hoat-dong
     useEffect(() => {
         const load = async () => {
             try {
@@ -131,69 +132,24 @@ export default function KhuyenMai({ setPage }) {
         return () => clearTimeout(timer);
     }, []);
 
-    const copyMa = async (ma) => {
-        if (copiedList.includes(ma)) return;
+    // ⭐ Hàm Lưu / Bỏ lưu mã
+    const luuMa = (ma) => {
+        const daLuu = savedList.includes(ma);
+        let newList = [];
 
-        try {
-            let copied = false;
-
-            if (navigator.clipboard && window.isSecureContext) {
-                try {
-                    await navigator.clipboard.writeText(ma);
-                    copied = true;
-                } catch (error) {
-                    console.warn("Clipboard API lỗi:", error);
-                }
-            }
-
-            if (!copied) {
-                const textArea = document.createElement("textarea");
-                textArea.value = ma;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-9999px";
-                textArea.style.top = "-9999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                textArea.setSelectionRange(0, textArea.value.length);
-                try {
-                    copied = document.execCommand("copy");
-                } catch (error) {
-                    console.warn("Fallback copy lỗi:", error);
-                }
-                document.body.removeChild(textArea);
-            }
-
-            if (!copied) {
-                setThongBao("Không thể sao chép mã!");
-                setTimeout(() => setThongBao(""), 1800);
-                return;
-            }
-
-            const newList = [...copiedList, ma];
-            setCopiedList(newList);
-
-            try {
-                localStorage.setItem(getCacheKey(), JSON.stringify(newList));
-            } catch (error) {
-                console.warn("Không lưu được localStorage:", error);
-            }
-
-            setThongBao(`✓ Đã sao chép mã ${ma}`);
-            setTimeout(() => setThongBao(""), 1800);
-
-            setVouchers((old) =>
-                old.map((v) =>
-                    v.maVoucher === ma
-                        ? { ...v, soLuongDaDung: (v.soLuongDaDung || 0) + 1 }
-                        : v
-                )
-            );
-        } catch (error) {
-            console.error("Lỗi sao chép mã:", error);
-            setThongBao("Không thể sao chép mã!");
-            setTimeout(() => setThongBao(""), 1800);
+        if (daLuu) {
+            // Đã lưu -> Bỏ lưu
+            newList = savedList.filter((item) => item !== ma);
+            setThongBao(`Đã bỏ lưu mã ${ma}`);
+        } else {
+            // Chưa lưu -> Lưu vào mảng
+            newList = [...savedList, ma];
+            setThongBao(`✓ Đã lưu mã ${ma}`);
         }
+
+        setSavedList(newList);
+        localStorage.setItem(getCacheKey(), JSON.stringify(newList));
+        setTimeout(() => setThongBao(""), 1800);
     };
 
     return (
@@ -263,7 +219,7 @@ export default function KhuyenMai({ setPage }) {
                         {!loadingVoucher && vouchers.length > 0 && (
                             <div className="khuyen-mai-grid">
                                 {vouchers.map((v) => {
-                                    const daSaoChep = copiedList.includes(v.maVoucher);
+                                    const daLuu = savedList.includes(v.maVoucher);
                                     return (
                                         <div className="khuyen-mai-card" key={v.id}>
                                             <div className="khuyen-mai-badge">
@@ -310,10 +266,14 @@ export default function KhuyenMai({ setPage }) {
                                                 <button
                                                     type="button"
                                                     className="khuyen-mai-copy"
-                                                    onClick={() => copyMa(v.maVoucher)}
-                                                    disabled={daSaoChep}
+                                                    onClick={() => luuMa(v.maVoucher)}
+                                                    style={{
+                                                        background: daLuu ? "#f1f8f2" : "#111",
+                                                        color: daLuu ? "#2e7d32" : "#fff",
+                                                        border: daLuu ? "1px solid #2e7d32" : "none"
+                                                    }}
                                                 >
-                                                    {daSaoChep ? "✓ Đã sao chép" : "📋 Sao chép mã"}
+                                                    {daLuu ? "✓ Đã lưu (Bấm để bỏ)" : "🔖 Lưu mã"}
                                                 </button>
                                             </div>
                                         </div>
@@ -407,8 +367,7 @@ export default function KhuyenMai({ setPage }) {
                 )}
 
                 <div className="khuyen-mai-note">
-                    💡 Sau khi sao chép mã, vào <strong>Giỏ hàng</strong> →{" "}
-                    <strong>Đặt hàng</strong> → dán mã vào ô "Mã giảm giá".
+                    💡 Mã đã lưu sẽ tự động hiển thị ở đầu danh sách khi bạn thanh toán đơn hàng.
                 </div>
             </div>
         </main>

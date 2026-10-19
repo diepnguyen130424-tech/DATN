@@ -478,17 +478,7 @@ public class MaGiamGiaService {
         // KIỂM TRA KHÁCH ĐÃ DÙNG CHƯA
         // -----------------------------------------------------
 
-        if (khachHangId != null
-                && hoaDonRepository
-                .existsByKhachHang_IdAndVoucher_Id(
-                        khachHangId,
-                        voucher.getId()
-                )) {
 
-            throw new RuntimeException(
-                    "Bạn đã sử dụng mã giảm giá này rồi"
-            );
-        }
 
 
         // -----------------------------------------------------
