@@ -12,6 +12,7 @@ import java.util.List;
 public class DiaChiService {
 
     private final DiaChiRepository diaChiRepository;
+    private final ShippingService shippingService;
 
     public List<DiaChi> getByKhachHangId(Long khachHangId) {
         return diaChiRepository.findByKhachHang_Id(khachHangId);
@@ -24,7 +25,8 @@ public class DiaChiService {
     }
 
     public DiaChi save(DiaChi diaChi) {
-        if (diaChi.getPhiShip() == null || diaChi.getPhiShip() < 0) diaChi.setPhiShip(30000);
+        // Phí ship luôn do server tính theo khoảng cách, không tin giá trị client gửi lên
+        diaChi.setPhiShip(shippingService.tinhPhi(diaChi.getDiaChi()).getPhiShip());
         if (Boolean.TRUE.equals(diaChi.getMacDinh()) && diaChi.getKhachHang() != null && diaChi.getKhachHang().getId() != null) {
             diaChiRepository.findByKhachHang_Id(diaChi.getKhachHang().getId()).forEach(a -> { a.setMacDinh(false); diaChiRepository.save(a); });
         }
@@ -39,7 +41,7 @@ public class DiaChiService {
         existing.setTenNguoiNhan(diaChi.getTenNguoiNhan());
         existing.setSoDienThoai(diaChi.getSoDienThoai());
         existing.setDiaChi(diaChi.getDiaChi());
-        if (diaChi.getPhiShip() != null && diaChi.getPhiShip() >= 0) existing.setPhiShip(diaChi.getPhiShip());
+        existing.setPhiShip(shippingService.tinhPhi(diaChi.getDiaChi()).getPhiShip());
         if (Boolean.TRUE.equals(diaChi.getMacDinh())) {
             diaChiRepository.findByKhachHang_Id(existing.getKhachHang().getId()).forEach(a -> { a.setMacDinh(false); diaChiRepository.save(a); });
         }

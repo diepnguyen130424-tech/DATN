@@ -1,9 +1,10 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import "./Auth.css";
 import "./Cart.css";
 import AdminDashboard from "./AdminDashboard";
+import Returns from "./Returns";
 import EmployeeDashboard from "./EmployeeDashboard";
 import Login from "./Login";
 import Register from "./Register";
@@ -88,6 +89,24 @@ function layTrangTheoVaiTro(tk) {
     if (v === "QUAN_TRI") return "admin";
     if (v === "NHAN_VIEN" || v === "NHÂN_VIÊN") return "employee";
     return "home";
+}
+
+function isVoucherFreeship(v) {
+    if (!v) return false;
+    if (v.mienPhiVanChuyen === true) return true;
+    if (v.freeShip === true || v.freeship === true) return true;
+    const loai = String(v.loaiVoucher || v.loai || v.type || v.loaiGiamGia || v.loaiGiam || "").toUpperCase().replace(/[\s_-]+/g, "");
+    if (loai.includes("FREESHIP") || loai.includes("MIENPHI")) return true;
+    const ma = String(v.maVoucher || v.ma || v.code || "").toUpperCase().trim().replace(/[\s_-]+/g, "");
+    if (!ma) return false;
+    if (ma === "FREE") return true;
+    if (ma.startsWith("FREE")) return true;
+    if (ma.endsWith("FREE")) return true;
+    if (ma.includes("FREESHIP")) return true;
+    if (ma.includes("MIENPHI")) return true;
+    const tg = Number(v.tienGiam || v.giaTriGiam || 0);
+    if (tg === 0 && ma.includes("FREE")) return true;
+    return false;
 }
 
 /* ⭐ Tính KM cho 1 SP/biến thể — hỗ trợ cả 4 phạm vi */
@@ -246,6 +265,7 @@ function App() {
 
     const [taiKhoan, setTaiKhoan] = useState(tkDaLuu);
     const [page, setPage] = useState(tkDaLuu ? layTrangTheoVaiTro(tkDaLuu) : "home");
+    const [hoaDonCanTra, setHoaDonCanTra] = useState(null);
     const [sanPhams, setSanPhams] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
@@ -277,6 +297,7 @@ function App() {
             const data = await res.json();
             const raw = Array.isArray(data) ? data : [];
 
+            // Backend đã lọc HOAT_DONG + trong khoảng thời gian → giữ nguyên
             const list = raw.filter((km) => {
                 if (String(km?.trangThai || "").toUpperCase() === "NGUNG_HOAT_DONG") return false;
                 const gt = Number(km.giaTriGiam);
@@ -486,14 +507,10 @@ function App() {
         const vId = ct.id;
         const ton = Number(ct.soLuongTon ?? 0);
         if (ton <= 0) { alert("SP đã hết hàng"); return false; }
-        const slThem = Math.max(1, Number(sl) || 1);
-        const xacNhanThem = window.confirm(
-            "Bạn có muốn thêm sản phẩm vào giỏ hàng không?"
-        );
-        if (!xacNhanThem) return false;
         let ghId = gioHangId;
         if (!ghId) ghId = await taiGioHang(taiKhoan, sanPhams);
         if (!ghId) { alert("Không khởi tạo được giỏ"); return false; }
+        const slThem = Math.max(1, Number(sl) || 1);
         const ex = gioHang.find((i) => i.variantId === vId);
         try {
             if (ex) {
@@ -629,6 +646,11 @@ function App() {
         return t + Number(g) * i.soLuong;
     }, 0);
 
+    if (page === "returns") {
+        if (!taiKhoan) return <Login setPage={setPage} onLoginSuccess={xuLyDangNhapThanhCong} />;
+        return <><Header page={page} setPage={setPage} search={search} setSearch={setSearch} tongSoLuong={tongSoLuong} taiKhoan={taiKhoan} dangXuat={dangXuat} thuongHieuList={thuongHieuList} danhMucList={danhMucList} chonThuongHieu={chonThuongHieu} chonDanhMuc={chonDanhMuc} yeuThichCount={yeuThichIds.length} moTrangYeuThich={moTrangYeuThich} /><Returns mode="customer" taiKhoan={taiKhoan} hoaDon={hoaDonCanTra} onBack={() => { setPage("orders"); setHoaDonCanTra(null); }} /></>;
+    }
+
     if (page === "admin") {
         const v = String(taiKhoan?.vaiTro || "").toUpperCase();
         if (v === "QUAN_TRI") return <AdminDashboard dangXuat={dangXuat} />;
@@ -683,7 +705,16 @@ function App() {
                                       capNhatSoLuong={capNhatSoLuong} capNhatBienThe={capNhatBienThe}
                                       khuyenMaiActive={khuyenMaiActive} />}
 
-            {page === "orders" && <OrderHistory taiKhoan={taiKhoan} setPage={setPage} />}
+            {page === "orders" && (
+                <OrderHistory
+                    taiKhoan={taiKhoan}
+                    setPage={setPage}
+                    onRequestReturn={(hoaDon) => {
+                        setHoaDonCanTra(hoaDon);
+                        setPage("returns");
+                    }}
+                />
+            )}
 
             {page === "favorites" && <FavoriteProducts sanPhams={sanPhams} yeuThichIds={yeuThichIds}
                                                        loading={loading} xemSanPham={xemSanPham} themVaoGio={themVaoGio}
@@ -756,11 +787,21 @@ function Header({ page, setPage, search, setSearch, tongSoLuong, taiKhoan, dangX
                         <span><small>Yêu thích</small><strong>{yeuThichCount} sản phẩm</strong></span>
                     </button>
                     {vaiTro === "KHACH_HANG" && (
-                        <button type="button" className={`site-action mini-action order-action ${page === "orders" ? "active" : ""}`} onClick={() => setPage("orders")}>
+                        <button
+                            type="button"
+                            className={`site-action mini-action order-action ${
+                                page === "orders" ? "active" : ""
+                            }`}
+                            onClick={() => setPage("orders")}
+                        >
                             <span className="mini-icon">📦</span>
-                            <span><small>Đơn hàng</small><strong>Trạng thái</strong></span>
+                            <span>
+            <small>Đơn hàng</small>
+            <strong>Trạng thái</strong>
+        </span>
                         </button>
                     )}
+
                     <button type="button" className="site-action mini-action cart-action" onClick={() => setPage("cart")}>
                         <span className="mini-icon cart-mini-icon">🛒{tongSoLuong > 0 && <b>{tongSoLuong}</b>}</span>
                         <span><small>Giỏ hàng</small><strong>{tongSoLuong} sản phẩm</strong></span>
@@ -1278,6 +1319,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     });
     const giaHienThi = kmInfo ? kmInfo.giaSauGiam : Number(gia);
 
+    // ⭐ Reset số lượng khi đổi size/màu mà số cũ vượt tồn kho mới
     useEffect(() => {
         if (selectedVariant && stock > 0 && Number(soLuong) > stock) {
             setSoLuong(stock);
@@ -1288,6 +1330,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedVariant?.id]);
 
+    // ⭐ Xử lý nhập số lượng trực tiếp
     const handleSoLuongChange = (val) => {
         setQtyError("");
         const raw = String(val).replace(/[^\d]/g, "");
@@ -1496,6 +1539,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                                 {selectedVariant ? stock > 0 ? `Còn ${stock} sản phẩm` : "Sản phẩm đã hết hàng" : "Vui lòng chọn size và màu"}
                             </div>
 
+                            {/* ⭐ Ô SỐ LƯỢNG — cho phép nhập trực tiếp, chặn vượt tồn kho */}
                             <div className="quantity-row">
                                 <div className="quantity-control">
                                     <button
@@ -1749,23 +1793,9 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                             <button type="button" onClick={() => tangSoLuong(item.variantId)}>+</button>
                                         </div>
 
-                                        <div className="cart-total-actions" onClick={(e) => e.stopPropagation()}>
-                                            <strong
-                                                className="cart-total"
-                                                style={{ color: km ? "#e53935" : undefined }}
-                                            >
-                                                {formatGia(gia * item.soLuong)}
-                                            </strong>
-
-                                            <button
-                                                type="button"
-                                                className="remove-cart cart-remove-inline"
-                                                aria-label={`Xóa ${item.sanPham.tenSanPham} khỏi giỏ hàng`}
-                                                onClick={() => xoaKhoiGio(item.variantId)}
-                                            >
-                                                Xóa
-                                            </button>
-                                        </div>
+                                        <strong className="cart-total" style={{ color: km ? "#e53935" : undefined }}>
+                                            {formatGia(gia * item.soLuong)}
+                                        </strong>
                                     </div>
                                 );
                             })}
@@ -1864,7 +1894,90 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [addingAddress, setAddingAddress] = useState(false);
     const [savingAddress, setSavingAddress] = useState(false);
     const [newAddress, setNewAddress] = useState({ tenNguoiNhan: "", soDienThoai: "", diaChi: "", macDinh: false, phiShip: PHI_SHIP_MAC_DINH });
+    const [shipInfo, setShipInfo] = useState(null);
+    const [shipLoading, setShipLoading] = useState(false);
+    const [newShip, setNewShip] = useState(null);
+    const [newShipLoading, setNewShipLoading] = useState(false);
+    const VN_API = "https://provinces.open-api.vn/api/v2";
+    const [provinceList, setProvinceList] = useState([]);
+    const [wardList, setWardList] = useState([]);
+    const [provinceErr, setProvinceErr] = useState(false);
+    const [addrProvince, setAddrProvince] = useState("");
+    const [addrWard, setAddrWard] = useState("");
+    const [addrDetail, setAddrDetail] = useState("");
     const [ghiChu, setGhiChu] = useState("");
+
+    useEffect(() => {
+        if (!addingAddress || provinceList.length) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const r = await fetch(`${VN_API}/p/`);
+                if (!r.ok) throw new Error("province");
+                const d = await r.json();
+                if (!Array.isArray(d) || !d.length) throw new Error("province");
+                if (!cancelled) { setProvinceList(d); setProvinceErr(false); }
+            } catch { if (!cancelled) setProvinceErr(true); }
+        })();
+        return () => { cancelled = true; };
+    }, [addingAddress, provinceList.length]);
+
+    const ghepDiaChi = (detail, ward, province) => [detail.trim(), ward, province].filter(Boolean).join(", ");
+    const doiTinh = async (ten) => {
+        setAddrProvince(ten); setAddrWard(""); setWardList([]);
+        setNewAddress((a) => ({ ...a, diaChi: ghepDiaChi(addrDetail, "", ten) }));
+        const p = provinceList.find((x) => x.name === ten);
+        if (!p) return;
+        try {
+            const r = await fetch(`${VN_API}/p/${p.code}?depth=2`);
+            if (!r.ok) throw new Error("ward");
+            const d = await r.json();
+            setWardList(Array.isArray(d.wards) ? d.wards : []);
+            setProvinceErr(false);
+        } catch { setProvinceErr(true); }
+    };
+    const doiXa = (ten) => { setAddrWard(ten); setNewAddress((a) => ({ ...a, diaChi: ghepDiaChi(addrDetail, ten, addrProvince) })); };
+    const doiChiTiet = (v) => { setAddrDetail(v); setNewAddress((a) => ({ ...a, diaChi: ghepDiaChi(v, addrWard, addrProvince) })); };
+
+    useEffect(() => {
+        const addr = diaChi.trim();
+        if (!addr) { setShipInfo(null); setShipLoading(false); return; }
+        let cancelled = false;
+        setShipLoading(true);
+        const t = setTimeout(async () => {
+            try {
+                const res = await fetch(`${API}/ship/tinh-phi?diaChi=${encodeURIComponent(addr)}`);
+                if (!res.ok) throw new Error("ship");
+                const data = await res.json();
+                if (!cancelled) {
+                    setShipInfo(data);
+                    if (data?.phiShip != null) setPhiShipMoi(Number(data.phiShip) || 0);
+                }
+            } catch { if (!cancelled) setShipInfo(null); }
+            finally { if (!cancelled) setShipLoading(false); }
+        }, 150);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [diaChi]);
+
+    useEffect(() => {
+        const addr = newAddress.diaChi.trim();
+        if (!addingAddress || addr.length < 8 || (!provinceErr && !addrWard)) { setNewShip(null); setNewShipLoading(false); return; }
+        let cancelled = false;
+        setNewShipLoading(true);
+        const t = setTimeout(async () => {
+            try {
+                const res = await fetch(`${API}/ship/tinh-phi?diaChi=${encodeURIComponent(addr)}`);
+                if (!res.ok) throw new Error("ship");
+                const data = await res.json();
+                if (!cancelled) {
+                    setNewShip(data);
+                    if (data?.phiShip != null) setNewAddress((a) => ({ ...a, phiShip: Number(data.phiShip) || 0 }));
+                }
+            } catch { if (!cancelled) setNewShip(null); }
+            finally { if (!cancelled) setNewShipLoading(false); }
+        }, 200);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [newAddress.diaChi, addingAddress, addrWard, provinceErr]);
 
     useEffect(() => {
         const loadCustomerInfo = async () => {
@@ -1927,6 +2040,8 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
 
     const moThemDiaChi = () => {
         setNewAddress({ tenNguoiNhan: hoTen || "", soDienThoai: soDienThoai || "", diaChi: "", macDinh: addresses.length === 0, phiShip: PHI_SHIP_MAC_DINH });
+        setAddrProvince(""); setAddrWard(""); setAddrDetail(""); setWardList([]);
+        setProvinceErr(false); setNewShip(null);
         setAddingAddress(true);
     };
 
@@ -1935,6 +2050,11 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
             alert("Vui lòng nhập đầy đủ tên người nhận, số điện thoại và địa chỉ."); return;
         }
         if (!/^0\d{9}$/.test(newAddress.soDienThoai.trim())) { alert("Số điện thoại phải gồm 10 số và bắt đầu bằng 0."); return; }
+        if (!provinceErr) {
+            if (!provinceList.some((p) => p.name === addrProvince)) { alert("Vui lòng chọn Tỉnh/Thành phố từ danh sách gợi ý."); return; }
+            if (!wardList.some((w) => w.name === addrWard)) { alert("Vui lòng chọn Phường/Xã từ danh sách gợi ý."); return; }
+            if (!addrDetail.trim()) { alert("Vui lòng nhập địa chỉ cụ thể (số nhà, tên đường...)."); return; }
+        }
         try {
             setSavingAddress(true);
             const tk = JSON.parse(localStorage.getItem("taiKhoan") || "null");
@@ -1965,66 +2085,23 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [phuongThuc, setPhuongThuc] = useState("TIEN_MAT");
     const [dangDatHang, setDangDatHang] = useState(false);
     const [bill, setBill] = useState(null);
-
-    // ⭐ CHỈ DÙNG 1 VOUCHER DUY NHẤT
-    const [voucher, setVoucher] = useState(null);
+    const [vouchers, setVouchers] = useState([]);
+    const [maVoucher, setMaVoucher] = useState("");
     const [voucherError, setVoucherError] = useState("");
     const [checkingVoucher, setCheckingVoucher] = useState(false);
-
+    const [danhSachVoucherActive, setDanhSachVoucherActive] = useState([]);
+    const [dangTaiVoucher, setDangTaiVoucher] = useState(false);
+    const [loiTaiVoucher, setLoiTaiVoucher] = useState("");
+    // Trạng thái danh sách voucher được dùng ở giao diện Checkout
     const [showVoucherList, setShowVoucherList] = useState(false);
     const [voucherList, setVoucherList] = useState([]);
     const [loadingVoucherList, setLoadingVoucherList] = useState(false);
-
-    // ⭐ Mã đã lưu bên trang Khuyến Mãi (localStorage)
-    const [savedVouchers, setSavedVouchers] = useState([]);
-
-    const loadSavedVouchers = () => {
-        try {
-            const raw = localStorage.getItem("taiKhoan");
-            const tk = raw ? JSON.parse(raw) : null;
-            const tenDangNhap = tk?.tenDangNhap || "guest";
-            const savedRaw = localStorage.getItem(`saved_vouchers_${tenDangNhap}`);
-            if (savedRaw) {
-                const parsed = JSON.parse(savedRaw);
-                setSavedVouchers(Array.isArray(parsed) ? parsed : []);
-            } else {
-                setSavedVouchers([]);
-            }
-        } catch {
-            setSavedVouchers([]);
-        }
-    };
-
-    useEffect(() => {
-        loadSavedVouchers();
-    }, []);
-
-    // Mỗi lần mở danh sách voucher → đọc lại (phòng khi vừa lưu ở tab khác)
-    useEffect(() => {
-        if (showVoucherList) loadSavedVouchers();
-    }, [showVoucherList]);
-
-    // ⭐ CHỈ hiển thị voucher đã lưu
-    const sortedVoucherList = useMemo(() => {
-        const list = Array.isArray(voucherList) ? voucherList : [];
-        return list.filter((v) => savedVouchers.includes(v.maVoucher));
-    }, [voucherList, savedVouchers]);
-
-    // ⭐ Bỏ lưu
-    const boLuuVoucher = (ma) => {
-        const next = savedVouchers.filter((m) => m !== ma);
-        setSavedVouchers(next);
-        try {
-            const raw = localStorage.getItem("taiKhoan");
-            const tk = raw ? JSON.parse(raw) : null;
-            const tenDangNhap = tk?.tenDangNhap || "guest";
-            localStorage.setItem(`saved_vouchers_${tenDangNhap}`, JSON.stringify(next));
-        } catch { /* ignore */ }
-    };
-
+    const MAX_VOUCHER = 2;
+    const coVoucherFreeship = vouchers.some(isVoucherFreeship);
     const diaChiDangChon = addresses.find((a) => String(a.id) === String(selectedAddressId));
-    const phiVanChuyen = Number(diaChiDangChon?.phiShip ?? phiShipMoi ?? PHI_SHIP_MAC_DINH);
-    const tienGiam = Number(voucher?.tienGiam || 0);
+    const phiShipDiaChi = Number(shipInfo?.phiShip ?? diaChiDangChon?.phiShip ?? phiShipMoi ?? PHI_SHIP_MAC_DINH);
+    const phiVanChuyen = coVoucherFreeship ? 0 : phiShipDiaChi;
+    const tienGiam = vouchers.reduce((s, v) => s + Number(v.tienGiam || 0), 0);
 
     const tongTienSale = gioHang.reduce((sum, it) => {
         const { gia } = tinhGiaItem(it, khuyenMaiActive);
@@ -2033,6 +2110,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
 
     const tongThanhToan = Math.max(0, tongTienSale + phiVanChuyen - tienGiam);
 
+    // ⭐ Load danh sách voucher khả dụng
     useEffect(() => {
         const loadVoucherList = async () => {
             try {
@@ -2051,50 +2129,44 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
         loadVoucherList();
     }, []);
 
-    const xoaVoucher = () => {
-        setVoucher(null);
-        setVoucherError("");
-    };
-
-    const chonVoucherTuDanhSach = async (v) => {
-        setCheckingVoucher(true);
-        setVoucherError("");
+    const apDungVoucher = async () => {
+        const code = maVoucher.trim().toUpperCase();
+        if (!code) { setVoucherError("Vui lòng nhập mã"); return; }
+        if (vouchers.length >= MAX_VOUCHER) { setVoucherError(`Tối đa ${MAX_VOUCHER} mã`); return; }
+        if (vouchers.some((v) => String(v.maVoucher || "").toUpperCase() === code)) { setVoucherError("Mã đã dùng"); return; }
+        setCheckingVoucher(true); setVoucherError("");
         try {
             const khId = (() => {
-                try {
-                    const raw = localStorage.getItem("taiKhoan");
-                    return raw ? JSON.parse(raw).khachHangId : null;
-                } catch { return null; }
+                try { const raw = localStorage.getItem("taiKhoan"); return raw ? JSON.parse(raw).khachHangId : null; }
+                catch { return null; }
             })();
             const r = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    ma: v.maVoucher,
-                    maVoucher: v.maVoucher,
+                    ma: code,
+                    maVoucher: code,
                     tongTien: Number(tongTienSale) || 0,
                     tongTienHang: Number(tongTienSale) || 0,
-                    khachHangId: (khId && !Number.isNaN(Number(khId))) ? Number(khId) : null,
+                    khachHangId: khId ?? null,
                 }),
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
-
-            setVoucher({
+            // ⭐ Ghép id gốc từ voucherList (nếu API không trả id)
+            const found = voucherList.find((x) => String(x.maVoucher || "").toUpperCase() === code);
+            setVouchers((p) => [...p, {
                 ...d,
-                id: d.id ?? d.voucherId ?? v.id,
-                maVoucher: d.maVoucher || v.maVoucher,
-                tenVoucher: d.tenVoucher || v.tenVoucher || v.maVoucher,
-                loaiGiam: d.loaiGiam || v.loaiGiam,
-                giaTriGiam: d.giaTriGiam ?? v.giaTriGiam,
-            });
-            setShowVoucherList(false);
-        } catch (e) {
-            setVoucherError(e.message || "Mã không hợp lệ");
-        } finally {
-            setCheckingVoucher(false);
-        }
+                id: d.id ?? d.voucherId ?? found?.id,
+                maVoucher: d.maVoucher || code,
+                tenVoucher: d.tenVoucher || found?.tenVoucher || code,
+                loaiGiam: d.loaiGiam || found?.loaiGiam,
+                giaTriGiam: d.giaTriGiam ?? found?.giaTriGiam,
+            }]);
+            setMaVoucher("");
+        } catch (e) { setVoucherError(e.message || "Mã không hợp lệ"); }
+        finally { setCheckingVoucher(false); }
     };
+    const xoaVoucher = (idx) => { setVouchers((p) => p.filter((_, i) => i !== idx)); setVoucherError(""); };
 
     const NGAN_HANG_QR = "MB";
     const SO_TAI_KHOAN = "0857325488";
@@ -2143,6 +2215,8 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                 const r = await fetch(`${API}/gio-hang/chi-tiet/${d.id}`, { method: "DELETE" });
                 if (!r.ok) throw new Error(`Không xóa được SP cũ (ID ${d.id})`);
             }
+            // Backend DatHangRequest nhận ID chi tiết giỏ hàng, không nhận mảng `chiTiet`.
+            const chiTietGioHangIdsDat = [];
             for (const it of itemsForBill) {
                 if (!it.chiTiet?.id) throw new Error(`SP "${it.sanPham?.tenSanPham || "?"}" chưa có biến thể`);
                 const r = await fetch(`${API}/gio-hang/chi-tiet`, {
@@ -2153,6 +2227,11 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                 let d = null;
                 try { d = t ? JSON.parse(t) : null; } catch { d = null; }
                 if (!r.ok) throw new Error(d?.message || d?.error || t || `Lỗi thêm SP`);
+                const chiTietId = Number(d?.id ?? d?.chiTietGioHangId ?? d?.chiTietGioHang?.id);
+                if (Number.isFinite(chiTietId) && chiTietId > 0) chiTietGioHangIdsDat.push(chiTietId);
+            }
+            if (chiTietGioHangIdsDat.length === 0) {
+                throw new Error("Không lấy được ID chi tiết giỏ hàng sau khi lưu. Kiểm tra API POST /gio-hang/chi-tiet có trả về đối tượng chứa id không.");
             }
 
             if (saveAddress) {
@@ -2176,17 +2255,14 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                 body: JSON.stringify({
                     hoTen: hoTen.trim(), soDienThoai: soDienThoai.trim(), diaChi: diaChi.trim(),
                     ghiChu: ghiChu.trim(), phuongThuc,
-                    voucherId: voucher?.id || null,
-                    voucherFreeshipId: null,
-                    maVoucher: voucher?.maVoucher || null,
+                    voucherId: vouchers[0]?.id || null,
+                    maVoucher: vouchers.map((v) => v.maVoucher).filter(Boolean).join("+") || null,
                     tienGiam,
-                    danhSachVoucherId: voucher ? [voucher.id] : [],
+                    danhSachVoucherId: vouchers.map((v) => v.id).filter((x) => x != null),
                     tongTienHang: tongTienSale,
-                    chiTiet: itemsForBill.map((it) => ({
-                        sanPhamChiTietId: it.variantId,
-                        soLuong: it.soLuong,
-                        donGia: it.giaSale || it.chiTiet?.giaBan,
-                    })),
+                    chiTietGioHangIds: chiTietGioHangIdsDat,
+                    phiVanChuyen: Number(phiShipMoi) || PHI_SHIP_MAC_DINH,
+                    voucherFreeshipId: vouchers.find((v) => v.loaiGiam === "FREESHIP")?.id || null,
                 }),
             });
             const rt = await res.text();
@@ -2202,7 +2278,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                 items: itemsForBill,
                 tamTinh: Number(tongTienSale),
                 phiVanChuyen, tienGiam,
-                maVoucher: voucher?.maVoucher || null,
+                maVoucher: vouchers.map((v) => v.maVoucher).filter(Boolean).join(" + ") || null,
                 tongThanhToan, noiDungChuyenKhoan: taoNoiDungChuyenKhoan(maHoaDon),
             });
             setGioHang((o) => o.filter((i) => !variantIdsDat.includes(i.variantId)));
@@ -2376,62 +2452,89 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                 </label>
                                 <input className="price-input" type="tel" value={soDienThoai} onChange={(e) => setSoDienThoai(e.target.value)} placeholder="Nhập số điện thoại" />
                             </div>
-
-                            {/* ⭐ VOUCHER — CHỈ 1 MÃ DUY NHẤT, CHỈ HIỂN THỊ MÃ ĐÃ LƯU */}
                             <div>
                                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
                                     🎫 Mã giảm giá
+                                    <span style={{ marginLeft: 8, color: "#777", fontWeight: 400 }}>
+                                        ({vouchers.length}/{MAX_VOUCHER})
+                                    </span>
                                 </label>
-
-                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    {voucher ? (
-                                        <div style={{
-                                            flex: 1,
-                                            padding: "10px 14px",
-                                            border: "1.5px solid #2e7d32",
-                                            borderRadius: 10,
-                                            background: "#f1f8f2",
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center"
-                                        }}>
-                                            <span style={{ fontSize: 14, color: "#2e7d32", fontWeight: 700 }}>
-                                                ✓ Đã chọn: {voucher.maVoucher}
-                                            </span>
-                                            <button type="button" onClick={xoaVoucher} style={{ border: "none", background: "transparent", color: "#e53935", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                                                Bỏ chọn
-                                            </button>
-                                        </div>
+                                <div className="voucher-input-row">
+                                    <input className="price-input" type="text" placeholder="Nhập mã (VD: SALE10)"
+                                           value={maVoucher} onChange={(e) => setMaVoucher(e.target.value.toUpperCase())}
+                                           disabled={vouchers.length >= MAX_VOUCHER} />
+                                    <button type="button" className="voucher-apply-btn" onClick={apDungVoucher}
+                                            disabled={checkingVoucher || vouchers.length >= MAX_VOUCHER}>
+                                        {checkingVoucher ? "..." : "Áp dụng"}
+                                    </button>
+                                </div>
+                                <div style={{ marginTop: 14 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 9 }}>
+                                        <strong style={{ fontSize: 13 }}>Voucher đang hoạt động</strong>
+                                        <span style={{ color: "#777", fontSize: 11 }}>Chọn mã rồi nhấn Áp dụng</span>
+                                    </div>
+                                    {dangTaiVoucher ? (
+                                        <p style={{ margin: 0, color: "#777", fontSize: 12 }}>Đang tải voucher...</p>
+                                    ) : danhSachVoucherActive.length === 0 ? (
+                                        <p style={{ margin: 0, color: "#777", fontSize: 12 }}>{loiTaiVoucher || "Hiện chưa có voucher khả dụng."}</p>
                                     ) : (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowVoucherList((v) => !v)}
-                                            style={{
-                                                width: "100%",
-                                                padding: "12px 14px",
-                                                border: "1px dashed #e65336",
-                                                borderRadius: 8,
-                                                background: "#fffaf8",
-                                                color: "#e65336",
-                                                fontWeight: 700,
-                                                fontSize: 14,
-                                                cursor: "pointer",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                            }}
-                                        >
-                                            <span>🎁 {showVoucherList ? "Ẩn danh sách" : "Chọn voucher đã lưu"}</span>
-                                            <span>{showVoucherList ? "▲" : "▼"}</span>
-                                        </button>
+                                        <div style={{ display: "grid", gap: 8 }}>
+                                            {danhSachVoucherActive.map((v) => {
+                                                const ma = String(v.maVoucher || "").toUpperCase();
+                                                const daApDung = vouchers.some((x) => String(x.maVoucher || "").toUpperCase() === ma);
+                                                const free = String(v.loaiGiam || "").toUpperCase() === "FREESHIP";
+                                                const giaTri = Number(v.giaTriGiam || 0);
+                                                const moTaGiam = free ? "Miễn phí vận chuyển" : String(v.loaiGiam || "").toUpperCase() === "PHAN_TRAM" ? `Giảm ${giaTri}%${v.giamToiDa != null ? ` · tối đa ${formatGia(v.giamToiDa)}` : ""}` : `Giảm ${formatGia(giaTri)}`;
+                                                return (
+                                                    <div key={v.id ?? ma} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 12px", border: "1px dashed #e7b6a9", borderRadius: 9, background: daApDung ? "#f1faf2" : "#fffaf8" }}>
+                                                        <div style={{ minWidth: 0 }}>
+                                                            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
+                                                                <strong style={{ color: "#d94d32" }}>{ma || "VOUCHER"}</strong>
+                                                                <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: free ? "#e8f5e9" : "#fff0e9", color: free ? "#287b38" : "#d94d32" }}>{moTaGiam}</span>
+                                                            </div>
+                                                            <div style={{ color: "#555", fontSize: 12, marginTop: 4 }}>{v.tenVoucher || "Ưu đãi dành cho đơn hàng"}</div>
+                                                            {Number(v.donToiThieu || 0) > 0 && <div style={{ color: "#777", fontSize: 11, marginTop: 3 }}>Đơn tối thiểu {formatGia(v.donToiThieu)}</div>}
+                                                            {v.ngayKetThuc && <div style={{ color: "#888", fontSize: 11, marginTop: 2 }}>Hạn dùng: {new Date(v.ngayKetThuc).toLocaleString("vi-VN")}</div>}
+                                                        </div>
+                                                        <button type="button" onClick={() => chonVoucherCoSan(v)} disabled={daApDung || vouchers.length >= MAX_VOUCHER} style={{ flexShrink: 0, border: "1px solid #e65336", borderRadius: 6, padding: "7px 10px", background: daApDung ? "#f1faf2" : "#fff", color: daApDung ? "#287b38" : "#e65336", fontWeight: 700, fontSize: 12, cursor: daApDung || vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer", opacity: vouchers.length >= MAX_VOUCHER && !daApDung ? .55 : 1 }}>{daApDung ? "Đã chọn" : "Chọn mã"}</button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     )}
                                 </div>
 
-                                {/* Danh sách voucher — chỉ hiển thị voucher đã lưu */}
-                                {showVoucherList && !voucher && (
+                                {/* ⭐ Nút mở danh sách voucher có sẵn */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowVoucherList((v) => !v)}
+                                    disabled={vouchers.length >= MAX_VOUCHER}
+                                    style={{
+                                        marginTop: 10,
+                                        width: "100%",
+                                        padding: "10px 14px",
+                                        border: "1px dashed #e65336",
+                                        borderRadius: 8,
+                                        background: "#fffaf8",
+                                        color: "#e65336",
+                                        fontWeight: 700,
+                                        fontSize: 13,
+                                        cursor: vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer",
+                                        opacity: vouchers.length >= MAX_VOUCHER ? 0.5 : 1,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                    }}
+                                >
+                                    <span>🎁 {showVoucherList ? "Ẩn danh sách" : "Chọn voucher có sẵn"}</span>
+                                    <span>{showVoucherList ? "▲" : "▼"}</span>
+                                </button>
+
+                                {/* ⭐ Danh sách voucher khả dụng */}
+                                {showVoucherList && (
                                     <div style={{
                                         marginTop: 10,
-                                        maxHeight: 380,
+                                        maxHeight: 360,
                                         overflowY: "auto",
                                         border: "1px solid #eee",
                                         borderRadius: 8,
@@ -2443,67 +2546,49 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                                 Đang tải voucher...
                                             </div>
                                         )}
-
-                                        {!loadingVoucherList && sortedVoucherList.length === 0 && (
+                                        {!loadingVoucherList && voucherList.length === 0 && (
                                             <div style={{ padding: 20, textAlign: "center", color: "#777", fontSize: 13 }}>
-                                                {savedVouchers.length === 0
-                                                    ? "Bạn chưa lưu voucher nào. Hãy vào trang Khuyến mãi để lưu mã."
-                                                    : "Không có voucher đã lưu nào khả dụng."}
+                                                Hiện chưa có voucher nào khả dụng.
                                             </div>
                                         )}
-
-                                        {!loadingVoucherList && sortedVoucherList.map((v) => {
-                                            const isSaved = savedVouchers.includes(v.maVoucher);
+                                        {!loadingVoucherList && voucherList.map((v) => {
+                                            const daApDung = vouchers.some((x) => String(x.id) === String(v.id));
                                             const tongTienHang = Number(tongTienSale || 0);
                                             const donToiThieu = Number(v.donToiThieu || 0);
                                             const chuaDuDieuKien = donToiThieu > 0 && tongTienHang < donToiThieu;
                                             const hetLuot = (v.soLuong ?? 0) > 0 && (v.soLuongDaDung ?? 0) >= v.soLuong;
-
-                                            const disabled = chuaDuDieuKien || hetLuot;
+                                            const disabled = daApDung || chuaDuDieuKien || hetLuot || vouchers.length >= MAX_VOUCHER;
 
                                             return (
-                                                <div key={v.id} style={{
-                                                    display: "flex",
-                                                    gap: 12,
-                                                    alignItems: "center",
-                                                    padding: "12px 10px",
-                                                    borderBottom: "1px dashed #eee",
-                                                    opacity: disabled ? 0.5 : 1,
-                                                    background: isSaved ? "#f1f8f2" : "transparent",
-                                                    borderLeft: isSaved ? "3px solid #2e7d32" : "3px solid transparent",
-                                                    borderRadius: 4,
-                                                }}>
+                                                <div
+                                                    key={v.id}
+                                                    style={{
+                                                        display: "flex",
+                                                        gap: 12,
+                                                        alignItems: "center",
+                                                        padding: "12px 10px",
+                                                        borderBottom: "1px dashed #eee",
+                                                        opacity: disabled ? 0.5 : 1,
+                                                    }}
+                                                >
                                                     <div style={{
                                                         flexShrink: 0,
-                                                        minWidth: 74,
+                                                        minWidth: 70,
                                                         textAlign: "center",
                                                         padding: "10px 6px",
                                                         borderRadius: 8,
                                                         background: "#fff3f0",
                                                         color: "#e53935",
                                                         fontWeight: 700,
-                                                        fontSize: 14,
+                                                        fontSize: 15,
                                                     }}>
-                                                        {String(v.loaiGiam).toUpperCase() === "PHAN_TRAM"
+                                                        {v.loaiGiam === "PHAN_TRAM"
                                                             ? `-${v.giaTriGiam}%`
                                                             : `-${formatGia(v.giaTriGiam)}`}
                                                     </div>
-
                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{
-                                                            fontWeight: 700, fontSize: 14, marginBottom: 3,
-                                                            display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap"
-                                                        }}>
-                                                            <span>{v.tenVoucher || v.maVoucher}</span>
-                                                            {isSaved && (
-                                                                <span style={{
-                                                                    fontSize: 10, padding: "2px 6px",
-                                                                    background: "#2e7d32", color: "#fff",
-                                                                    borderRadius: 4, fontWeight: 700,
-                                                                }}>
-                                                                    🔖 Đã lưu
-                                                                </span>
-                                                            )}
+                                                        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>
+                                                            {v.tenVoucher || v.maVoucher}
                                                         </div>
                                                         <div style={{ fontSize: 12, color: "#666" }}>
                                                             Mã: <strong style={{ color: "#e65336" }}>{v.maVoucher}</strong>
@@ -2514,7 +2599,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                                                 {chuaDuDieuKien && " (chưa đủ)"}
                                                             </div>
                                                         )}
-                                                        {v.giamToiDa > 0 && String(v.loaiGiam).toUpperCase() === "PHAN_TRAM" && (
+                                                        {v.giamToiDa > 0 && v.loaiGiam === "PHAN_TRAM" && (
                                                             <div style={{ fontSize: 12, color: "#666" }}>
                                                                 Giảm tối đa: <strong>{formatGia(v.giamToiDa)}</strong>
                                                             </div>
@@ -2528,62 +2613,90 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                                             </div>
                                                         )}
                                                     </div>
-
-                                                    <div style={{
-                                                        flexShrink: 0,
-                                                        display: "flex",
-                                                        flexDirection: "column",
-                                                        gap: 4,
-                                                        alignItems: "stretch",
-                                                    }}>
-                                                        <button
-                                                            type="button"
-                                                            disabled={disabled || checkingVoucher}
-                                                            onClick={() => !disabled && chonVoucherTuDanhSach(v)}
-                                                            style={{
-                                                                padding: "8px 14px",
-                                                                border: "1px solid #e65336",
-                                                                borderRadius: 6,
-                                                                background: "#fff",
-                                                                color: "#e65336",
-                                                                fontWeight: 700,
-                                                                fontSize: 12,
-                                                                cursor: disabled ? "not-allowed" : "pointer",
-                                                            }}
-                                                        >
-                                                            Chọn
-                                                        </button>
-                                                        {isSaved && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => boLuuVoucher(v.maVoucher)}
-                                                                style={{
-                                                                    padding: "4px 10px",
-                                                                    border: "none",
-                                                                    background: "transparent",
-                                                                    color: "#888",
-                                                                    fontSize: 11,
-                                                                    cursor: "pointer",
-                                                                    textDecoration: "underline",
-                                                                }}
-                                                            >
-                                                                Bỏ lưu
-                                                            </button>
-                                                        )}
-                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        disabled={disabled}
+                                                        onClick={async () => {
+                                                            if (disabled) return;
+                                                            setCheckingVoucher(true);
+                                                            setVoucherError("");
+                                                            try {
+                                                                const khId = (() => {
+                                                                    try {
+                                                                        const raw = localStorage.getItem("taiKhoan");
+                                                                        return raw ? JSON.parse(raw).khachHangId : null;
+                                                                    } catch { return null; }
+                                                                })();
+                                                                const r = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
+                                                                    method: "POST",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({
+                                                                        ma: v.maVoucher,
+                                                                        maVoucher: v.maVoucher,
+                                                                        tongTien: Number(tongTienSale) || 0,
+                                                                        tongTienHang: Number(tongTienSale) || 0,
+                                                                        khachHangId: (khId && !Number.isNaN(Number(khId))) ? Number(khId) : null,
+                                                                    }),
+                                                                });
+                                                                const d = await r.json();
+                                                                if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
+                                                                // ⭐ Ghép id gốc từ voucher vừa chọn
+                                                                setVouchers((p) => [...p, {
+                                                                    ...d,
+                                                                    id: d.id ?? d.voucherId ?? v.id,
+                                                                    maVoucher: d.maVoucher || v.maVoucher,
+                                                                    tenVoucher: d.tenVoucher || v.tenVoucher || v.maVoucher,
+                                                                    loaiGiam: d.loaiGiam || v.loaiGiam,
+                                                                    giaTriGiam: d.giaTriGiam ?? v.giaTriGiam,
+                                                                }]);
+                                                                setShowVoucherList(false);
+                                                            } catch (e) {
+                                                                setVoucherError(e.message || "Mã không hợp lệ");
+                                                            } finally {
+                                                                setCheckingVoucher(false);
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            flexShrink: 0,
+                                                            padding: "8px 14px",
+                                                            border: daApDung ? "none" : "1px solid #e65336",
+                                                            borderRadius: 6,
+                                                            background: daApDung ? "#eee" : "#fff",
+                                                            color: daApDung ? "#999" : "#e65336",
+                                                            fontWeight: 700,
+                                                            fontSize: 12,
+                                                            cursor: disabled ? "not-allowed" : "pointer",
+                                                        }}
+                                                    >
+                                                        {daApDung ? "Đã dùng" : chuaDuDieuKien ? "Chưa đủ" : hetLuot ? "Hết" : "Chọn"}
+                                                    </button>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 )}
 
-                                {voucherError && (
-                                    <span style={{ color: "#e53935", fontSize: 12, marginTop: 6, display: "block" }}>
-                                        {voucherError}
-                                    </span>
+                                {voucherError && <span style={{ color: "#e53935", fontSize: 12, marginTop: 6, display: "block" }}>{voucherError}</span>}
+                                {vouchers.length > 0 && (
+                                    <div className="voucher-list">
+                                        {vouchers.map((v, i) => {
+                                            const isFree = isVoucherFreeship(v);
+                                            return (
+                                                <div key={`${v.id || v.maVoucher}-${i}`} className={`voucher-item ${isFree ? "is-freeship" : ""}`}>
+                                                    <span>
+                                                        ✓ <strong>{v.maVoucher}</strong>
+                                                        {isFree ? <> — <strong>Miễn phí vận chuyển</strong></> : <> — giảm <strong>{formatGia(v.tienGiam)}</strong></>}
+                                                    </span>
+                                                    <button type="button" className="voucher-remove-btn" onClick={() => xoaVoucher(i)}>Xóa</button>
+                                                </div>
+                                            );
+                                        })}
+                                        {coVoucherFreeship && (
+                                            <div className="freeship-notice">🚚 Đã áp dụng voucher FREESHIP — Miễn phí vận chuyển</div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
-
                             <div>
                                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>Địa chỉ nhận hàng <span style={{ color: "#e53935" }}>*</span></label>
                                 <button type="button" onClick={() => { setAddingAddress(false); setAddressModalOpen(true); }} style={{ width: "100%", textAlign: "left", padding: "16px", border: "1px solid #eee", borderRadius: 12, background: "#fff", display: "flex", gap: 12, alignItems: "center" }}>
@@ -2591,6 +2704,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                     <span style={{ flex: 1, minWidth: 0 }}>
                                         <span style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontWeight: 700, marginBottom: 6 }}><span>{hoTen || "Chưa có người nhận"}</span><span style={{ color: "#777", fontWeight: 400 }}>{soDienThoai}</span>{diaChiDangChon?.macDinh && <span style={{ color: "#e65336", border: "1px solid #e65336", borderRadius: 3, padding: "1px 5px", fontSize: 11 }}>Mặc định</span>}</span>
                                         <span style={{ display: "block", color: diaChi ? "#555" : "#999", fontSize: 13, lineHeight: 1.5, overflowWrap: "anywhere" }}>{diaChi || "Chọn hoặc thêm địa chỉ giao hàng"}</span>
+                                        <span style={{ display: "block", color: "#e65336", fontSize: 12, marginTop: 5 }}>{shipLoading ? "Đang tính phí vận chuyển..." : `Phí vận chuyển: ${coVoucherFreeship ? "Miễn phí (voucher)" : formatGia(phiVanChuyen)}`}</span>
                                     </span>
                                     <span style={{ color: "#888", fontSize: 24 }}>›</span>
                                 </button>
@@ -2665,11 +2779,12 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                             <span>Phí vận chuyển</span>
                             <strong className={`ship-fee ${phiVanChuyen === 0 ? "free" : ""}`}>
                                 {phiVanChuyen === 0 ? "Miễn phí" : formatGia(phiVanChuyen)}
+                                {phiVanChuyen === 0 && <span className="ship-fee-tag">FREE SHIP</span>}
                             </strong>
                         </div>
                         {tienGiam > 0 && (
                             <div className="summary-line discount-line">
-                                <span>Giảm giá ({voucher?.maVoucher})</span>
+                                <span>Giảm giá ({vouchers.map((v) => v.maVoucher).filter(Boolean).join(" + ")})</span>
                                 <strong>-{formatGia(tienGiam)}</strong>
                             </div>
                         )}
@@ -2706,8 +2821,24 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                         <h3 style={{ margin: 0 }}>Thêm địa chỉ mới</h3>
                         <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Họ tên người nhận<input className="price-input" value={newAddress.tenNguoiNhan} onChange={(e) => setNewAddress({ ...newAddress, tenNguoiNhan: e.target.value })} placeholder="Nhập họ tên" /></label>
                         <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Số điện thoại<input className="price-input" value={newAddress.soDienThoai} onChange={(e) => setNewAddress({ ...newAddress, soDienThoai: e.target.value })} placeholder="Số điện thoại 10 số" /></label>
-                        <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Địa chỉ chi tiết<textarea className="price-input" value={newAddress.diaChi} onChange={(e) => setNewAddress({ ...newAddress, diaChi: e.target.value })} placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố" rows={3} style={{ resize: "vertical" }} /></label>
-                        <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Phí vận chuyển (VNĐ)<input className="price-input" type="number" min="0" step="1000" value={newAddress.phiShip} onChange={(e) => setNewAddress({ ...newAddress, phiShip: Math.max(0, Number(e.target.value)) })} /></label>
+                        {provinceErr ? (
+                            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Địa chỉ chi tiết<textarea className="price-input" value={newAddress.diaChi} onChange={(e) => setNewAddress({ ...newAddress, diaChi: e.target.value })} placeholder="Số nhà, đường, phường/xã, tỉnh/thành phố" rows={3} style={{ resize: "vertical" }} /></label>
+                        ) : <>
+                            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Tỉnh/Thành phố
+                                <input className="price-input" list="ds-tinh" value={addrProvince} onChange={(e) => doiTinh(e.target.value)} placeholder={provinceList.length ? "Gõ để tìm Tỉnh/Thành phố" : "Đang tải danh sách..."} />
+                                <datalist id="ds-tinh">{provinceList.map((p) => <option key={p.code} value={p.name} />)}</datalist>
+                            </label>
+                            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Phường/Xã
+                                <input className="price-input" list="ds-xa" value={addrWard} disabled={!wardList.length} onChange={(e) => doiXa(e.target.value)} placeholder={wardList.length ? "Gõ để tìm Phường/Xã" : "Chọn Tỉnh/Thành phố trước"} />
+                                <datalist id="ds-xa">{wardList.map((w) => <option key={w.code} value={w.name} />)}</datalist>
+                            </label>
+                            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>Địa chỉ cụ thể
+                                <input className="price-input" value={addrDetail} onChange={(e) => doiChiTiet(e.target.value)} placeholder="Số nhà, tên đường, thôn/xóm..." />
+                            </label>
+                        </>}
+                        <div style={{ padding: "10px 12px", background: "#fffaf5", border: "1px dashed #e65336", borderRadius: 8, fontSize: 13, color: "#555" }}>
+                            🚚 Phí vận chuyển: {newShipLoading ? <em>đang tính theo khoảng cách...</em> : newShip ? <><strong style={{ color: "#e65336" }}>{formatGia(newShip.phiShip)}</strong>{newShip.khoangCachKm != null && <span> · ~{newShip.khoangCachKm} km từ cửa hàng</span>}{newShip.khoangCachKm == null && newShip.thongBao && <span> · {newShip.thongBao}</span>}</> : <span style={{ color: "#999" }}>Nhập địa chỉ để tự động tính</span>}
+                        </div>
                         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><input type="checkbox" checked={newAddress.macDinh} onChange={(e) => setNewAddress({ ...newAddress, macDinh: e.target.checked })} /> Đặt làm địa chỉ mặc định</label>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}><button type="button" onClick={() => setAddingAddress(false)} style={{ padding: "10px 16px", border: "1px solid #ddd", borderRadius: 7, background: "#fff" }}>Quay lại</button><button type="button" disabled={savingAddress} onClick={luuDiaChiMoi} style={{ padding: "10px 18px", border: 0, borderRadius: 7, color: "#fff", background: "#e65336", fontWeight: 700, opacity: savingAddress ? .6 : 1 }}>{savingAddress ? "Đang lưu..." : "Lưu địa chỉ"}</button></div>
                     </div>}
@@ -2726,7 +2857,7 @@ function Loading() {
     );
 }
 
-function OrderHistory({ taiKhoan, setPage }) {
+function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -2816,8 +2947,7 @@ function OrderHistory({ taiKhoan, setPage }) {
             const response = await fetch(`${API}/hoa-don/khach-hang/${khachHangId}`);
             if (!response.ok) throw new Error("Không thể tải danh sách đơn hàng");
             const data = await response.json();
-            const list = (Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [])
-                .filter((item) => item?.loaiHoaDon !== "TAI_QUAY");
+            const list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
             list.sort((a, b) => {
                 const da = new Date(a?.ngayLap || a?.ngayTao || 0).getTime();
                 const db = new Date(b?.ngayLap || b?.ngayTao || 0).getTime();
@@ -2972,6 +3102,30 @@ function OrderHistory({ taiKhoan, setPage }) {
                                                     );
                                                 })}
                                             </div>
+
+                                            {getStatus(selectedOrder).className === "delivered" && (
+                                                <div style={{ display: "flex", justifyContent: "flex-end", margin: "18px 0 6px" }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onRequestReturn?.(selectedOrder)}
+                                                        style={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            gap: 8,
+                                                            border: "1px solid #2563eb",
+                                                            borderRadius: 10,
+                                                            padding: "11px 18px",
+                                                            background: "#2563eb",
+                                                            color: "#fff",
+                                                            fontWeight: 700,
+                                                            cursor: "pointer",
+                                                            boxShadow: "0 4px 12px rgba(37, 99, 235, 0.16)",
+                                                        }}
+                                                    >
+                                                        ↩ Yêu cầu trả hàng
+                                                    </button>
+                                                </div>
+                                            )}
 
                                             {getStatus(selectedOrder).className === "cancelled" && (
                                                 <div className="order-cancel-note">

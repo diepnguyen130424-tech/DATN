@@ -3,6 +3,7 @@ package com.example.bangiay.dto;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 public class DatHangRequest {
@@ -24,4 +25,6 @@ public class DatHangRequest {
     private Long voucherFreeshipId;
     private String maVoucherFreeship;
 
+    // Danh sách ID chi tiết giỏ hàng được chọn để đặt hàng
+    private List<Long> chiTietGioHangIds;
 }

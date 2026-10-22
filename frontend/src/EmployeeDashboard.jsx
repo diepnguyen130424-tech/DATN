@@ -1,10 +1,10 @@
-
 import {useEffect, useMemo, useState} from "react";
 import "./EmployeeDashboard.css";
 import {EmployeeOverview, ProductsPage} from "./EmployeeOverviewProducts.jsx";
 import EmployeeCounterSale from "./EmployeeCounterSale";
 import EmployeeCustomers from "./EmployeeCustomers";
 import EmployeeChat from "./EmployeeChat";
+import Returns from "./Returns";
 
 const API = "http://localhost:8080/api";
 const PAGINATION_PAGE_SIZE = 5;
@@ -14,6 +14,7 @@ const MENU = [
     {id: "ban-hang", icon: "🛒", label: "Bán hàng tại quầy"},
     {id: "don-online", icon: "▤", label: "Đơn online"},
     {id: "hoa-don", icon: "▧", label: "Hóa đơn"},
+    {id: "tra-hang", icon: "↩", label: "Trả hàng tại quầy"},
     {id: "khach-hang", icon: "◎", label: "Khách hàng"},
     {id: "phan-hoi", icon: "✉", label: "Phản hồi khách hàng"},
     {id: "san-pham", icon: "□", label: "Sản phẩm"},
@@ -871,6 +872,14 @@ export default function EmployeeDashboard({
                                 <HoaDonPage
                                     orders={orders}
                                     onOpenDetail={setSelectedOrder}
+                                />
+                            )}
+
+                            {activeMenu === "tra-hang" && (
+                                <Returns
+                                    mode="counter"
+                                    taiKhoan={taiKhoan}
+                                    onBack={() => goTo("hoa-don")}
                                 />
                             )}
 

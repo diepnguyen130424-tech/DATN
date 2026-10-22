@@ -9,6 +9,7 @@ import AdminThuongHieu from "./AdminThuongHieu";
 import AdminKichCo from "./AdminKichCo";
 import AdminMauSac from "./AdminMauSac";
 import AdminSettings from "./AdminSettings";
+import Returns from "./Returns";
 const API = "http://localhost:8080/api";
 const adminDataCache = {
     hoaDons: null,
@@ -132,6 +133,7 @@ const menuItems = [
     { id: "voucher", icon: "◇", label: "Voucher" },
     { id: "khuyen-mai", icon: "✦", label: "Khuyến mãi" },
     { id: "hoa-don", icon: "▧", label: "Hóa đơn" },
+    { id: "doi-tra", icon: "↩", label: "Đổi trả hàng" },
     { id: "thanh-toan", icon: "▤", label: "Thanh toán" },
     { id: "khach-hang", icon: "◎", label: "Khách hàng" },
     { id: "nhan-vien", icon: "♙", label: "Nhân viên" },
@@ -348,6 +350,9 @@ function isSameDay(dateA, dateB) {
 }
 
 function DashboardContent({ onViewAll }) {
+    // Mỗi loại dữ liệu có state riêng.
+    // API nào trả về trước thì giao diện cập nhật trước,
+    // không chờ tất cả API xong mới hiển thị.
     const [productCount, setProductCount] = useState(null);
     const [customerCount, setCustomerCount] = useState(
         adminDataCache.khachHangs?.length ?? null
@@ -371,6 +376,7 @@ function DashboardContent({ onViewAll }) {
     const [dashboardError, setDashboardError] =
         useState("");
 
+    // Tải sản phẩm độc lập.
     useEffect(() => {
         let mounted = true;
 
@@ -429,6 +435,7 @@ function DashboardContent({ onViewAll }) {
         };
     }, []);
 
+    // Tải khách hàng độc lập.
     useEffect(() => {
         let mounted = true;
 
@@ -473,6 +480,7 @@ function DashboardContent({ onViewAll }) {
         };
     }, []);
 
+    // Tải hóa đơn độc lập.
     useEffect(() => {
         let mounted = true;
 
@@ -1050,6 +1058,7 @@ function HoaDonContent() {
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const taiHoaDon = async (force = false) => {
         try {
+            // Nếu đã có cache thì hiện ngay, không hiện màn hình loading.
             if (!force && adminDataCache.hoaDons) {
                 setHoaDons(adminDataCache.hoaDons);
                 setLoading(false);
@@ -1072,6 +1081,7 @@ function HoaDonContent() {
         }
     };
     useEffect(() => {
+        // Luôn tải danh sách mới nhất khi mở mục Hóa đơn, bỏ qua cache cũ.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         taiHoaDon(true);
     }, []);
@@ -1869,155 +1879,76 @@ function HoaDonContent() {
                     })()}
                 </section>
 
-                {/* ⭐ XỬ LÝ HÓA ĐƠN — CHỈ CHO CHUYỂN TUẦN TỰ */}
                 <section style={{ marginBottom: "25px" }}>
-                    <h3 style={{ margin: "0 0 14px", color: "#1f2937", fontSize: "19px", fontWeight: 800 }}>
-                        <span style={{ color: "#e11d48", marginRight: "9px" }}>⚙</span>
-                        Xử lý hóa đơn
-                    </h3>
+                    <h3>Xử lý hóa đơn</h3>
 
                     {(() => {
-                        const ttHienTai = String(selectedHoaDon.trangThai || "").trim().toUpperCase();
+                        const ttHienTai = String(selectedHoaDon.trangThai || "").toUpperCase();
                         const dsChoPhep = layTrangThaiChoPhep(ttHienTai);
                         const ketThuc = laTrangThaiKetThuc(ttHienTai);
-                        const styleHienTai = getTrangThaiDonHangStyle(ttHienTai);
 
-                        // 🔒 TRẠNG THÁI KẾT THÚC — không cho đổi
+                        // 🔒 Trạng thái kết thúc → không cho đổi
                         if (ketThuc) {
                             const laHuy = ttHienTai === "DA_HUY";
                             return (
                                 <div style={{
-                                    padding: "16px 18px",
+                                    padding: "14px 18px",
                                     background: laHuy ? "#fdecea" : "#eaf7ed",
                                     color: laHuy ? "#c0392b" : "#24833b",
-                                    border: `1px solid ${laHuy ? "#f5c6c0" : "#b8e0c4"}`,
-                                    borderRadius: 10,
+                                    borderRadius: 8,
                                     fontWeight: 700,
                                     fontSize: 14,
-                                    display: "flex",
+                                    display: "inline-flex",
                                     alignItems: "center",
-                                    gap: 12,
+                                    gap: 8,
+                                    minWidth: 250,
                                 }}>
-                                    <span style={{ fontSize: 22 }}>
-                                        {laHuy ? "❌" : "✅"}
-                                    </span>
-                                    <div>
-                                        <div style={{ marginBottom: 3 }}>
-                                            {laHuy ? "Hóa đơn đã bị hủy" : "Hóa đơn đã hoàn tất"}
-                                        </div>
-                                        <div style={{ fontWeight: 500, fontSize: 13, opacity: 0.85 }}>
-                                            {laHuy
-                                                ? "Đơn hàng đã hủy — không thể thay đổi trạng thái."
-                                                : "Đơn hàng đã thanh toán xong — không thể thay đổi trạng thái."}
-                                        </div>
-                                    </div>
+                                    {laHuy
+                                        ? "❌ Hóa đơn đã bị hủy — không thể thay đổi"
+                                        : "✅ Hóa đơn đã hoàn tất — không thể thay đổi"}
                                 </div>
                             );
                         }
 
-                        // ⚙️ TRONG QUY TRÌNH — chỉ cho chọn bước kế tiếp
                         return (
-                            <div>
-                                {/* Hiển thị trạng thái hiện tại */}
-                                <div style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 12,
-                                    marginBottom: 14,
-                                    padding: "10px 14px",
-                                    background: "#f8f9fb",
-                                    borderRadius: 10,
-                                    fontSize: 13,
-                                }}>
-                                    <span style={{ color: "#667085", fontWeight: 600 }}>
-                                        Trạng thái hiện tại:
-                                    </span>
-                                    <span style={{
-                                        padding: "5px 14px",
-                                        borderRadius: 999,
-                                        fontWeight: 700,
-                                        background: styleHienTai.background,
-                                        color: styleHienTai.color,
-                                        fontSize: 12.5,
-                                    }}>
+                            <>
+                                <select
+                                    value={selectedHoaDon?.trangThai || ""}
+                                    disabled={updatingStatus}
+                                    onChange={(e) => capNhatTrangThai(e.target.value)}
+                                    style={{
+                                        padding: "10px",
+                                        border: "1px solid #ddd",
+                                        borderRadius: "8px",
+                                        minWidth: "250px",
+                                    }}
+                                >
+                                    {TRANG_THAI_HOA_DON.map((item) => (
+                                        <option key={item} value={item}>
+                                            {tenTrangThaiHoaDon(item)}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                <div
+                                    style={{
+                                        marginTop: 8,
+                                        fontSize: 12,
+                                        color: "#777",
+                                    }}
+                                >
+                                    Trạng thái hiện tại:{" "}
+                                    <strong style={{ color: "#111" }}>
                                         {tenTrangThaiHoaDon(ttHienTai)}
-                                    </span>
-                                </div>
+                                    </strong>
 
-                                {/* Dropdown chỉ liệt kê bước tiếp theo */}
-                                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                                    <select
-                                        value=""
-                                        disabled={updatingStatus}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            if (!val) return;
-
-                                            const ok = window.confirm(
-                                                `Xác nhận chuyển hóa đơn từ "${tenTrangThaiHoaDon(ttHienTai)}" sang "${tenTrangThaiHoaDon(val)}"?`
-                                            );
-                                            if (!ok) return;
-
-                                            capNhatTrangThai(val);
-                                        }}
-                                        style={{
-                                            padding: "11px 14px",
-                                            border: "1px solid #ddd",
-                                            borderRadius: 8,
-                                            minWidth: 280,
-                                            fontSize: 14,
-                                            fontWeight: 600,
-                                            background: "#fff",
-                                            cursor: updatingStatus ? "wait" : "pointer",
-                                            opacity: updatingStatus ? 0.6 : 1,
-                                        }}
-                                    >
-                                        <option value="">-- Chọn bước tiếp theo --</option>
-                                        {dsChoPhep.map((tt) => (
-                                            <option key={tt} value={tt}>
-                                                {tenTrangThaiHoaDon(tt)}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    {updatingStatus && (
-                                        <span style={{ color: "#667085", fontSize: 13 }}>
-                                            Đang cập nhật...
-                                        </span>
-                                    )}
-
-                                    {dsChoPhep.length === 0 && !updatingStatus && (
-                                        <span style={{ color: "#e11d48", fontSize: 13, fontWeight: 700 }}>
-                                            Không có bước tiếp theo
-                                        </span>
+                                    {dsChoPhep.length > 0 && (
+                                        <>
+                                            {" "}· Chỉ có thể chuyển sang {dsChoPhep.length} bước tiếp theo
+                                        </>
                                     )}
                                 </div>
-
-                                {/* Ghi chú quy trình */}
-                                {dsChoPhep.length > 0 && (
-                                    <div style={{
-                                        marginTop: 10,
-                                        padding: "9px 13px",
-                                        background: "#fffbeb",
-                                        border: "1px solid #fde68a",
-                                        borderRadius: 8,
-                                        fontSize: 12.5,
-                                        color: "#92400e",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 8,
-                                    }}>
-                                        <span>⚠️</span>
-                                        <span>
-                                            Quy trình bắt buộc tuần tự — chỉ có thể chuyển sang{" "}
-                                            <strong>{dsChoPhep.length}</strong> bước tiếp theo:{" "}
-                                            <strong>
-                                                {dsChoPhep.map((tt) => tenTrangThaiHoaDon(tt)).join(", ")}
-                                            </strong>
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
+                            </>
                         );
                     })()}
                 </section>
@@ -2226,6 +2157,7 @@ function ThanhToanContent() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
     const taiThanhToanNen = async (danhSach, force = false) => {
+        // Tải từng payment ở nền. Bảng hóa đơn không phải chờ tất cả payment.
         danhSach.forEach((hoaDon) => {
             getThanhToanByHoaDonId(hoaDon.id, force)
                 .then((payment) => {
@@ -2248,6 +2180,7 @@ function ThanhToanContent() {
                 setHoaDons(danhSach);
                 setLoading(false);
                 setError("");
+                // Không await.
                 taiThanhToanNen(danhSach);
                 return;
             }
@@ -2256,6 +2189,8 @@ function ThanhToanContent() {
             const danhSach = await getHoaDons(force);
             setHoaDons(danhSach);
             setLoading(false);
+            // Hiện bảng ngay sau khi có hóa đơn.
+            // Payment tiếp tục cập nhật nền.
             taiThanhToanNen(danhSach, force);
         }
         catch (err) {
@@ -2325,6 +2260,7 @@ function ThanhToanContent() {
                 throw new Error(invoiceText ||
                     "Không thể cập nhật trạng thái hóa đơn");
             }
+            // Cập nhật ngay trên giao diện, không tải lại toàn bộ danh sách.
             setThanhToans((prev) => ({
                 ...prev,
                 [hoaDon.id]: {
@@ -2818,6 +2754,8 @@ function CustomerContent() {
 
             const danhSach = await getKhachHangs(force);
 
+            // Khách đăng ký mới có ID lớn hơn.
+            // Ưu tiên ID giảm dần để khách mới luôn nằm đầu danh sách.
             const danhSachDaSapXep = [...danhSach].sort((a, b) => {
                 return Number(b?.id || 0) - Number(a?.id || 0);
             });
@@ -2834,17 +2772,21 @@ function CustomerContent() {
     };
 
     useEffect(() => {
+        // Lần đầu vào trang Khách hàng luôn lấy dữ liệu mới nhất từ backend.
+        // Không phụ thuộc cache cũ.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         taiKhachHang(true);
     }, []);
 
     useEffect(() => {
         const taiLaiNgay = () => {
+            // Xóa cache cũ để chắc chắn lấy khách vừa đăng ký.
             adminDataCache.khachHangs = null;
             adminDataCache.khachHangsPromise = null;
             taiKhachHang(true);
         };
 
+        // Register và Admin cùng chạy trong một tab/app.
         const xuLyKhachHangMoi = (event) => {
             if (event?.detail?.type === "KHACH_HANG_MOI") {
                 taiLaiNgay();
@@ -2856,6 +2798,7 @@ function CustomerContent() {
             xuLyKhachHangMoi
         );
 
+        // Register và Admin mở ở hai tab khác nhau.
         let channel = null;
 
         try {
@@ -2875,6 +2818,7 @@ function CustomerContent() {
             );
         }
 
+        // Fallback cho trình duyệt không hỗ trợ BroadcastChannel.
         const xuLyStorage = (event) => {
             if (
                 event.key === "fshop-khach-hang-moi" &&
@@ -4195,6 +4139,7 @@ export default function AdminDashboard({ dangXuat, }) {
             : menuItems.find((item) => item.id === activeMenu)?.label ||
             "Tổng quan";
     useEffect(() => {
+        // Preload ngay khi mở Admin để click vào 3 màn này hiện dữ liệu gần như tức thì.
         prefetchAdminData();
     }, []);
     return (<div className="admin-layout">
@@ -4332,7 +4277,7 @@ export default function AdminDashboard({ dangXuat, }) {
 
                 {activeMenu ===
                 "dashboard" ? (<DashboardContent onViewAll={() => setActiveMenu("hoa-don")}/>) : activeMenu ===
-                "hoa-don" ? (<HoaDonContent />) : activeMenu ===
+                "hoa-don" ? (<HoaDonContent />) : activeMenu === "doi-tra" ? (<Returns mode="admin" />) : activeMenu ===
                 "thanh-toan" ? (<ThanhToanContent />) : activeMenu === "san-pham" ? (<AdminProducts />) : activeMenu === "danh-muc" ? (<AdminDanhMuc />) : activeMenu === "thuong-hieu" ? (<AdminThuongHieu />) : activeMenu === "kich-co" ? (<AdminKichCo />) : activeMenu === "mau-sac" ? (<AdminMauSac />) : activeMenu === "kho" ? (<AdminKho />) : activeMenu === "voucher" ? (<AdminVoucher />) : activeMenu === "khuyen-mai" ? (<AdminKhuyenMai />) : activeMenu ===
                 "khach-hang" ? (<CustomerContent />) : activeMenu ===
                 "nhan-vien" ? (<EmployeeContent />) : activeMenu ===
@@ -4344,3 +4289,4 @@ export default function AdminDashboard({ dangXuat, }) {
 
     </div>);
 }
+

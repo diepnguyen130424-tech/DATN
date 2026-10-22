@@ -34,11 +34,8 @@ public class HoaDonService {
     private final DiaChiRepository diaChiRepository;
     private final KhachHangRepository khachHangRepository;
     private final KhachHangTaiQuayRepository khachHangTaiQuayRepository;
+    private final ShippingService shippingService;
 
-
-    // =========================================================
-    // HÓA ĐƠN
-    // =========================================================
 
     public List<HoaDon> getAll() {
         return hoaDonRepository.findAll();
@@ -218,11 +215,37 @@ public class HoaDonService {
         // 5. LẤY CHI TIẾT GIỎ HÀNG
         // -----------------------------------------------------
 
-        List<ChiTietGioHang> danhSachGioHang =
-                chiTietGioHangRepository
-                        .findByGioHang_Id(
-                                gioHangId
-                        );
+        List<ChiTietGioHang> tatCaGioHang =
+                chiTietGioHangRepository.findByGioHang_Id(gioHangId);
+
+        if (tatCaGioHang == null || tatCaGioHang.isEmpty()) {
+            throw new RuntimeException("Giỏ hàng đang trống");
+        }
+
+        if (request.getChiTietGioHangIds() == null
+                || request.getChiTietGioHangIds().isEmpty()) {
+            throw new RuntimeException("Vui lòng chọn sản phẩm để đặt hàng");
+        }
+
+        List<Long> idsDuocChon = request.getChiTietGioHangIds()
+                .stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (idsDuocChon.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy sản phẩm được chọn");
+        }
+
+        List<ChiTietGioHang> danhSachGioHang = tatCaGioHang.stream()
+                .filter(ct -> idsDuocChon.contains(ct.getId()))
+                .collect(java.util.stream.Collectors.toList());
+
+        if (danhSachGioHang.size() != idsDuocChon.size()) {
+            throw new RuntimeException(
+                    "Một hoặc nhiều sản phẩm được chọn không tồn tại trong giỏ hàng"
+            );
+        }
 
 
         if (danhSachGioHang == null
@@ -432,12 +455,11 @@ public class HoaDonService {
         // ⭐ Nếu có voucher FREESHIP → miễn phí ship
         if (voucherFreeship != null) {
             phiVanChuyen = BigDecimal.ZERO;
-        } else if (request.getPhiVanChuyen() != null) {
-            // Nếu FE gửi phí ship cụ thể (khi không có freeship)
-            phiVanChuyen = BigDecimal.valueOf(request.getPhiVanChuyen());
         } else {
-            // Mặc định 30.000đ
-            phiVanChuyen = BigDecimal.valueOf(30000);
+            // ⭐ Phí ship tính theo khoảng cách cửa hàng → địa chỉ nhận (server tự tính, không tin FE)
+            phiVanChuyen = BigDecimal.valueOf(
+                    shippingService.tinhPhi(request.getDiaChi()).getPhiShip()
+            );
         }
 
 

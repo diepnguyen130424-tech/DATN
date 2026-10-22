@@ -60,6 +60,13 @@
             <optional>true</optional>
         </dependency>
 
+
+        <!-- Jackson: đọc và xử lý JSON -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
