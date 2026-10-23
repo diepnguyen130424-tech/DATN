@@ -4,12 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-
-/**
- * Khách mua tại quầy (không có tài khoản đăng nhập).
- * Định danh theo số điện thoại. ID dùng CHUNG dãy số với khach_hang.id
- * (cùng sequence) nên "#12" chỉ thuộc về đúng một người.
- */
 @Entity
 @Table(name = "khach_hang_tai_quay")
 @Getter

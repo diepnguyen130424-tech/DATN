@@ -2293,7 +2293,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
         return (
             <main className="cart-page">
                 <div className="container">
-                    <div className="bill-card" style={{ maxWidth: "900px", margin: "20px auto", padding: "35px", background: "#fff", border: "1px solid #e5e5e5", borderRadius: "10px", boxShadow: "0 10px 35px rgba(0,0,0,.06)" }}>
+                    <div id="invoice-print-area" className="bill-card" style={{ maxWidth: "900px", margin: "20px auto", padding: "35px", background: "#fff", border: "1px solid #e5e5e5", borderRadius: "10px", boxShadow: "0 10px 35px rgba(0,0,0,.06)" }}>
                         <div style={{ textAlign: "center", marginBottom: "28px" }}>
                             <div style={{ width: "58px", height: "58px", margin: "0 auto 14px", borderRadius: "50%", background: "#eaf7ed", color: "#24833b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "30px", fontWeight: 700 }}>✓</div>
                             <span className="section-label">FSHOP</span>

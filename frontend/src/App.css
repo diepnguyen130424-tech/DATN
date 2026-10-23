@@ -12254,3 +12254,31 @@ body { background: #fff; color: #171717; }
 @media (max-width: 700px) {
   .cart-total-actions { flex-wrap: wrap; gap: 6px !important; }
 }
+@media print {
+  /* Ẩn tất cả mọi thứ trên trang */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Chỉ hiển thị vùng hóa đơn */
+  #invoice-print-area, #invoice-print-area * {
+    visibility: visible;
+  }
+
+  /* Định vị hóa đơn ra chính giữa trang giấy */
+  #invoice-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-shadow: none !important; /* Bỏ viền bóng */
+    border: none !important;
+  }
+
+  /* Ẩn các nút bấm (In hóa đơn, Tiếp tục mua hàng) */
+  button, .no-print {
+    display: none !important;
+  }
+}
