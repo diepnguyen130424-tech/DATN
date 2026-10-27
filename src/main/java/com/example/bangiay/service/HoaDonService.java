@@ -329,16 +329,20 @@ public class HoaDonService {
 
 
             // -------------------------------------------------
-            // KIỂM TRA TỒN KHO (chỉ kiểm tra, KHÔNG trừ)
+            // KIỂM TRA VÀ TRỪ TỒN KHO NGAY LẬP TỨC
             // -------------------------------------------------
 
             if (spct.getSoLuongTon() == null
                     || spct.getSoLuongTon() < soLuong) {
 
                 throw new RuntimeException(
-                        "Sản phẩm không đủ số lượng tồn kho"
+                        "Sản phẩm " + spct.getMaSku() + " chỉ còn " + spct.getSoLuongTon() + " sản phẩm. Không đủ để đặt hàng!"
                 );
             }
+
+            // ⭐ TRỪ KHO NGAY TẠI ĐÂY
+            spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
+            sanPhamChiTietRepository.save(spct);
 
 
             // -------------------------------------------------
@@ -779,9 +783,7 @@ public class HoaDonService {
 
 
         // -----------------------------------------------------
-        // 15. XÓA GIỎ HÀNG
-        //    (KHÔNG trừ kho ở đây — kho sẽ bị trừ khi Admin
-        //     chuyển trạng thái CHO_XAC_NHAN → DA_XAC_NHAN)
+        // 15. XÓA GIỎ HÀNG (Kho đã được trừ ở bước 6)
         // -----------------------------------------------------
 
         chiTietGioHangRepository.deleteAll(
@@ -1185,18 +1187,19 @@ public class HoaDonService {
                 );
             }
 
-
             // -------------------------------------------------
-            // KIỂM TRA TỒN KHO
+            // KIỂM TRA VÀ TRỪ TỒN KHO
             // -------------------------------------------------
-
             if (spct.getSoLuongTon() == null
                     || spct.getSoLuongTon() < soLuong) {
-
                 throw new RuntimeException(
-                        "Sản phẩm không đủ số lượng tồn kho"
+                        "Sản phẩm chỉ còn " + spct.getSoLuongTon() + " sản phẩm. Không thể bán!"
                 );
             }
+
+            // Trừ kho trực tiếp
+            spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
+            sanPhamChiTietRepository.save(spct);
 
 
             // -------------------------------------------------
@@ -1396,19 +1399,19 @@ public class HoaDonService {
         //    (Đơn tại quầy: trừ kho ngay vì đã thanh toán & giao hàng)
         // -----------------------------------------------------
 
-        try {
-
-            khoService.xuatKhoTuHoaDon(
-                    hoaDonCapNhat.getMaHoaDon(),
-                    chiTietDaLuu
-            );
-
-        } catch (Exception e) {
-
-            System.err.println(
-                    "❌ Lỗi xuất kho: " + e.getMessage()
-            );
-        }
+//        try {
+//
+//            khoService.xuatKhoTuHoaDon(
+//                    hoaDonCapNhat.getMaHoaDon(),
+//                    chiTietDaLuu
+//            );
+//
+//        } catch (Exception e) {
+//
+//            System.err.println(
+//                    "❌ Lỗi xuất kho: " + e.getMessage()
+//            );
+//        }
 
 
         // -----------------------------------------------------
@@ -1755,11 +1758,11 @@ public class HoaDonService {
         // -----------------------------------------------------
         // ⭐ TRỪ KHO khi Admin xác nhận đơn (CHO_XAC_NHAN → DA_XAC_NHAN)
         //    Chỉ trừ duy nhất 1 lần khi chuyển sang DA_XAC_NHAN
-        // -----------------------------------------------------
-        if ("DA_XAC_NHAN".equalsIgnoreCase(trangThai)
-                && !"DA_XAC_NHAN".equalsIgnoreCase(trangThaiCu)) {
-            truKhoTheoHoaDon(hoaDon);
-        }
+//        // -----------------------------------------------------
+//        if ("DA_XAC_NHAN".equalsIgnoreCase(trangThai)
+//                && !"DA_XAC_NHAN".equalsIgnoreCase(trangThaiCu)) {
+//            truKhoTheoHoaDon(hoaDon);
+//        }
 
         // -----------------------------------------------------
         // ⭐ HOÀN KHO khi hủy đơn, CHỈ khi trước đó đã trừ
@@ -1839,7 +1842,9 @@ public class HoaDonService {
     private boolean daTruKhoRoi(String trangThaiCu) {
         if (trangThaiCu == null) return false;
         String s = trangThaiCu.trim().toUpperCase();
-        return "DA_XAC_NHAN".equals(s)
+        // Đơn CHO_XAC_NHAN cũng đã bị trừ kho lúc đặt hàng
+        return "CHO_XAC_NHAN".equals(s)
+                || "DA_XAC_NHAN".equals(s)
                 || "DANG_CHUAN_BI".equals(s)
                 || "DANG_GIAO".equals(s)
                 || "DA_GIAO".equals(s)
