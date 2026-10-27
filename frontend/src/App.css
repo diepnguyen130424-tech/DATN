@@ -12254,6 +12254,43 @@ body { background: #fff; color: #171717; }
 @media (max-width: 700px) {
   .cart-total-actions { flex-wrap: wrap; gap: 6px !important; }
 }
+/* --- Style cho trạng thái Hết Hàng --- */
+.product-card.sold-out {
+  opacity: 0.8;
+}
+
+.product-card.sold-out .product-image img {
+  filter: grayscale(80%); /* Làm ảnh xám đi */
+  opacity: 0.7;
+}
+
+/* Nhãn Hết Hàng đè lên ảnh */
+.sold-out-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.7); /* Nền đen mờ */
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  z-index: 10;
+  pointer-events: none; /* Để có thể click xuyên qua lớp này */
+}
+
+/* Style cho nút bị disable */
+.add-cart:disabled,
+.detail-add-cart:disabled,
+.detail-buy:disabled {
+  background-color: #e0e0e0 !important;
+  color: #9e9e9e !important;
+  cursor: not-allowed !important;
+  border: 1px solid #d0d0d0 !important;
+  box-shadow: none !important;
+}
 @media print {
   /* Ẩn tất cả mọi thứ trên trang */
   body * {

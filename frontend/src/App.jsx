@@ -503,6 +503,11 @@ function App() {
     const themVaoGio = async (sp, ct = null, sl = 1) => {
         if (!taiKhoan) { setPage("login"); return false; }
         if (String(taiKhoan.vaiTro || "").toUpperCase() !== "KHACH_HANG") { alert("Chỉ KH mới thêm giỏ"); return false; }
+        // ⭐ CHẶN THÊM VÀO GIỎ NẾU SẢN PHẨM NGỪNG HOẠT ĐỘNG
+        if (!isHoatDong(sp.trangThai)) {
+            alert("Sản phẩm này hiện đã ngừng kinh doanh.");
+            return false;
+        }
         if (!ct?.id) { alert("SP chưa có biến thể"); return false; }
         const vId = ct.id;
         const ton = Number(ct.soLuongTon ?? 0);
@@ -543,6 +548,11 @@ function App() {
     const tangSoLuong = async (vId) => {
         const it = gioHang.find((i) => i.variantId === vId);
         if (!it) return;
+        // ⭐ CHẶN TĂNG SỐ LƯỢNG NẾU SẢN PHẨM NGỪNG HOẠT ĐỘNG
+        if (!isHoatDong(it.sanPham?.trangThai)) {
+            alert("Sản phẩm này hiện đã ngừng kinh doanh.");
+            return;
+        }
         const ton = Number(it.chiTiet?.soLuongTon ?? 0);
         const slMoi = it.soLuong + 1;
         if (ton > 0 && slMoi > ton) { alert(`Chỉ còn ${ton}`); return; }
@@ -599,6 +609,11 @@ function App() {
     const capNhatBienThe = async (vIdCu, ctMoi, slMoi) => {
         const itCu = gioHang.find((i) => i.variantId === vIdCu);
         if (!itCu) return false;
+        // ⭐ CHẶN CẬP NHẬT BIẾN THỂ NẾU SẢN PHẨM NGỪNG HOẠT ĐỘNG
+        if (!isHoatDong(itCu.sanPham?.trangThai)) {
+            alert("Sản phẩm này hiện đã ngừng kinh doanh, không thể thay đổi.");
+            return false;
+        }
         if (!ctMoi?.id) { alert("Biến thể không hợp lệ"); return false; }
         const sl = Math.max(1, Number(slMoi) || 1);
         const tonMoi = Number(ctMoi.soLuongTon ?? 0);
@@ -993,11 +1008,14 @@ function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "
                          isFavorite = false, toggleYeuThich = () => {}, khuyenMaiActive = null }) {
     const chiTiets = Array.isArray(sanPham?.chiTiets) ? sanPham.chiTiets.filter(isVariantHoatDong) : [];
     const nz = (v) => String(v || "").trim().toLowerCase();
+
+    // Lấy variant đại diện để hiển thị ảnh và giá (ưu tiên variant đầu tiên)
     const variant = chiTiets.find((i) => {
         const m = nz(i?.mauSac?.tenMau);
         const s = String(i?.kichCo?.tenKichCo || "");
         return ((!selectedColor || m === nz(selectedColor)) && (!selectedSize || s === String(selectedSize)));
     }) || chiTiets[0] || null;
+
     const mh = selectedColor || variant?.mauSac?.tenMau || "";
     const anh = mh ? layAnhTheoMau(sanPham, mh) : layAnhSanPham(sanPham);
 
@@ -1017,12 +1035,20 @@ function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "
     const sold = [1200, 856, 931, 1400, 640, 720, 1100, 950][index % 8];
     const sT = sold >= 1000 ? `${(sold / 1000).toFixed(1).replace(".0", "")}k` : sold;
 
+    // ⭐ KIỂM TRA TRẠNG THÁI SẢN PHẨM
+    const isNgungHoatDong = !isHoatDong(sanPham.trangThai);
+
     return (
-        <article className={`product-card ${index === 0 ? "is-featured" : ""}`}>
+        <article className={`product-card ${isNgungHoatDong ? "sold-out" : ""}`} style={{ opacity: isNgungHoatDong ? 0.6 : 1 }}>
             <div className="product-image" onClick={() => xemSanPham(sanPham)}>
                 <img src={anh} alt={sanPham.tenSanPham} loading="lazy"
                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1000&q=90"; }} />
+
                 {index === 0 && <span className="best-seller-badge">🔥 Bán chạy</span>}
+
+                {/* ⭐ Hiển thị nhãn Ngừng kinh doanh nếu sản phẩm ngừng hoạt động */}
+                {isNgungHoatDong && <div className="sold-out-overlay">NGỪNG KINH DOANH</div>}
+
                 <button type="button" className={`favorite ${isFavorite ? "active" : ""}`}
                         onClick={(e) => { e.stopPropagation(); toggleYeuThich(sanPham.id); }}
                         aria-label={isFavorite ? "Bỏ" : "Thêm"} title={isFavorite ? "Bỏ yêu thích" : "Thêm yêu thích"}>
@@ -1048,13 +1074,27 @@ function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "
                 </div>
                 <div className="product-buttons">
                     <button type="button" className="detail-button" onClick={() => xemSanPham(sanPham)}>◉&nbsp; Xem chi tiết</button>
-                    <button type="button" className="add-cart" onClick={() => themVaoGio(sanPham, variant)}>🛒&nbsp; Thêm vào giỏ</button>
+
+                    <button type="button" className="add-cart"
+                            disabled={isNgungHoatDong}
+                            style={isNgungHoatDong ? { background: "#ccc", cursor: "not-allowed", color: "#666", border: "none" } : {}}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (isNgungHoatDong) return;
+                                const variantToAdd = chiTiets.find(i => Number(i.soLuongTon) > 0);
+                                if (variantToAdd) {
+                                    themVaoGio(sanPham, variantToAdd);
+                                } else {
+                                    alert("Sản phẩm này hiện đã hết hàng.");
+                                }
+                            }}>
+                        {isNgungHoatDong ? "Ngừng bán" : "🛒 Thêm vào giỏ"}
+                    </button>
                 </div>
             </div>
         </article>
     );
 }
-
 function ProductList({ sanPhams, loading, search, setSearch, xemSanPham, themVaoGio,
                          thuongHieuList = [], yeuThichIds = [], toggleYeuThich = () => {},
                          danhMucList = [], brand = "Tất cả", setBrand = () => {},
@@ -1289,6 +1329,8 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     const chiTiets = sanPham.chiTiets || [];
     const chiTietsHoatDong = chiTiets.filter(isVariantHoatDong);
     const firstVariant = chiTietsHoatDong[0] || null;
+
+    // State lưu size và màu đang chọn
     const [selectedSize, setSelectedSize] = useState(firstVariant?.kichCo?.tenKichCo || "");
     const [selectedColor, setSelectedColor] = useState(firstVariant?.mauSac?.tenMau || "");
     const [soLuong, setSoLuong] = useState(1);
@@ -1297,6 +1339,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     const [showSizeGuide, setShowSizeGuide] = useState(false);
     const [anh, setAnh] = useState(layAnhTheoMau(sanPham, firstVariant?.mauSac?.tenMau || ""));
 
+    // Lấy danh sách size và màu duy nhất
     const sizes = [...new Set(chiTietsHoatDong.map((item) => item?.kichCo?.tenKichCo).filter(Boolean))].sort((a, b) => {
         const numberA = Number(String(a).replace(",", "."));
         const numberB = Number(String(b).replace(",", "."));
@@ -1305,10 +1348,20 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     });
     const colors = [...new Set(chiTietsHoatDong.map((item) => item.mauSac?.tenMau).filter(Boolean))];
 
+    // Tìm biến thể (variant) tương ứng với size và màu đang chọn
     const selectedVariant = chiTietsHoatDong.find((item) =>
         item.kichCo?.tenKichCo === selectedSize && item.mauSac?.tenMau === selectedColor) || null;
+
     const gia = selectedVariant?.giaBan || sanPham.giaBan || 0;
+
+    // Lấy chính xác tồn kho của biến thể đang chọn
     const stock = Number(selectedVariant?.soLuongTon ?? 0);
+
+    // ⭐ KIỂM TRA TRẠNG THÁI SẢN PHẨM
+    const isNgungHoatDong = !isHoatDong(sanPham.trangThai);
+
+    // Nếu không tìm thấy biến thể HOẶC tồn kho <= 0 HOẶC sản phẩm ngừng hoạt động
+    const isSoldOut = !selectedVariant || stock <= 0 || isNgungHoatDong;
 
     const kmInfo = tinhKhuyenMai({
         giaGoc: Number(gia),
@@ -1319,19 +1372,45 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     });
     const giaHienThi = kmInfo ? kmInfo.giaSauGiam : Number(gia);
 
-    // ⭐ Reset số lượng khi đổi size/màu mà số cũ vượt tồn kho mới
-    useEffect(() => {
-        if (selectedVariant && stock > 0 && Number(soLuong) > stock) {
-            setSoLuong(stock);
-            setQtyError(`Chỉ còn ${stock} sản phẩm trong kho`);
-            const t = setTimeout(() => setQtyError(""), 2500);
-            return () => clearTimeout(t);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedVariant?.id]);
+    // Kiểm tra xem 1 size có còn hàng với màu đang chọn không
+    const sizeCoTheChon = (size) => {
+        if (isNgungHoatDong) return false;
+        return chiTietsHoatDong.some((item) =>
+            item.kichCo?.tenKichCo === size &&
+            item.mauSac?.tenMau === selectedColor &&
+            Number(item.soLuongTon || 0) > 0
+        );
+    };
 
-    // ⭐ Xử lý nhập số lượng trực tiếp
+    // Kiểm tra xem 1 màu có còn hàng với size đang chọn không
+    const mauCoTheChon = (color) => {
+        if (isNgungHoatDong) return false;
+        return chiTietsHoatDong.some((item) =>
+            item.mauSac?.tenMau === color &&
+            item.kichCo?.tenKichCo === selectedSize &&
+            Number(item.soLuongTon || 0) > 0
+        );
+    };
+
+    const chonSize = (size) => {
+        if (isNgungHoatDong) return;
+        setSelectedSize(size);
+        // Khi chọn size, cập nhật lại ảnh nếu có thể
+        const variant = chiTietsHoatDong.find((item) => item.kichCo?.tenKichCo === size && item.mauSac?.tenMau === selectedColor);
+        if (variant) {
+            setAnh(layAnhTheoMau(sanPham, selectedColor));
+        }
+    };
+
+    const chonMau = (color) => {
+        if (isNgungHoatDong) return;
+        setSelectedColor(color);
+        setAnh(layAnhTheoMau(sanPham, color));
+    };
+
+    // Xử lý nhập số lượng
     const handleSoLuongChange = (val) => {
+        if (isSoldOut) return;
         setQtyError("");
         const raw = String(val).replace(/[^\d]/g, "");
         if (raw === "") { setSoLuong(""); return; }
@@ -1358,6 +1437,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     };
 
     const tangSoLuong = () => {
+        if (isSoldOut) return;
         const cur = Number(soLuong) || 1;
         if (stock > 0 && cur >= stock) {
             setQtyError(`Chỉ còn ${stock} sản phẩm trong kho`);
@@ -1368,29 +1448,28 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
         setQtyError("");
     };
 
-    const sizeCoTheChon = (size) => chiTietsHoatDong.some((item) => item.kichCo?.tenKichCo === size && item.mauSac?.tenMau === selectedColor);
-    const mauCoTheChon = (color) => chiTietsHoatDong.some((item) => item.mauSac?.tenMau === color && item.kichCo?.tenKichCo === selectedSize);
-
-    const chonSize = (size) => {
-        const variant = chiTietsHoatDong.find((item) => item.kichCo?.tenKichCo === size && item.mauSac?.tenMau === selectedColor);
-        if (variant) { setSelectedSize(size); setAnh(layAnhTheoMau(sanPham, selectedColor)); return; }
-        const variantTheoSize = chiTietsHoatDong.find((item) => item.kichCo?.tenKichCo === size);
-        if (variantTheoSize) {
-            const mauMoi = variantTheoSize.mauSac?.tenMau || "";
-            setSelectedSize(size);
-            setSelectedColor(mauMoi);
-            setAnh(layAnhTheoMau(sanPham, mauMoi));
+    const handleAddToCart = async (isBuyNow = false) => {
+        if (isNgungHoatDong) {
+            alert("Sản phẩm này hiện đã ngừng kinh doanh.");
+            return;
         }
-    };
-    const chonMau = (color) => {
-        const variant = chiTietsHoatDong.find((item) => item.mauSac?.tenMau === color && item.kichCo?.tenKichCo === selectedSize);
-        if (variant) { setSelectedColor(color); setAnh(layAnhTheoMau(sanPham, color)); return; }
-        const variantTheoMau = chiTietsHoatDong.find((item) => item.mauSac?.tenMau === color);
-        if (variantTheoMau) {
-            const sizeMoi = variantTheoMau.kichCo?.tenKichCo || "";
-            setSelectedColor(color);
-            setSelectedSize(sizeMoi);
-            setAnh(layAnhTheoMau(sanPham, color));
+        if (!selectedVariant?.id) {
+            alert("Vui lòng chọn đúng size và màu");
+            return;
+        }
+        if (stock <= 0) {
+            alert("Sản phẩm với size và màu này đã hết hàng. Vui lòng chọn size hoặc màu khác.");
+            return;
+        }
+        const sl = Number(soLuong) || 1;
+        if (sl > stock) {
+            alert(`Chỉ còn ${stock} sản phẩm trong kho`);
+            return;
+        }
+
+        const daThem = await themVaoGio(sanPham, selectedVariant, sl);
+        if (daThem && isBuyNow) {
+            setPage("cart");
         }
     };
 
@@ -1403,7 +1482,8 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                         <div className="detail-gallery">
                             <div className="detail-main-image">
                                 <img src={anh} alt={sanPham.tenSanPham} />
-                                <span className="detail-sale">-20%</span>
+                                {!isSoldOut && <span className="detail-sale">-20%</span>}
+                                {isSoldOut && <div className="sold-out-overlay" style={{ fontSize: '20px', padding: '12px 24px' }}>{isNgungHoatDong ? "NGỪNG KINH DOANH" : "HẾT HÀNG"}</div>}
                             </div>
                             <div className="detail-thumbnails" style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "nowrap" }}>
                                 {colors.map((color) => (
@@ -1439,7 +1519,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                                 <span>★</span> 4.8
                                 <span className="rating-count">(126 đánh giá)</span>
                             </div>
-                            {kmInfo ? (
+                            {kmInfo && !isSoldOut ? (
                                 <>
                                     <div className="detail-price" style={{ color: "#e53935" }}>
                                         {formatGia(giaHienThi)}
@@ -1448,32 +1528,19 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                                         {formatGia(kmInfo.giaGoc)}
                                     </div>
                                     <div style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 8,
-                                        background: "#ffebee",
-                                        color: "#e53935",
-                                        padding: "5px 12px",
-                                        borderRadius: 8,
-                                        fontSize: 13,
-                                        fontWeight: 700,
-                                        marginTop: 6,
-                                        marginBottom: 10,
+                                        display: "inline-flex", alignItems: "center", gap: 8,
+                                        background: "#ffebee", color: "#e53935", padding: "5px 12px",
+                                        borderRadius: 8, fontSize: 13, fontWeight: 700, marginTop: 6, marginBottom: 10,
                                     }}>
                                         🎁 {kmInfo.km.tenChuongTrinh}
-                                        <span style={{
-                                            background: "#e53935", color: "#fff",
-                                            padding: "2px 8px", borderRadius: 6, fontSize: 12,
-                                        }}>
-                                            -{String(kmInfo.km.loaiGiam).toUpperCase() === "PHAN_TRAM"
-                                            ? `${kmInfo.km.giaTriGiam}%`
-                                            : formatGia(kmInfo.km.giaTriGiam)}
+                                        <span style={{ background: "#e53935", color: "#fff", padding: "2px 8px", borderRadius: 6, fontSize: 12 }}>
+                                            -{String(kmInfo.km.loaiGiam).toUpperCase() === "PHAN_TRAM" ? `${kmInfo.km.giaTriGiam}%` : formatGia(kmInfo.km.giaTriGiam)}
                                         </span>
                                     </div>
                                 </>
                             ) : (
                                 <>
-                                    <div className="detail-price">{formatGia(gia)}</div>
+                                    <div className="detail-price" style={isSoldOut ? { color: "#999" } : {}}>{formatGia(gia)}</div>
                                     <div className="detail-old-price"></div>
                                 </>
                             )}
@@ -1489,7 +1556,13 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                                             return (
                                                 <button key={size} type="button" disabled={disabled}
                                                         className={active ? "size-button selected" : "size-button"}
-                                                        style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
+                                                        style={{
+                                                            opacity: disabled ? 0.4 : 1,
+                                                            cursor: disabled ? "not-allowed" : "pointer",
+                                                            backgroundColor: disabled ? "#f5f5f5" : "",
+                                                            // Thêm gạch chéo nếu hết hàng
+                                                            textDecoration: disabled ? "line-through" : "none"
+                                                        }}
                                                         onClick={() => chonSize(size)}>
                                                     {size}
                                                 </button>
@@ -1525,7 +1598,11 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                                             return (
                                                 <button key={color} type="button" disabled={disabled}
                                                         className={active ? "color-button selected" : "color-button"}
-                                                        style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
+                                                        style={{
+                                                            opacity: disabled ? 0.4 : 1,
+                                                            cursor: disabled ? "not-allowed" : "pointer",
+                                                            backgroundColor: disabled ? "#f5f5f5" : ""
+                                                        }}
                                                         onClick={() => chonMau(color)}>
                                                     {color}
                                                 </button>
@@ -1535,80 +1612,45 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                                 </div>
                             )}
 
-                            <div className="stock">
-                                {selectedVariant ? stock > 0 ? `Còn ${stock} sản phẩm` : "Sản phẩm đã hết hàng" : "Vui lòng chọn size và màu"}
+                            <div className="stock" style={{ color: isSoldOut ? "#e53935" : "", fontWeight: isSoldOut ? "bold" : "" }}>
+                                {isNgungHoatDong ? "Sản phẩm đã ngừng kinh doanh" : (isSoldOut ? "Sản phẩm đã hết hàng" : (selectedVariant ? `Còn ${stock} sản phẩm` : "Vui lòng chọn size và màu"))}
                             </div>
 
-                            {/* ⭐ Ô SỐ LƯỢNG — cho phép nhập trực tiếp, chặn vượt tồn kho */}
-                            <div className="quantity-row">
-                                <div className="quantity-control">
-                                    <button
-                                        type="button"
-                                        onClick={giamSoLuong}
-                                        disabled={Number(soLuong) <= 1}
-                                        style={{ opacity: Number(soLuong) <= 1 ? 0.4 : 1, cursor: Number(soLuong) <= 1 ? "not-allowed" : "pointer" }}
-                                    >−</button>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        value={soLuong}
-                                        onChange={(e) => handleSoLuongChange(e.target.value)}
-                                        onBlur={handleBlurSoLuong}
-                                        style={{
-                                            width: 56,
-                                            textAlign: "center",
-                                            border: "none",
-                                            outline: "none",
-                                            background: "transparent",
-                                            fontWeight: 700,
-                                            fontSize: 16,
-                                            color: "#111",
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={tangSoLuong}
-                                        disabled={stock > 0 && Number(soLuong) >= stock}
-                                        style={{
-                                            opacity: (stock > 0 && Number(soLuong) >= stock) ? 0.4 : 1,
-                                            cursor: (stock > 0 && Number(soLuong) >= stock) ? "not-allowed" : "pointer"
-                                        }}
-                                    >+</button>
+                            {!isSoldOut && (
+                                <div className="quantity-row">
+                                    <div className="quantity-control">
+                                        <button type="button" onClick={giamSoLuong} disabled={Number(soLuong) <= 1}
+                                                style={{ opacity: Number(soLuong) <= 1 ? 0.4 : 1, cursor: Number(soLuong) <= 1 ? "not-allowed" : "pointer" }}>−</button>
+                                        <input type="text" inputMode="numeric" pattern="[0-9]*" value={soLuong}
+                                               onChange={(e) => handleSoLuongChange(e.target.value)}
+                                               onBlur={handleBlurSoLuong}
+                                               style={{ width: 56, textAlign: "center", border: "none", outline: "none", background: "transparent", fontWeight: 700, fontSize: 16, color: "#111" }} />
+                                        <button type="button" onClick={tangSoLuong} disabled={stock > 0 && Number(soLuong) >= stock}
+                                                style={{ opacity: (stock > 0 && Number(soLuong) >= stock) ? 0.4 : 1, cursor: (stock > 0 && Number(soLuong) >= stock) ? "not-allowed" : "pointer" }}>+</button>
+                                    </div>
+                                    <span className="quantity-label">Số lượng</span>
                                 </div>
-                                <span className="quantity-label">Số lượng</span>
-                            </div>
+                            )}
 
                             {qtyError && (
-                                <div style={{
-                                    color: "#e53935",
-                                    fontSize: 13,
-                                    marginTop: 6,
-                                    fontWeight: 600,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                }}>
+                                <div style={{ color: "#e53935", fontSize: 13, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
                                     ⚠️ {qtyError}
                                 </div>
                             )}
 
                             <div className="detail-buttons">
-                                <button type="button" className="detail-add-cart" onClick={async () => {
-                                    if (!selectedVariant?.id) { alert("Vui lòng chọn đúng size và màu"); return; }
-                                    if (stock <= 0) { alert("Sản phẩm đã hết hàng"); return; }
-                                    const sl = Number(soLuong) || 1;
-                                    if (sl > stock) { alert(`Chỉ còn ${stock} sản phẩm trong kho`); return; }
-                                    await themVaoGio(sanPham, selectedVariant, sl);
-                                }}>🛒 Thêm vào giỏ</button>
-                                <button type="button" className="detail-buy" onClick={async () => {
-                                    if (!selectedVariant?.id) { alert("Vui lòng chọn đúng size và màu"); return; }
-                                    if (stock <= 0) { alert("Sản phẩm đã hết hàng"); return; }
-                                    const sl = Number(soLuong) || 1;
-                                    if (sl > stock) { alert(`Chỉ còn ${stock} sản phẩm trong kho`); return; }
-                                    const daThem = await themVaoGio(sanPham, selectedVariant, sl);
-                                    if (daThem) setPage("cart");
-                                }}>Mua ngay</button>
+                                <button type="button" className="detail-add-cart"
+                                        disabled={isSoldOut}
+                                        style={isSoldOut ? { background: "#ccc", cursor: "not-allowed", color: "#666", border: "1px solid #ccc" } : {}}
+                                        onClick={() => handleAddToCart(false)}>
+                                    {isSoldOut ? (isNgungHoatDong ? "Ngừng bán" : "Hết hàng") : "🛒 Thêm vào giỏ"}
+                                </button>
+                                <button type="button" className="detail-buy"
+                                        disabled={isSoldOut}
+                                        style={isSoldOut ? { background: "#ccc", cursor: "not-allowed", color: "#666", border: "1px solid #ccc" } : {}}
+                                        onClick={() => handleAddToCart(true)}>
+                                    {isSoldOut ? (isNgungHoatDong ? "Ngừng bán" : "Tạm hết hàng") : "Mua ngay"}
+                                </button>
                             </div>
                             <div className="detail-guarantees">
                                 <div>🚚<span>Giao hàng toàn quốc</span></div>
@@ -1623,11 +1665,13 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                 <AIDoSize
                     onSelectSize={(size) => {
                         const sizeText = String(size);
-                        const variant = chiTietsHoatDong.find((item) => String(item?.kichCo?.tenKichCo) === sizeText);
+                        const variant = chiTietsHoatDong.find((item) => String(item?.kichCo?.tenKichCo) === sizeText && Number(item.soLuongTon || 0) > 0);
                         if (variant) {
                             setSelectedSize(variant.kichCo?.tenKichCo || sizeText);
                             const color = variant.mauSac?.tenMau || selectedColor;
                             if (color) { setSelectedColor(color); setAnh(layAnhTheoMau(sanPham, color)); }
+                        } else {
+                            alert("Size này hiện đã hết hàng, vui lòng chọn size khác.");
                         }
                         setShowAIDoSize(false);
                     }}
@@ -1662,6 +1706,12 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
         else setSelectedVariantIds(gioHang.map((i) => i.variantId));
     };
     const toggleSelect = (vId) => {
+        // Không cho chọn sản phẩm ngừng hoạt động
+        const item = gioHang.find(i => i.variantId === vId);
+        if (item && !isHoatDong(item.sanPham?.trangThai)) {
+            alert("Sản phẩm này đã ngừng kinh doanh, không thể chọn thanh toán.");
+            return;
+        }
         setSelectedVariantIds((p) => p.includes(vId) ? p.filter((id) => id !== vId) : [...p, vId]);
     };
     const handleCheckout = () => {
@@ -1669,6 +1719,12 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
         if (!xacNhan) return;
         if (selectedVariantIds.length === 0) { alert("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng"); return; }
         if (!taiKhoan) { setPage("login"); return; }
+        // Kiểm tra lại lần cuối xem có sản phẩm nào bị ngừng hoạt động không
+        const coSanPhamNgung = selectedItems.some(i => !isHoatDong(i.sanPham?.trangThai));
+        if (coSanPhamNgung) {
+            alert("Có sản phẩm trong giỏ đã ngừng kinh doanh. Vui lòng bỏ chọn hoặc xóa sản phẩm đó trước khi thanh toán.");
+            return;
+        }
         setPage("checkout");
     };
     const openEdit = (item) => {
@@ -1686,18 +1742,45 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
         if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
         return String(a).localeCompare(String(b), "vi");
     });
-    const sizeCoTheChon = (s) => cthd.some((x) => x?.kichCo?.tenKichCo === s && x?.mauSac?.tenMau === editColor);
-    const mauCoTheChon = (c) => cthd.some((x) => x?.mauSac?.tenMau === c && x?.kichCo?.tenKichCo === editSize);
+
+    // ⭐ Kiểm tra xem sản phẩm đang sửa có bị ngừng hoạt động không
+    const isSanPhamNgung = editingItem && !isHoatDong(editingItem.sanPham?.trangThai);
+
+    const sizeCoTheChon = (s) => {
+        if (isSanPhamNgung) return false;
+        return cthd.some((x) =>
+            x?.kichCo?.tenKichCo === s &&
+            x?.mauSac?.tenMau === editColor &&
+            Number(x?.soLuongTon || 0) > 0
+        );
+    };
+    const mauCoTheChon = (c) => {
+        if (isSanPhamNgung) return false;
+        return cthd.some((x) =>
+            x?.mauSac?.tenMau === c &&
+            x?.kichCo?.tenKichCo === editSize &&
+            Number(x?.soLuongTon || 0) > 0
+        );
+    };
+
     const variantDangChon = cthd.find((x) => x?.kichCo?.tenKichCo === editSize && x?.mauSac?.tenMau === editColor);
+    const isHetHang = !variantDangChon || Number(variantDangChon.soLuongTon || 0) <= 0;
+
     const luuChinhSua = async () => {
         if (!editingItem) return;
-        if (!variantDangChon?.id) { alert("Vui lòng chọn đủ size và màu"); return; }
+        if (isSanPhamNgung) { alert("Sản phẩm này đã ngừng kinh doanh."); return; }
+        if (isHetHang) { alert("Biến thể này đã hết hàng, vui lòng chọn màu hoặc size khác."); return; }
         const ok = await capNhatBienThe(editingItem.variantId, variantDangChon, editingItem.soLuong);
         if (ok) closeEdit();
     };
     const setQtyDraft = (vId, val) => setQuantityDraft((p) => ({ ...p, [vId]: val }));
     const clearQtyDraft = (vId) => setQuantityDraft((p) => { const cp = { ...p }; delete cp[vId]; return cp; });
     const commitQty = async (item) => {
+        if (!isHoatDong(item.sanPham?.trangThai)) {
+            alert("Sản phẩm này đã ngừng kinh doanh, không thể thay đổi số lượng.");
+            clearQtyDraft(item.variantId);
+            return;
+        }
         const raw = quantityDraft[item.variantId];
         if (raw === undefined) return;
         const num = Number(raw);
@@ -1741,18 +1824,23 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                 const { giaGoc, gia, km } = tinhGiaItem(item, khuyenMaiActive);
                                 const isChecked = selectedVariantIds.includes(item.variantId);
                                 const draft = quantityDraft[item.variantId];
+                                const isNgungHoatDong = !isHoatDong(item.sanPham?.trangThai);
+
                                 return (
-                                    <div className={`cart-item-row ${isChecked ? "" : "unselected"}`} key={item.variantId}>
+                                    <div className={`cart-item-row ${isChecked ? "" : "unselected"} ${isNgungHoatDong ? "item-disabled" : ""}`} key={item.variantId}
+                                         style={{ opacity: isNgungHoatDong ? 0.6 : 1, background: isNgungHoatDong ? "#fff5f5" : "transparent" }}>
                                         <div className="cart-product" onClick={() => openEdit(item)}
-                                             title="Bấm để đổi màu / size" role="button" tabIndex={0}
+                                             title={isNgungHoatDong ? "Sản phẩm đã ngừng kinh doanh" : "Bấm để đổi màu / size"} role="button" tabIndex={0}
                                              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(item); } }}>
                                             <input type="checkbox" className="cart-checkbox" checked={isChecked}
+                                                   disabled={isNgungHoatDong}
                                                    onChange={() => toggleSelect(item.variantId)}
                                                    onClick={(e) => e.stopPropagation()} />
                                             <img src={layAnhTheoMau(item.sanPham, item.chiTiet?.mauSac?.tenMau)}
-                                                 alt={item.sanPham.tenSanPham} className="cart-product-image" />
+                                                 alt={item.sanPham.tenSanPham} className="cart-product-image" style={{ filter: isNgungHoatDong ? "grayscale(100%)" : "none" }} />
                                             <div className="cart-product-info">
                                                 <strong className="cart-product-name">{item.sanPham.tenSanPham}</strong>
+                                                {isNgungHoatDong && <span style={{ color: "#e53935", fontSize: 11, fontWeight: "bold", marginTop: 4, display: "block" }}>(Ngừng kinh doanh)</span>}
                                                 {item.chiTiet?.kichCo && <small>Size: {item.chiTiet.kichCo.tenKichCo}</small>}
                                                 {item.chiTiet?.mauSac && <small>Màu: {item.chiTiet.mauSac.tenMau}</small>}
                                                 <div className="cart-product-actions" onClick={(e) => e.stopPropagation()}>
@@ -1784,13 +1872,14 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                         </div>
 
                                         <div className="cart-quantity">
-                                            <button type="button" onClick={() => giamSoLuong(item.variantId)}>−</button>
+                                            <button type="button" onClick={() => giamSoLuong(item.variantId)} disabled={isNgungHoatDong}>−</button>
                                             <input type="number" min="1" className="cart-quantity-input"
+                                                   disabled={isNgungHoatDong}
                                                    value={draft !== undefined ? draft : item.soLuong}
                                                    onChange={(e) => setQtyDraft(item.variantId, e.target.value)}
                                                    onBlur={() => commitQty(item)}
                                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }} />
-                                            <button type="button" onClick={() => tangSoLuong(item.variantId)}>+</button>
+                                            <button type="button" onClick={() => tangSoLuong(item.variantId)} disabled={isNgungHoatDong}>+</button>
                                         </div>
 
                                         <strong className="cart-total" style={{ color: km ? "#e53935" : undefined }}>
@@ -1829,6 +1918,7 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                             <div>
                                 <strong>{editingItem.sanPham.tenSanPham}</strong>
                                 <span>Đang chọn: {editSize} · {editColor}</span>
+                                {isSanPhamNgung && <span style={{ color: "#e53935", fontWeight: "bold", display: "block", marginTop: 5 }}>Sản phẩm đã ngừng kinh doanh!</span>}
                             </div>
                         </div>
                         <div className="cart-edit-section">
@@ -1836,10 +1926,11 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                             <div className="cart-edit-options">
                                 {editColors.map((c) => {
                                     const a = c === editColor;
-                                    const d = !mauCoTheChon(c);
+                                    const d = !mauCoTheChon(c); // Sẽ bị disable nếu hết hàng hoặc ngừng bán
                                     return (
                                         <button key={c} type="button" disabled={d}
                                                 className={`cart-edit-option ${a ? "active" : ""}`}
+                                                style={{ opacity: d ? 0.4 : 1, cursor: d ? "not-allowed" : "pointer" }}
                                                 onClick={() => !d && setEditColor(c)}>
                                             {c}
                                         </button>
@@ -1852,10 +1943,11 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                             <div className="cart-edit-options">
                                 {editSizes.map((s) => {
                                     const a = s === editSize;
-                                    const d = !sizeCoTheChon(s);
+                                    const d = !sizeCoTheChon(s); // Sẽ bị disable nếu hết hàng hoặc ngừng bán
                                     return (
                                         <button key={s} type="button" disabled={d}
                                                 className={`cart-edit-option ${a ? "active" : ""}`}
+                                                style={{ opacity: d ? 0.4 : 1, cursor: d ? "not-allowed" : "pointer" }}
                                                 onClick={() => !d && setEditSize(s)}>
                                             {s}
                                         </button>
@@ -1864,14 +1956,27 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                             </div>
                         </div>
                         <div className="cart-edit-info">
-                            {variantDangChon ? (<>
-                                <span>Còn lại: <strong>{Number(variantDangChon.soLuongTon || 0)}</strong> sản phẩm</span>
+                            {variantDangChon ? (
+                                <span style={{ color: isHetHang ? "#e53935" : "inherit", fontWeight: isHetHang ? "bold" : "normal" }}>
+                                    {isHetHang ? "Đã hết hàng" : `Còn lại: ${Number(variantDangChon.soLuongTon || 0)} sản phẩm`}
+                                </span>
+                            ) : <span>Biến thể này chưa có</span>}
+
+                            {variantDangChon && (
                                 <span>Giá: <strong>{formatGia(variantDangChon.giaBan)}</strong></span>
-                            </>) : <span>Biến thể này chưa có</span>}
+                            )}
                         </div>
                         <div className="cart-edit-actions">
                             <button type="button" className="cart-edit-cancel" onClick={closeEdit}>Hủy</button>
-                            <button type="button" className="cart-edit-save" onClick={luuChinhSua} disabled={!variantDangChon?.id}>Lưu thay đổi</button>
+                            <button
+                                type="button"
+                                className="cart-edit-save"
+                                onClick={luuChinhSua}
+                                disabled={isHetHang || isSanPhamNgung} // ⭐ Khóa nút Lưu nếu hết hàng hoặc ngừng bán
+                                style={{ opacity: (isHetHang || isSanPhamNgung) ? 0.5 : 1, cursor: (isHetHang || isSanPhamNgung) ? "not-allowed" : "pointer" }}
+                            >
+                                Lưu thay đổi
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1906,6 +2011,15 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [addrWard, setAddrWard] = useState("");
     const [addrDetail, setAddrDetail] = useState("");
     const [ghiChu, setGhiChu] = useState("");
+
+    // ⭐ KIỂM TRA NGAY KHI VÀO TRANG CHECKOUT XEM CÓ SẢN PHẨM NÀO BỊ NGỪNG BÁN KHÔNG
+    useEffect(() => {
+        const coSanPhamNgung = gioHang.some(i => !isHoatDong(i.sanPham?.trangThai));
+        if (coSanPhamNgung) {
+            alert("Có sản phẩm trong đơn hàng đã ngừng kinh doanh. Vui lòng quay lại giỏ hàng để kiểm tra.");
+            setPage("cart");
+        }
+    }, [gioHang, setPage]);
 
     useEffect(() => {
         if (!addingAddress || provinceList.length) return;
@@ -2092,7 +2206,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [danhSachVoucherActive, setDanhSachVoucherActive] = useState([]);
     const [dangTaiVoucher, setDangTaiVoucher] = useState(false);
     const [loiTaiVoucher, setLoiTaiVoucher] = useState("");
-    // Trạng thái danh sách voucher được dùng ở giao diện Checkout
     const [showVoucherList, setShowVoucherList] = useState(false);
     const [voucherList, setVoucherList] = useState([]);
     const [loadingVoucherList, setLoadingVoucherList] = useState(false);
@@ -2110,7 +2223,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
 
     const tongThanhToan = Math.max(0, tongTienSale + phiVanChuyen - tienGiam);
 
-    // ⭐ Load danh sách voucher khả dụng
     useEffect(() => {
         const loadVoucherList = async () => {
             try {
@@ -2152,7 +2264,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
-            // ⭐ Ghép id gốc từ voucherList (nếu API không trả id)
             const found = voucherList.find((x) => String(x.maVoucher || "").toUpperCase() === code);
             setVouchers((p) => [...p, {
                 ...d,
@@ -2185,6 +2296,13 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
 
     const datHang = async () => {
         if (!gioHang || gioHang.length === 0) { alert("Chưa có sản phẩm nào"); setPage("cart"); return; }
+        // ⭐ KIỂM TRA LẦN CUỐI TRƯỚC KHI ĐẶT HÀNG XEM CÓ SP NÀO NGỪNG BÁN KHÔNG
+        const coSanPhamNgung = gioHang.some(i => !isHoatDong(i.sanPham?.trangThai));
+        if (coSanPhamNgung) {
+            alert("Có sản phẩm trong đơn hàng đã ngừng kinh doanh. Không thể đặt hàng. Vui lòng quay lại giỏ hàng.");
+            setPage("cart");
+            return;
+        }
         if (!hoTen.trim()) { alert("Nhập họ tên"); return; }
         if (!soDienThoai.trim()) { alert("Nhập SĐT"); return; }
         if (!/^0\d{9}$/.test(soDienThoai.trim())) { alert("SĐT phải 10 số và bắt đầu bằng 0"); return; }
@@ -2215,7 +2333,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                 const r = await fetch(`${API}/gio-hang/chi-tiet/${d.id}`, { method: "DELETE" });
                 if (!r.ok) throw new Error(`Không xóa được SP cũ (ID ${d.id})`);
             }
-            // Backend DatHangRequest nhận ID chi tiết giỏ hàng, không nhận mảng `chiTiet`.
             const chiTietGioHangIdsDat = [];
             for (const it of itemsForBill) {
                 if (!it.chiTiet?.id) throw new Error(`SP "${it.sanPham?.tenSanPham || "?"}" chưa có biến thể`);
@@ -2504,7 +2621,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                     )}
                                 </div>
 
-                                {/* ⭐ Nút mở danh sách voucher có sẵn */}
                                 <button
                                     type="button"
                                     onClick={() => setShowVoucherList((v) => !v)}
@@ -2530,7 +2646,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                     <span>{showVoucherList ? "▲" : "▼"}</span>
                                 </button>
 
-                                {/* ⭐ Danh sách voucher khả dụng */}
                                 {showVoucherList && (
                                     <div style={{
                                         marginTop: 10,
@@ -2640,7 +2755,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                                                 });
                                                                 const d = await r.json();
                                                                 if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
-                                                                // ⭐ Ghép id gốc từ voucher vừa chọn
                                                                 setVouchers((p) => [...p, {
                                                                     ...d,
                                                                     id: d.id ?? d.voucherId ?? v.id,

@@ -258,7 +258,7 @@ public class HoaDonService {
 
 
         // -----------------------------------------------------
-        // 6. TÍNH TỔNG TIỀN HÀNG
+        // 6. TÍNH TỔNG TIỀN HÀNG & KIỂM TRA TRẠNG THÁI
         // -----------------------------------------------------
 
         BigDecimal tongTienHang =
@@ -305,26 +305,22 @@ public class HoaDonService {
             }
 
 
-            // -------------------------------------------------
-            // KIỂM TRA TRẠNG THÁI SẢN PHẨM
-            // -------------------------------------------------
+            // ⭐ SỬA TẠI ĐÂY: KIỂM TRA CẢ SẢN PHẨM CHA VÀ BIẾN THỂ
+            SanPham sanPhamCha = spct.getSanPham();
 
+            // 1. Kiểm tra sản phẩm cha (Quan trọng nhất)
+            if (sanPhamCha == null || sanPhamCha.getTrangThai() == null
+                    || (!"HOAT_DONG".equalsIgnoreCase(sanPhamCha.getTrangThai())
+                    && !"ACTIVE".equalsIgnoreCase(sanPhamCha.getTrangThai()))) {
+                String tenSp = sanPhamCha != null ? sanPhamCha.getTenSanPham() : "Không xác định";
+                throw new RuntimeException("Sản phẩm '" + tenSp + "' đã ngừng kinh doanh, không thể đặt hàng!");
+            }
+
+            // 2. Kiểm tra biến thể
             if (spct.getTrangThai() == null
-                    ||
-                    (
-                            !"HOAT_DONG".equalsIgnoreCase(
-                                    spct.getTrangThai()
-                            )
-                                    &&
-                                    !"ACTIVE".equalsIgnoreCase(
-                                            spct.getTrangThai()
-                                    )
-                    )
-            ) {
-
-                throw new RuntimeException(
-                        "Sản phẩm đang không hoạt động"
-                );
+                    || (!"HOAT_DONG".equalsIgnoreCase(spct.getTrangThai())
+                    && !"ACTIVE".equalsIgnoreCase(spct.getTrangThai()))) {
+                throw new RuntimeException("Biến thể sản phẩm đang không hoạt động");
             }
 
 
@@ -1165,26 +1161,22 @@ public class HoaDonService {
             }
 
 
-            // -------------------------------------------------
-            // KIỂM TRA TRẠNG THÁI SẢN PHẨM
-            // -------------------------------------------------
+            // ⭐ SỬA TẠI ĐÂY: KIỂM TRA CẢ SẢN PHẨM CHA VÀ BIẾN THỂ
+            SanPham sanPhamCha = spct.getSanPham();
 
+            // 1. Kiểm tra sản phẩm cha
+            if (sanPhamCha == null || sanPhamCha.getTrangThai() == null
+                    || (!"HOAT_DONG".equalsIgnoreCase(sanPhamCha.getTrangThai())
+                    && !"ACTIVE".equalsIgnoreCase(sanPhamCha.getTrangThai()))) {
+                String tenSp = sanPhamCha != null ? sanPhamCha.getTenSanPham() : "Không xác định";
+                throw new RuntimeException("Sản phẩm '" + tenSp + "' đã ngừng kinh doanh, không thể bán!");
+            }
+
+            // 2. Kiểm tra biến thể
             if (spct.getTrangThai() == null
-                    ||
-                    (
-                            !"HOAT_DONG".equalsIgnoreCase(
-                                    spct.getTrangThai()
-                            )
-                                    &&
-                                    !"ACTIVE".equalsIgnoreCase(
-                                            spct.getTrangThai()
-                                    )
-                    )
-            ) {
-
-                throw new RuntimeException(
-                        "Sản phẩm đang không hoạt động"
-                );
+                    || (!"HOAT_DONG".equalsIgnoreCase(spct.getTrangThai())
+                    && !"ACTIVE".equalsIgnoreCase(spct.getTrangThai()))) {
+                throw new RuntimeException("Biến thể sản phẩm đang không hoạt động");
             }
 
             // -------------------------------------------------
@@ -1572,19 +1564,9 @@ public class HoaDonService {
     // THANH TOÁN
     // =========================================================
 
-    public ThanhToan getThanhToanByHoaDonId(
-            Long hoaDonId
-    ) {
-
-        return thanhToanRepository
-                .findByHoaDon_Id(
-                        hoaDonId
-                )
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Không tìm thấy thanh toán"
-                        )
-                );
+    public ThanhToan getThanhToanByHoaDonId(Long hoaDonId) {
+        // Trả về null nếu không tìm thấy, thay vì ném lỗi làm sập app
+        return thanhToanRepository.findByHoaDon_Id(hoaDonId).orElse(null);
     }
 
 
