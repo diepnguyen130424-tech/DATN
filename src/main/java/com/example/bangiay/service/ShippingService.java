@@ -37,9 +37,11 @@ public class ShippingService {
     @Value("${ship.he-so-duong-chim-bay:1.3}") private double heSoDuongChimBay;
 
     private final RestClient http;
+    private final GhnClient ghn;
     private final Map<String, ShipQuote> cache = new ConcurrentHashMap<>();
 
-    public ShippingService() {
+    public ShippingService(GhnClient ghn) {
+        this.ghn = ghn;
         SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
         f.setConnectTimeout(4000);
         f.setReadTimeout(6000);
@@ -51,8 +53,35 @@ public class ShippingService {
     }
 
     public ShipQuote tinhPhi(String diaChi) {
+        return tinhPhi(diaChi, 1);
+    }
+
+    /**
+     * Ưu tiên báo phí của Giao Hàng Nhanh (khi ghn.enabled=true và địa chỉ khớp danh mục GHN);
+     * nếu không được thì dùng cách cũ (OSM + OSRM theo km) để đặt hàng không bị chặn.
+     */
+    public ShipQuote tinhPhi(String diaChi, int soLuong) {
+        return tinhPhi(diaChi, soLuong, null, null);
+    }
+
+    /** tinh/xa (nếu có) được ưu tiên hơn việc tách từ chuỗi địa chỉ. */
+    public ShipQuote tinhPhi(String diaChi, int soLuong, String tinhIn, String xaIn) {
         if (diaChi == null || diaChi.isBlank()) {
             return macDinh("Chưa nhập địa chỉ nhận hàng.");
+        }
+        if (ghn.isReady()) {
+            // Địa chỉ FE ghép theo dạng: "số nhà..., Phường/Xã, Tỉnh/Thành phố"
+            String[] p = diaChi.split(",");
+            boolean coTinhXa = tinhIn != null && !tinhIn.isBlank() && xaIn != null && !xaIn.isBlank();
+            if (coTinhXa || p.length >= 2) {
+                String tinh = coTinhXa ? tinhIn.trim() : p[p.length - 1].trim();
+                String xa = coTinhXa ? xaIn.trim() : p[p.length - 2].trim();
+                var q = ghn.baoPhi(tinh, xa, diaChi.trim(), soLuong);
+                if (q.isPresent()) {
+                    return new ShipQuote(true, null, q.get().phi(), "GHN", q.get().diaChiChuan(),
+                            "Phí theo bảng giá Giao Hàng Nhanh");
+                }
+            }
         }
         String key = diaChi.trim().toLowerCase().replaceAll("\\s+", " ");
         ShipQuote cached = cache.get(key);

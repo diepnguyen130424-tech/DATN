@@ -458,7 +458,12 @@ public class HoaDonService {
         } else {
             // ⭐ Phí ship tính theo khoảng cách cửa hàng → địa chỉ nhận (server tự tính, không tin FE)
             phiVanChuyen = BigDecimal.valueOf(
-                    shippingService.tinhPhi(request.getDiaChi()).getPhiShip()
+                    shippingService.tinhPhi(
+                            request.getDiaChi(),
+                            danhSachGioHang.stream()
+                                    .mapToInt(ct -> ct.getSoLuong() != null ? ct.getSoLuong() : 1)
+                                    .sum()
+                    ).getPhiShip()
             );
         }
 
