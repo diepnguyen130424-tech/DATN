@@ -12319,3 +12319,228 @@ body { background: #fff; color: #171717; }
     display: none !important;
   }
 }
+
+
+/* =========================================================
+   CHECKOUT PAYMENT METHODS - FSHOP
+========================================================= */
+.checkout-payment-section {
+  margin-top: 2px;
+}
+.checkout-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 13px;
+}
+.checkout-section-icon {
+  width: 38px; height: 38px; display: grid; place-items: center;
+  flex: 0 0 38px; border-radius: 11px; background: #fff0f0;
+  color: #e92332; font-size: 21px; font-weight: 800;
+}
+.checkout-section-heading strong { display: block; color: #202124; font-size: 14px; }
+.checkout-section-heading small { display: block; margin-top: 3px; color: #858585; font-size: 11px; }
+.payment-method-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.payment-method-card {
+  position: relative; min-width: 0; min-height: 82px; display: flex; align-items: center;
+  gap: 11px; padding: 14px; text-align: left; cursor: pointer;
+  border: 1px solid #e7e7e7; border-radius: 12px; background: #fff;
+  color: #242424; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.payment-method-card:hover { border-color: #f19a9f; background: #fffafa; }
+.payment-method-card.active { border: 1.5px solid #e92332; background: #fff8f8; box-shadow: 0 0 0 3px rgba(233,35,50,.07); }
+.payment-method-icon { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border-radius: 11px; font-size: 23px; font-weight: 800; }
+.cod-icon { color: #27764b; background: #eaf7ef; }
+.bank-icon { color: #d51f2b; background: #ffeded; font-size: 30px; }
+.payment-method-copy { display: block; flex: 1; min-width: 0; }
+.payment-method-copy strong { display: block; font-size: 12px; line-height: 1.4; font-weight: 750; }
+.payment-method-copy small { display: block; margin-top: 5px; color: #777; font-size: 10px; line-height: 1.45; }
+.payment-method-radio { width: 17px; height: 17px; flex: 0 0 17px; border: 1.5px solid #c9c9c9; border-radius: 50%; position: relative; }
+.payment-method-card.active .payment-method-radio { border-color: #e92332; }
+.payment-method-card.active .payment-method-radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: #e92332; }
+.sepay-info-card { margin-top: 14px; padding: 17px; border: 1px solid #f0dede; border-radius: 14px; background: linear-gradient(135deg, #fffafa 0%, #fff 72%); }
+.sepay-info-top { display: flex; align-items: center; gap: 11px; }
+.sepay-brand-icon { width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; border-radius: 12px; background: #e92332; color: #fff; font-size: 21px; font-weight: 900; box-shadow: 0 5px 12px rgba(233,35,50,.2); }
+.sepay-info-title { flex: 1; min-width: 0; }
+.sepay-info-title strong { display: block; color: #222; font-size: 13px; }
+.sepay-info-title small { display: block; margin-top: 4px; color: #858585; font-size: 10px; }
+.sepay-secure-tag { padding: 5px 8px; border-radius: 20px; background: #eaf7ef; color: #247346; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.sepay-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 17px; padding-top: 15px; border-top: 1px solid #f0e8e8; }
+.sepay-step { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.sepay-step > span { width: 22px; height: 22px; flex: 0 0 22px; display: grid; place-items: center; border-radius: 50%; background: #ffebed; color: #df2432; font-size: 11px; font-weight: 800; }
+.sepay-step p { margin: 1px 0 0; min-width: 0; }
+.sepay-step strong { display: block; color: #333; font-size: 10px; line-height: 1.4; }
+.sepay-step small { display: block; margin-top: 4px; color: #858585; font-size: 9px; line-height: 1.5; }
+.sepay-sandbox-note { display: flex; align-items: flex-start; gap: 7px; margin-top: 14px; padding: 10px 11px; border-radius: 8px; background: #fff5e8; color: #96601e; font-size: 10px; line-height: 1.55; }
+.sepay-sandbox-note > span:first-child { font-size: 14px; font-weight: 800; }
+@media (max-width: 640px) {
+  .payment-method-grid { grid-template-columns: 1fr; gap: 9px; }
+  .payment-method-card { min-height: 74px; padding: 12px; }
+  .sepay-info-card { padding: 13px; }
+  .sepay-steps { grid-template-columns: 1fr; gap: 12px; }
+  .sepay-step small { font-size: 10px; }
+  .sepay-secure-tag { font-size: 9px; padding: 4px 6px; }
+}
+
+/* ================= FSHOP - TRANG CHUAN BI THANH TOAN SEPAY ================= */
+.sepay-prepare-page{min-height:calc(100vh - 80px);padding:42px 18px 64px;background:linear-gradient(180deg,#fff7f5 0,#f7f8fb 360px,#f7f8fb 100%);color:#202124}
+.sepay-prepare-shell{width:min(100%,760px);margin:0 auto}
+.sepay-prepare-brand{display:flex;align-items:center;gap:10px;margin:0 0 26px;font-size:23px;font-weight:850;color:#171717;letter-spacing:-.7px}
+.sepay-brand-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:#ed1c2e;color:#fff;font-size:25px;font-weight:900}
+.sepay-brand-divider{height:22px;width:1px;background:#dedfe3;margin:0 4px}
+.sepay-brand-caption{font-size:13px;font-weight:600;letter-spacing:0;color:#777}
+.sepay-prepare-card{background:#fff;border:1px solid #eceef2;border-radius:20px;padding:34px 42px 28px;box-shadow:0 18px 55px rgba(25,35,55,.08)}
+.sepay-prepare-success{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;margin:0 auto 15px;background:#eaf8ef;color:#159447;font-size:29px;font-weight:800}
+.sepay-eyebrow{text-align:center;color:#159447;font-size:11px;font-weight:800;letter-spacing:1.35px;margin:0 0 8px}
+.sepay-prepare-card h1{text-align:center;font-size:25px;line-height:1.3;margin:0;color:#171923;letter-spacing:-.55px}
+.sepay-prepare-subtitle{text-align:center;max-width:510px;margin:10px auto 25px;color:#747987;font-size:13px;line-height:1.65}
+.sepay-order-summary{border:1px solid #eceef2;border-radius:13px;padding:18px 20px;background:#fcfcfd}
+.sepay-summary-top,.sepay-summary-total,.sepay-summary-recipient{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sepay-summary-top strong{display:block;margin-top:5px;font-size:15px;color:#252936;letter-spacing:.2px}
+.sepay-muted-label{font-size:10px;font-weight:800;letter-spacing:.8px;color:#9095a1}
+.sepay-copy-btn{border:1px solid #f2c7cb;border-radius:7px;background:#fff7f7;color:#dc2434;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer}
+.sepay-summary-total{margin-top:15px;padding-top:14px;border-top:1px dashed #e2e4e9}
+.sepay-summary-total span,.sepay-summary-recipient span{font-size:12px;color:#777d89}
+.sepay-summary-total strong{font-size:24px;color:#e51f32;letter-spacing:-.5px}
+.sepay-summary-recipient{margin-top:10px}
+.sepay-summary-recipient strong{font-size:12px;color:#343946}
+.sepay-method-highlight{display:flex;align-items:center;gap:13px;margin-top:17px;padding:15px;border:1px solid #cdebd7;border-radius:12px;background:#f5fcf7}
+.sepay-method-icon{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:11px;background:#e1f5e8;color:#168b45;font-size:25px}
+.sepay-method-highlight>div:nth-child(2){display:grid;gap:4px;min-width:0;flex:1}
+.sepay-method-highlight strong{font-size:13px;color:#202a24}
+.sepay-method-highlight span:not(.sepay-recommended){font-size:11px;color:#6f7b73;line-height:1.45}
+.sepay-recommended{font-size:10px;font-weight:800;color:#168b45;background:#e3f6e9;padding:5px 8px;border-radius:20px;white-space:nowrap}
+.sepay-steps-title{margin:23px 0 12px;font-size:13px;font-weight:800;color:#292d38}
+.sepay-steps{display:grid;gap:12px}
+.sepay-step{display:flex;align-items:flex-start;gap:12px}
+.sepay-step>span{width:25px;height:25px;flex:0 0 25px;border-radius:50%;display:grid;place-items:center;background:#fff0f1;color:#e52335;font-size:11px;font-weight:800}
+.sepay-step div{display:grid;gap:3px;padding-top:1px}
+.sepay-step strong{font-size:12px;color:#303541}
+.sepay-step small{font-size:11px;color:#818694;line-height:1.5}
+.sepay-sandbox-notice{display:flex;gap:9px;align-items:flex-start;margin-top:20px;padding:11px 13px;border:1px solid #f4dfb8;border-radius:9px;background:#fffaf0;color:#98651c}
+.sepay-sandbox-notice>span{font-size:15px;line-height:1.2}
+.sepay-sandbox-notice p{margin:0;font-size:11px;line-height:1.55}
+.sepay-continue-btn{width:100%;min-height:50px;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:20px;border:0;border-radius:10px;background:linear-gradient(135deg,#f02738,#d91428);color:#fff;font-size:14px;font-weight:800;box-shadow:0 8px 18px rgba(225,25,47,.2);cursor:pointer;transition:transform .18s,box-shadow .18s}
+.sepay-continue-btn:hover{transform:translateY(-1px);box-shadow:0 11px 22px rgba(225,25,47,.25)}
+.sepay-continue-btn span{font-size:19px}
+.sepay-back-orders{display:block;margin:13px auto 0;border:0;background:transparent;color:#5f6572;font-size:12px;font-weight:700;cursor:pointer;padding:8px 12px}
+.sepay-back-orders:hover{color:#e51f32}
+.sepay-secure-footer{margin-top:16px;text-align:center;color:#9a9eaa;font-size:10px}
+@media(max-width:600px){.sepay-prepare-page{padding:22px 12px 40px}.sepay-prepare-brand{margin-bottom:17px;font-size:20px}.sepay-prepare-card{padding:25px 17px 22px;border-radius:15px}.sepay-prepare-card h1{font-size:21px}.sepay-prepare-subtitle{font-size:12px}.sepay-order-summary{padding:15px}.sepay-summary-total strong{font-size:21px}.sepay-method-highlight{gap:9px;padding:12px}.sepay-recommended{font-size:9px;padding:4px 6px}}
+
+/* =========================================================
+   FSHOP x SEPAY - CHECKOUT & PAYMENT RESULT POLISH
+   Chi bo sung giao dien, khong thay doi API hay luong thanh toan.
+   ========================================================= */
+.sepay-prepare-page{
+  position:relative;
+  isolation:isolate;
+  min-height:calc(100vh - 80px);
+  padding:clamp(24px,4vw,48px) 16px 64px;
+  background:
+          radial-gradient(ellipse at 50% 0%,rgba(237,28,46,.09),transparent 42%),
+          linear-gradient(180deg,#fff9f8 0%,#f5f7fb 48%,#f5f7fb 100%);
+}
+.sepay-prepare-shell{width:min(100%,790px);margin:0 auto}
+.sepay-prepare-brand{gap:12px;margin-bottom:22px;font-size:25px;letter-spacing:-.8px}
+.sepay-brand-mark{width:42px;height:42px;border-radius:12px;box-shadow:0 7px 18px rgba(237,28,46,.2)}
+.sepay-brand-caption{font-size:13px;color:#737b8c}
+.sepay-prepare-card{
+  position:relative;
+  overflow:hidden;
+  padding:clamp(24px,4vw,40px);
+  border:1px solid rgba(225,229,237,.9);
+  border-radius:24px;
+  background:rgba(255,255,255,.97);
+  box-shadow:0 24px 70px rgba(25,35,55,.09),0 3px 10px rgba(25,35,55,.025);
+}
+.sepay-prepare-card:before{
+  content:"";position:absolute;inset:0 0 auto;height:5px;
+  background:linear-gradient(90deg,#ed1c2e,#ff6874 55%,#f4a1a7);
+}
+.sepay-prepare-success{width:62px;height:62px;margin:0 auto 17px;font-size:30px;box-shadow:0 0 0 8px #f1fbf4}
+.sepay-eyebrow{font-size:10px;letter-spacing:1.7px;margin-bottom:9px}
+.sepay-prepare-card h1{font-size:clamp(23px,3vw,29px);letter-spacing:-.8px}
+.sepay-prepare-subtitle{max-width:570px;margin:12px auto 27px;font-size:14px;line-height:1.75}
+.sepay-order-summary{padding:21px 22px;border-radius:16px;background:linear-gradient(135deg,#fff 0%,#fafbfe 100%);border-color:#e8ebf1}
+.sepay-summary-top strong{font-size:16px;letter-spacing:.25px}
+.sepay-muted-label{font-size:10px;letter-spacing:1.1px}
+.sepay-copy-btn{padding:8px 12px;border-radius:9px;font-size:11px;transition:all .18s}
+.sepay-copy-btn:hover{background:#ed1c2e;color:#fff;border-color:#ed1c2e}
+.sepay-summary-total{margin-top:18px;padding-top:16px}
+.sepay-summary-total span,.sepay-summary-recipient span{font-size:13px}
+.sepay-summary-total strong{font-size:clamp(24px,4vw,29px);font-weight:850}
+.sepay-summary-recipient{margin-top:12px}
+.sepay-summary-recipient strong{font-size:13px}
+.sepay-method-highlight{margin-top:19px;padding:17px;border-radius:15px;gap:14px}
+.sepay-method-icon{width:48px;height:48px;flex-basis:48px;border-radius:13px;font-size:26px}
+.sepay-method-highlight strong{font-size:14px}
+.sepay-method-highlight span:not(.sepay-recommended){font-size:12px}
+.sepay-recommended{font-size:10px;padding:6px 10px}
+.sepay-steps-title{margin:26px 0 14px;font-size:14px}
+.sepay-steps{grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.sepay-step{min-height:94px;padding:14px 12px;border:1px solid #edf0f4;border-radius:13px;background:#fff;gap:10px}
+.sepay-step>span{width:27px;height:27px;flex-basis:27px;font-size:12px}
+.sepay-step strong{font-size:12px}
+.sepay-step small{font-size:11px;line-height:1.55}
+.sepay-sandbox-notice{margin-top:18px;padding:13px 15px;border-radius:11px;font-size:12px}
+.sepay-sandbox-notice p{font-size:12px;line-height:1.6}
+.sepay-continue-btn{min-height:56px;margin-top:21px;border-radius:12px;font-size:15px;letter-spacing:.1px}
+.sepay-back-orders{margin-top:12px;font-size:13px}
+.sepay-secure-footer{margin-top:17px;font-size:11px}
+
+/* Man hinh ket qua sau khi quay ve tu SePay */
+.sepay-result-card{
+  position:relative;
+  overflow:hidden;
+  max-width:790px!important;
+  margin:20px auto!important;
+  padding:clamp(26px,4vw,42px)!important;
+  border:1px solid #e7eaf0!important;
+  border-radius:24px!important;
+  background:#fff!important;
+  box-shadow:0 24px 70px rgba(25,35,55,.09)!important;
+  text-align:center;
+}
+.sepay-result-card:before{content:"";position:absolute;inset:0 0 auto;height:5px;background:linear-gradient(90deg,#ed1c2e,#ff6874,#f4a1a7)}
+.sepay-result-icon{width:76px!important;height:76px!important;margin:4px auto 20px!important;font-size:36px!important;box-shadow:0 0 0 9px rgba(21,148,81,.07)}
+.sepay-result-card h1{font-size:clamp(24px,3vw,30px)!important;letter-spacing:-.7px;margin:8px 0 12px!important}
+.sepay-result-card>p{font-size:14px!important;line-height:1.75!important;max-width:590px!important}
+.sepay-result-meta{gap:18px!important;padding:18px 20px!important;border:1px solid #e9edf3!important;border-radius:15px!important;background:linear-gradient(135deg,#fbfcfe,#f7f9fc)!important;margin:23px 0!important}
+.sepay-result-meta span{font-size:10px!important;font-weight:800;letter-spacing:1px;color:#8b93a3!important}
+.sepay-result-meta strong{display:inline-block;margin-top:6px;font-size:14px;color:#252b38!important}
+.sepay-result-actions{gap:12px!important;margin-top:25px!important}
+.sepay-result-actions button{min-height:48px;padding:13px 22px!important;border-radius:11px!important;font-size:13px;transition:transform .18s,box-shadow .18s}
+.sepay-result-primary{background:linear-gradient(135deg,#f02738,#d91428)!important;box-shadow:0 8px 18px rgba(225,25,47,.17)}
+.sepay-result-primary:hover{transform:translateY(-1px);box-shadow:0 11px 22px rgba(225,25,47,.23)}
+.sepay-result-secondary{background:#f1f3f7!important;color:#343b49!important}
+.sepay-result-secondary:hover{background:#e8ebf1!important}
+.sepay-result-note{font-size:12px!important;line-height:1.65!important;color:#7c8493!important}
+
+@media(max-width:640px){
+  .sepay-prepare-page{padding:20px 12px 38px}
+  .sepay-prepare-brand{font-size:21px;margin-bottom:17px}
+  .sepay-brand-mark{width:37px;height:37px;font-size:23px}
+  .sepay-prepare-card{padding:25px 17px 22px;border-radius:17px}
+  .sepay-prepare-card h1{font-size:22px}
+  .sepay-prepare-subtitle{font-size:12px;margin-bottom:21px}
+  .sepay-order-summary{padding:15px}
+  .sepay-summary-total strong{font-size:23px}
+  .sepay-method-highlight{gap:10px;padding:13px}
+  .sepay-method-icon{width:41px;height:41px;flex-basis:41px}
+  .sepay-method-highlight strong{font-size:12px}
+  .sepay-method-highlight span:not(.sepay-recommended){font-size:10px}
+  .sepay-recommended{font-size:9px;padding:5px 7px}
+  .sepay-steps{grid-template-columns:1fr;gap:9px}
+  .sepay-step{min-height:0;padding:12px}
+  .sepay-step strong{font-size:12px}
+  .sepay-step small{font-size:11px}
+  .sepay-continue-btn{min-height:51px;font-size:13px}
+  .sepay-result-card{margin:16px 0!important;padding:25px 17px!important;border-radius:17px!important}
+  .sepay-result-icon{width:64px!important;height:64px!important}
+  .sepay-result-card h1{font-size:23px!important}
+  .sepay-result-card>p{font-size:12px!important}
+  .sepay-result-meta{flex-direction:column;gap:13px;padding:15px!important}
+  .sepay-result-actions{flex-direction:column}
+  .sepay-result-actions button{width:100%}
+}

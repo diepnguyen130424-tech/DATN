@@ -125,7 +125,9 @@ async function prefetchAdminData() {
 }
 const menuItems = [
     { id: "dashboard", icon: "▦", label: "Tổng quan" },
+    { id: "ban-hang", icon: "🛒", label: "Bán hàng tại quầy" },
     { id: "san-pham", icon: "□", label: "Sản phẩm" },
+    { id: "kho", icon: "▣", label: "Kho hàng" },
     { id: "danh-muc", icon: "▤", label: "Danh mục" },
     { id: "thuong-hieu", icon: "◇", label: "Thương hiệu" },
     { id: "kich-co", icon: "↔", label: "Kích cỡ" },
@@ -4113,6 +4115,274 @@ function EmployeeContent() {
         </div>)}
     </div>);
 }
+function BanHangTaiQuayContent() {
+    // Tài khoản nhận tiền cố định của FShop; VietQR tự điền số tiền và nội dung theo đơn.
+    const BANK_ID = "MB";
+    const BANK_ACCOUNT_NO = "0867596002";
+    const BANK_ACCOUNT_NAME = "FBShop";
+    const [successBill, setSuccessBill] = useState(null);
+    const [products, setProducts] = useState([]);
+    const [search, setSearch] = useState("");
+    const [activeBrand, setActiveBrand] = useState("Tất cả");
+    const [loading, setLoading] = useState(true);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [variants, setVariants] = useState([]);
+    const [selectedVariantId, setSelectedVariantId] = useState("");
+    const [loadingVariants, setLoadingVariants] = useState(false);
+    const [cart, setCart] = useState([]);
+    const [tenKhach, setTenKhach] = useState("");
+    const [soDienThoaiKhach, setSoDienThoaiKhach] = useState("");
+    const [phuongThucThanhToan, setPhuongThucThanhToan] = useState("TIEN_MAT");
+    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+    const [cashGiven, setCashGiven] = useState("");
+
+    const loadProducts = async () => {
+        try {
+            setLoading(true); setError("");
+            const response = await fetch(`${API}/san-pham`);
+            const raw = await response.text();
+            let data; try { data = raw ? JSON.parse(raw) : []; } catch { data = []; }
+            if (!response.ok) throw new Error(data?.message || data?.error || raw || "Không tải được sản phẩm");
+            // API /san-pham có thể chỉ trả thông tin cơ bản; lấy thêm biến thể
+            // để hiển thị giá bán và tồn kho thực tế ngay trên thẻ sản phẩm.
+            const danhSach = Array.isArray(data) ? data : [];
+            const productsWithDetails = await Promise.all(danhSach.map(async (product) => {
+                try {
+                    const detailResponse = await fetch(`${API}/san-pham/${product.id}/chi-tiet`);
+                    if (!detailResponse.ok) {
+                        return { ...product, chiTiet: [], giaBan: product.giaBan ?? product.gia ?? null, tonKhoPOS: null, loiTaiBienThe: true };
+                    }
+                    const detailRaw = await detailResponse.text();
+                    let detailData;
+                    try { detailData = detailRaw ? JSON.parse(detailRaw) : []; } catch { detailData = []; }
+                    const chiTiet = Array.isArray(detailData) ? detailData : [];
+                    const activeVariants = chiTiet.filter(v => !v.trangThai || String(v.trangThai).toUpperCase() === "HOAT_DONG");
+                    const pricedVariants = activeVariants
+                        .map(v => Number(v.giaBan ?? v.gia ?? v.donGia ?? 0))
+                        .filter(price => Number.isFinite(price) && price > 0);
+                    const stock = activeVariants.reduce((sum, v) => sum + Math.max(0, Number(v.soLuongTon ?? 0)), 0);
+                    return {
+                        ...product,
+                        chiTiet,
+                        // Dùng giá thấp nhất của biến thể đang hoạt động làm giá tham khảo.
+                        giaBan: pricedVariants.length ? Math.min(...pricedVariants) : (product.giaBan ?? product.gia ?? null),
+                        tonKhoPOS: stock,
+                        loiTaiBienThe: false,
+                    };
+                } catch (detailError) {
+                    console.error(`Không tải được size/màu sản phẩm ${product.id}:`, detailError);
+                    return { ...product, chiTiet: [], giaBan: product.giaBan ?? product.gia ?? null, tonKhoPOS: null, loiTaiBienThe: true };
+                }
+            }));
+            setProducts(productsWithDetails);
+        } catch (e) { setError(e.message || "Không thể tải sản phẩm từ máy chủ."); }
+        finally { setLoading(false); }
+    };
+    useEffect(() => { loadProducts(); }, []);
+
+    const brandName = (p) => p?.thuongHieu?.tenThuongHieu || p?.thuongHieu?.ten || p?.tenThuongHieu || "Khác";
+    const brands = [...new Set(products.map(brandName))].sort((a, b) => a.localeCompare(b, "vi"));
+    const brandCounts = (brand) => products.filter(p => brandName(p) === brand).length;
+    const filteredProducts = products.filter((p) => {
+        const key = search.trim().toLowerCase();
+        const matchSearch = !key || [p.tenSanPham, p.maSanPham, brandName(p)].some(v => String(v || "").toLowerCase().includes(key));
+        return matchSearch && (activeBrand === "Tất cả" || brandName(p) === activeBrand);
+    });
+    const openVariants = async (product) => {
+        try {
+            setSelectedProduct(product); setVariants([]); setSelectedVariantId(""); setLoadingVariants(true); setError("");
+            const response = await fetch(`${API}/san-pham/${product.id}/chi-tiet`);
+            const raw = await response.text(); let data; try { data = raw ? JSON.parse(raw) : []; } catch { data = []; }
+            if (!response.ok) throw new Error(data?.message || data?.error || raw || "Không tải được size/màu sản phẩm");
+            const available = (Array.isArray(data) ? data : []).filter(v => Number(v.soLuongTon || 0) > 0 && (!v.trangThai || String(v.trangThai).toUpperCase() === "HOAT_DONG"));
+            setVariants(available); if (available.length) setSelectedVariantId(String(available[0].id));
+            else setError("Sản phẩm này hiện không có biến thể còn hàng.");
+        } catch (e) { setError(e.message || "Không tải được biến thể sản phẩm."); }
+        finally { setLoadingVariants(false); }
+    };
+    const addSelectedVariant = () => {
+        const variant = variants.find(v => String(v.id) === String(selectedVariantId));
+        if (!variant) return;
+        setCart(old => {
+            const existing = old.find(item => Number(item.variant.id) === Number(variant.id));
+            if (existing) {
+                if (existing.quantity >= Number(variant.soLuongTon || 0)) { setError(`Size/màu này chỉ còn ${variant.soLuongTon || 0} sản phẩm.`); return old; }
+                return old.map(item => Number(item.variant.id) === Number(variant.id) ? { ...item, quantity: item.quantity + 1 } : item);
+            }
+            return [...old, { product: selectedProduct, variant, quantity: 1 }];
+        });
+        setError(""); setSelectedProduct(null);
+    };
+    const changeQuantity = (variantId, delta) => setCart(old => old.map(item => {
+        if (Number(item.variant.id) !== Number(variantId)) return item;
+        const next = item.quantity + delta;
+        if (next > Number(item.variant.soLuongTon || 0)) { setError(`Chỉ còn ${item.variant.soLuongTon || 0} sản phẩm trong kho.`); return item; }
+        return { ...item, quantity: next };
+    }).filter(item => item.quantity > 0));
+    const priceOf = (product, variant) => Number(variant?.giaBan ?? variant?.gia ?? variant?.donGia ?? product?.giaBan ?? product?.gia ?? 0);
+    const total = cart.reduce((sum, item) => sum + priceOf(item.product, item.variant) * item.quantity, 0);
+    const money = value => `${Number(value || 0).toLocaleString("vi-VN")}đ`;
+    const checkout = () => {
+        if (!cart.length) { setError("Vui lòng thêm ít nhất một sản phẩm vào giỏ."); return; }
+        if (soDienThoaiKhach.trim() && !/^[0-9+\s().-]{9,15}$/.test(soDienThoaiKhach.trim())) { setError("Số điện thoại khách hàng chưa hợp lệ."); return; }
+        setError("");
+        setCashGiven(phuongThucThanhToan === "TIEN_MAT" ? String(total) : "");
+        setPaymentModalOpen(true);
+    };
+    const confirmCheckout = async () => {
+        if (!cart.length) { setError("Giỏ hàng đang trống."); return; }
+        const cashAmount = Number(cashGiven || 0);
+        if (phuongThucThanhToan === "TIEN_MAT" && cashAmount < total) {
+            setError("Số tiền khách đưa chưa đủ thanh toán.");
+            return;
+        }
+        const requestBody = { phuongThucThanhToan, tenKhach: tenKhach.trim() || null, soDienThoaiKhach: soDienThoaiKhach.trim() || null, chiTiet: cart.map(item => ({ sanPhamChiTietId: Number(item.variant.id), soLuong: item.quantity })) };
+        try {
+            setBusy(true); setError("");
+            const response = await fetch(`${API}/hoa-don/tao-tai-quay`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
+            const raw = await response.text(); let data; try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+            if (!response.ok) throw new Error(data?.message || data?.error || raw || "Không thể tạo hóa đơn tại quầy.");
+            const ma = data?.maHoaDon || (data?.id ? `HD${data.id}` : "");
+            setPaymentModalOpen(false);
+            setSuccessBill({
+                maHoaDon: ma || "Đã tạo hóa đơn",
+                tongTien: Number(data?.tongThanhToan ?? total),
+                tenKhach: tenKhach.trim() || "Khách lẻ",
+                soDienThoai: soDienThoaiKhach.trim() || "—",
+                phuongThuc: phuongThucThanhToan === "TIEN_MAT" ? "Tiền mặt" : "Chuyển khoản",
+                tienThua: phuongThucThanhToan === "TIEN_MAT" ? Math.max(0, cashAmount - total) : 0,
+                items: cart.map(item => ({
+                    ten: item.product?.tenSanPham || "Sản phẩm",
+                    ma: item.product?.maSanPham || `SP${item.product?.id ?? ""}`,
+                    size: item.variant?.kichCo?.tenKichCo || item.variant?.kichCo?.kichCo || "—",
+                    mau: item.variant?.mauSac?.tenMau || "—",
+                    soLuong: item.quantity,
+                    donGia: priceOf(item.product, item.variant),
+                })),
+                ngay: new Date().toLocaleString("vi-VN"),
+            });
+            setCart([]); setTenKhach(""); setSoDienThoaiKhach(""); setCashGiven(""); await loadProducts();
+            adminDataCache.hoaDons = null; adminDataCache.khachHangs = null;
+        } catch (e) { setError(e.message || "Thanh toán thất bại. Vui lòng thử lại."); }
+        finally { setBusy(false); }
+    };
+    const changeDue = Math.max(0, Number(cashGiven || 0) - total);
+    const cashPresets = [...new Set([total, Math.ceil(total / 50000) * 50000, Math.ceil(total / 100000) * 100000, Math.ceil(total / 500000) * 500000].filter(n => n >= total))];
+    const [transferContent] = useState(() => `FSHOP${Date.now().toString().slice(-8)}`);
+    const bankConfigured = Boolean(BANK_ID.trim() && BANK_ACCOUNT_NO.trim() && BANK_ACCOUNT_NAME.trim());
+    const vietQrUrl = bankConfigured
+        ? `https://img.vietqr.io/image/${encodeURIComponent(BANK_ID)}-${encodeURIComponent(BANK_ACCOUNT_NO)}-compact2.png?amount=${Math.round(total)}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(BANK_ACCOUNT_NAME)}`
+        : "";
+    const panel = { background: "#fff", border: "1px solid #ececec", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(16,24,40,.035)", minWidth: 0 };
+    const field = { width: "100%", boxSizing: "border-box", border: "1px solid #ddd", borderRadius: 9, padding: "12px", background: "#fff", outlineColor: "#f04b2f" };
+    const buttonBase = { border: 0, borderRadius: 8, background: "#ed4b2e", color: "#fff", padding: "9px 11px", fontWeight: 700, cursor: "pointer" };
+    return <div style={{ padding: 4, color: "#252525" }}>
+        <div className="admin-page-heading" style={{ marginBottom: 20 }}><div><div className="admin-eyebrow">FSHOP ADMIN</div><h1>Bán hàng tại quầy</h1><p>Phân loại theo thương hiệu, chọn đúng size/màu và tạo hóa đơn tại quầy.</p></div><button type="button" onClick={loadProducts} disabled={loading} style={{ padding: "10px 14px", border: "1px solid #ddd", borderRadius: 9, background: "#fff", cursor: "pointer" }}>↻ Làm mới</button></div>
+        {error && <div role="alert" style={{ padding: 12, marginBottom: 16, color: "#b42318", background: "#fff1f0", borderRadius: 9 }}>{error}<button type="button" onClick={() => setError("")} style={{ float: "right", border: 0, background: "transparent", cursor: "pointer" }}>×</button></div>}
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, .72fr) minmax(390px, 1.65fr) minmax(300px, 1.05fr)", gap: 16, alignItems: "stretch" }}>
+            <aside style={{ ...panel, padding: 14 }}><div style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 8px 16px", borderBottom: "1px solid #eee" }}><span style={{ width: 38, height: 38, display: "grid", placeItems: "center", background: "#fff1ed", color: "#ed4b2e", borderRadius: 10 }}>☷</span><div><strong>Thương hiệu</strong><div style={{ color: "#8a8a8a", fontSize: 12 }}>{brands.length} thương hiệu</div></div></div>
+                <div style={{ display: "grid", gap: 5, marginTop: 12 }}><button type="button" onClick={() => setActiveBrand("Tất cả")} style={{ ...buttonBase, display: "flex", justifyContent: "space-between", padding: "13px 12px", background: activeBrand === "Tất cả" ? "#ed4b2e" : "#fff", color: activeBrand === "Tất cả" ? "#fff" : "#444", border: activeBrand === "Tất cả" ? "1px solid #ed4b2e" : "1px solid transparent", textAlign: "left" }}><span>▦ &nbsp;Tất cả</span><span>{products.length}</span></button>
+                    {brands.map(brand => <button type="button" key={brand} onClick={() => setActiveBrand(brand)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "12px", border: "1px solid transparent", borderRadius: 9, background: activeBrand === brand ? "#fff3ef" : "transparent", color: activeBrand === brand ? "#ed4b2e" : "#444", cursor: "pointer", textAlign: "left" }}><span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>▫ &nbsp;{brand}</span><span style={{ fontSize: 12, color: activeBrand === brand ? "#ed4b2e" : "#888" }}>{brandCounts(brand)}</span></button>)}</div>
+            </aside>
+            <section style={{ ...panel, padding: 16 }}><div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 10, marginBottom: 14 }}><div><h2 style={{ margin: "2px 0 3px", fontSize: 24 }}>Sản phẩm</h2><p style={{ margin: 0, color: "#858585", fontSize: 13 }}>Chọn sản phẩm rồi chọn size/màu để thêm vào hóa đơn.</p></div><span style={{ whiteSpace: "nowrap", borderRadius: 20, padding: "8px 12px", background: "#f5f5f5", fontSize: 12, fontWeight: 700 }}>{filteredProducts.length} sản phẩm</span></div>
+                <div style={{ position: "relative", marginBottom: 14 }}><span style={{ position: "absolute", left: 13, top: 12, color: "#888" }}>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm tên, mã sản phẩm hoặc thương hiệu..." style={{ ...field, paddingLeft: 36 }}/></div>
+                {loading ? <p style={{ padding: 30, textAlign: "center" }}>Đang tải sản phẩm...</p> : filteredProducts.length ? <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }}>{filteredProducts.map(product => {
+                    const stock = product.tonKhoPOS ?? product.chiTiet?.reduce?.((sum, v) => sum + Math.max(0, Number(v.soLuongTon ?? 0)), 0) ?? product.soLuongTon;
+                    const image = product.hinhAnh || product.anhDaiDien || product.urlAnh || "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=500&q=80";
+                    return <article key={product.id} style={{ minWidth: 0, border: "1px solid #ececec", borderRadius: 12, padding: 9, display: "flex", flexDirection: "column", background: "#fff" }}>
+                        <button type="button" onClick={() => openVariants(product)} aria-label={`Chọn size màu ${product.tenSanPham}`} style={{ position: "relative", border: 0, padding: 0, background: "#f7f7f7", borderRadius: 9, cursor: "pointer", overflow: "hidden" }}><img src={image} alt={product.tenSanPham || "Sản phẩm"} style={{ width: "100%", height: 145, objectFit: "contain", display: "block" }}/><span style={{ position: "absolute", right: 8, bottom: 8, width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", color: "#fff", background: "#ed4b2e", boxShadow: "0 2px 7px #0002", fontSize: 22 }}>+</span></button>
+                        <small style={{ color: "#ed4b2e", fontSize: 10, fontWeight: 700, marginTop: 10, textTransform: "uppercase" }}>{brandName(product)}</small><strong style={{ display: "block", fontSize: 13, lineHeight: 1.4, minHeight: 38, marginTop: 6, overflowWrap: "anywhere" }}>{product.tenSanPham || "Sản phẩm"}</strong><small style={{ color: "#999", marginTop: 6 }}>{product.maSanPham || `SP${product.id}`}</small><strong style={{ color: "#ed4b2e", fontSize: 15, marginTop: 8, whiteSpace: "normal", overflowWrap: "anywhere" }}>{(product.giaBan ?? product.gia) != null && Number(product.giaBan ?? product.gia) > 0 ? money(product.giaBan ?? product.gia) : "Chưa có giá"}</strong><small style={{ color: "#777", fontSize: 11, margin: "7px 0 10px" }}><span style={{ color: stock > 0 ? "#20b66a" : "#d92d20" }}>●</span> {stock == null ? (product.loiTaiBienThe ? "Chưa tải được tồn kho" : "Chưa có dữ liệu tồn kho") : stock > 0 ? `Còn hàng (${stock})` : "Hết hàng"}</small><button type="button" disabled={stock === 0} onClick={() => openVariants(product)} style={{ ...buttonBase, marginTop: "auto", fontSize: 12, opacity: stock === 0 ? .55 : 1, cursor: stock === 0 ? "not-allowed" : "pointer" }}>{stock === 0 ? "Hết hàng" : "Thêm vào giỏ　＋"}</button>
+                    </article>;
+                })}</div> : <p style={{ padding: 28, textAlign: "center", color: "#667085" }}>Không tìm thấy sản phẩm phù hợp.</p>}
+            </section>
+            <aside style={{ ...panel, display: "flex", flexDirection: "column" }}><h2 style={{ margin: "2px 0 2px", fontSize: 24 }}>Giỏ hàng ({cart.length})</h2><p style={{ color: "#999", fontSize: 13, margin: "0 0 12px" }}>Hóa đơn tại quầy</p><div style={{ flex: 1, minHeight: 100, maxHeight: 320, overflowY: "auto" }}>{cart.length ? cart.map(item => <div key={item.variant.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "12px 0", borderBottom: "1px solid #eee" }}><div><strong>{item.product.tenSanPham}</strong><div style={{ color: "#667085", fontSize: 12, marginTop: 4 }}>Size {item.variant.kichCo?.tenKichCo || item.variant.kichCo?.kichCo || "-"} · {item.variant.mauSac?.tenMau || "-"}</div><b style={{ display: "block", color: "#ed4b2e", marginTop: 5 }}>{money(priceOf(item.product, item.variant))}</b><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 7 }}><button type="button" onClick={() => changeQuantity(item.variant.id, -1)}>−</button><span>{item.quantity}</span><button type="button" onClick={() => changeQuantity(item.variant.id, 1)}>+</button><small style={{ color: "#667085" }}>Còn {item.variant.soLuongTon}</small></div></div><button type="button" aria-label="Xóa sản phẩm" onClick={() => setCart(old => old.filter(row => row.variant.id !== item.variant.id))} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
+                <div style={{ borderTop: "1px dashed #ddd", marginTop: 12, paddingTop: 14, display: "grid", gap: 10 }}><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Tạm tính</span><strong>{money(total)}</strong></div><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Giảm giá</span><strong>0đ</strong></div><div style={{ display: "flex", justifyContent: "space-between", fontSize: 19 }}><strong>Tổng tiền</strong><strong style={{ color: "#ed4b2e" }}>{money(total)}</strong></div></div>
+                <div style={{ borderTop: "1px solid #eee", marginTop: 16, paddingTop: 14, display: "grid", gap: 11 }}><strong style={{ fontSize: 15 }}>PHƯƠNG THỨC THANH TOÁN</strong><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{[["TIEN_MAT", "💵", "Tiền mặt"], ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"]].map(([value, icon, label]) => <button type="button" key={value} onClick={() => setPhuongThucThanhToan(value)} style={{ padding: "12px 6px", borderRadius: 9, border: `1px solid ${phuongThucThanhToan === value ? "#ed4b2e" : "#ddd"}`, background: phuongThucThanhToan === value ? "#fff3ef" : "#fff", color: phuongThucThanhToan === value ? "#ed4b2e" : "#555", cursor: "pointer" }}><span style={{ display: "block", fontSize: 20 }}>{icon}</span><small>{label}</small></button>)}</div><label style={{ fontSize: 13 }}>Tên khách hàng<input value={tenKhach} onChange={e => setTenKhach(e.target.value)} placeholder="Khách lẻ (không bắt buộc)" style={{ ...field, marginTop: 5 }}/></label><label style={{ fontSize: 13 }}>Số điện thoại<input value={soDienThoaiKhach} onChange={e => setSoDienThoaiKhach(e.target.value)} placeholder="Không bắt buộc" style={{ ...field, marginTop: 5 }}/></label><button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣　Thanh toán　${money(total)}`}</button><button type="button" disabled={!cart.length} onClick={() => setCart([])} style={{ border: "1px solid #ddd", borderRadius: 9, padding: 11, background: "#fff", color: "#777", cursor: cart.length ? "pointer" : "not-allowed" }}>Xóa giỏ hàng</button><small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
+            </aside>
+        </div>
+        {successBill && <div onClick={() => setSuccessBill(null)} style={{ position: "fixed", inset: 0, zIndex: 12000, background: "rgba(16,24,40,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="pos-bill-title" onClick={e => e.stopPropagation()} style={{ width: "min(560px,100%)", maxHeight: "90vh", overflowY: "auto", background: "#fff", borderRadius: 16, boxShadow: "0 24px 80px rgba(0,0,0,.25)", padding: 24, color: "#202124" }}>
+                <div style={{ textAlign: "center", paddingBottom: 16, borderBottom: "1px dashed #d0d5dd" }}><div style={{ width: 52, height: 52, borderRadius: "50%", background: "#ecfdf3", color: "#039855", display: "grid", placeItems: "center", fontSize: 28, margin: "0 auto 10px" }}>✓</div><h2 id="pos-bill-title" style={{ margin: 0 }}>Thanh toán thành công</h2><p style={{ margin: "6px 0 0", color: "#667085" }}>Hóa đơn bán hàng tại quầy · FShop</p></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "16px 0", borderBottom: "1px solid #eee" }}><div><small style={{ color: "#667085" }}>Mã hóa đơn</small><div style={{ fontWeight: 800 }}>{successBill.maHoaDon}</div><small style={{ color: "#667085" }}>{successBill.ngay}</small></div><div style={{ textAlign: "right" }}><small style={{ color: "#667085" }}>Tổng thanh toán</small><div style={{ fontSize: 22, fontWeight: 800, color: "#ed4b2e" }}>{money(successBill.tongTien)}</div><small>{successBill.phuongThuc}</small></div></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "14px 0", fontSize: 13 }}><div><span style={{ color: "#667085" }}>Khách hàng</span><div style={{ fontWeight: 700 }}>{successBill.tenKhach}</div></div><div><span style={{ color: "#667085" }}>Số điện thoại</span><div style={{ fontWeight: 700 }}>{successBill.soDienThoai}</div></div></div>
+                <div style={{ border: "1px solid #eaecf0", borderRadius: 10, overflow: "hidden" }}><div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 48px 100px", gap: 8, padding: 10, background: "#f9fafb", fontSize: 12, fontWeight: 800 }}><span>Sản phẩm / size / màu</span><span style={{ textAlign: "center" }}>SL</span><span style={{ textAlign: "right" }}>Thành tiền</span></div>{successBill.items.map((item, index) => <div key={`${item.ma}-${index}`} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 48px 100px", gap: 8, padding: 10, borderTop: "1px solid #eaecf0", alignItems: "center", fontSize: 12 }}><div><strong>{item.ten}</strong><div style={{ color: "#667085" }}>{item.ma} · Size {item.size} · {item.mau}</div><div style={{ color: "#667085" }}>{money(item.donGia)}/đôi</div></div><span style={{ textAlign: "center" }}>{item.soLuong}</span><strong style={{ textAlign: "right" }}>{money(item.donGia * item.soLuong)}</strong></div>)}</div>
+                {successBill.phuongThuc === "Tiền mặt" && <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", color: "#667085", fontSize: 13 }}><span>Tiền thừa trả khách</span><strong style={{ color: "#039855" }}>{money(successBill.tienThua)}</strong></div>}
+                <button type="button" onClick={() => { setSuccessBill(null); }} style={{ ...buttonBase, width: "100%", padding: 13, marginTop: 18 }}>Hoàn tất · Đóng hóa đơn</button>
+                <button type="button" onClick={() => window.print()} style={{ width: "100%", padding: 12, marginTop: 8, border: "1px solid #e4e7ec", background: "#fff", borderRadius: 9, fontWeight: 700, cursor: "pointer" }}>In hóa đơn</button>
+            </section>
+        </div>}
+        {paymentModalOpen && <div onClick={() => !busy && setPaymentModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 11000, background: "rgba(16,24,40,.48)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="pos-payment-title" onClick={e => e.stopPropagation()} style={{ width: "min(560px, 100%)", maxHeight: "min(90vh, 820px)", overflowY: "auto", background: "#fff", borderRadius: 18, boxShadow: "0 24px 80px rgba(0,0,0,.25)", color: "#202124" }}>
+                <header style={{ padding: "22px 24px 18px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: "1px solid #eee", gap: 12 }}>
+                    <div><small style={{ color: "#ed4b2e", fontWeight: 800, letterSpacing: 1.4 }}>XÁC NHẬN THANH TOÁN</small><h2 id="pos-payment-title" style={{ margin: "6px 0 0", fontSize: 23 }}>{phuongThucThanhToan === "TIEN_MAT" ? "💵 Tiền mặt" : "🏦 Chuyển khoản"}</h2></div>
+                    <button type="button" aria-label="Đóng cửa sổ thanh toán" onClick={() => setPaymentModalOpen(false)} disabled={busy} style={{ border: 0, background: "transparent", fontSize: 24, color: "#98a2b3", cursor: "pointer" }}>×</button>
+                </header>
+                <div style={{ padding: "18px 24px", background: "linear-gradient(110deg,#fff7f4,#fff)", borderBottom: "1px solid #f1e9e6", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><span style={{ color: "#667085", fontSize: 14 }}>Số tiền cần thanh toán</span><strong style={{ color: "#ed4b2e", fontSize: "clamp(22px,4vw,29px)", whiteSpace: "nowrap" }}>{money(total)}</strong></div>
+                <div style={{ padding: 24, display: "grid", gap: 14 }}>
+                    <label style={{ fontSize: 13, fontWeight: 700 }}>♟ Tên khách hàng <span style={{ color: "#98a2b3", fontWeight: 400 }}>(Không bắt buộc)</span><input value={tenKhach} onChange={e => setTenKhach(e.target.value)} placeholder="Nhập tên khách (để trống = Khách lẻ)" style={{ ...field, marginTop: 7, padding: 13, fontWeight: 400 }}/></label>
+                    <label style={{ fontSize: 13, fontWeight: 700 }}>📱 Số điện thoại người mua <span style={{ color: "#98a2b3", fontWeight: 400 }}>(Không bắt buộc)</span><input value={soDienThoaiKhach} onChange={e => setSoDienThoaiKhach(e.target.value)} placeholder="Nhập số điện thoại để gắn vào hóa đơn" style={{ ...field, marginTop: 7, padding: 13, fontWeight: 400 }}/></label>
+                    {phuongThucThanhToan === "TIEN_MAT" ? <>
+                        <label style={{ fontSize: 13, fontWeight: 700 }}>Tiền khách đưa<div style={{ position: "relative", marginTop: 7 }}><input inputMode="numeric" type="number" min={0} value={cashGiven} onChange={e => setCashGiven(e.target.value)} placeholder="Nhập số tiền khách đưa" style={{ ...field, padding: "15px 42px 15px 14px", border: "1.5px solid #ed4b2e", boxShadow: "0 0 0 3px rgba(237,75,46,.08)", fontSize: 17 }}/><strong style={{ position: "absolute", right: 14, top: 14, color: "#888" }}>đ</strong></div></label>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))", gap: 8 }}>{cashPresets.map(amount => <button type="button" key={amount} onClick={() => setCashGiven(String(amount))} style={{ border: `1px solid ${Number(cashGiven) === amount ? "#ed4b2e" : "#e4e7ec"}`, borderRadius: 9, background: Number(cashGiven) === amount ? "#fff3ef" : "#f9fafb", padding: "10px 6px", color: Number(cashGiven) === amount ? "#ed4b2e" : "#344054", fontWeight: 700, cursor: "pointer" }}>{money(amount)}</button>)}</div>
+                        <div style={{ border: "1px solid #ffd0c7", background: "#fff5f3", borderRadius: 11, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#667085", fontSize: 14 }}>Tiền thừa trả khách</span><strong style={{ color: Number(cashGiven) >= total ? "#16834a" : "#b42318", fontSize: 22 }}>{cashGiven === "" || Number(cashGiven) < total ? "—" : money(changeDue)}</strong></div>
+                        {cashGiven !== "" && Number(cashGiven) < total && <small style={{ color: "#b42318" }}>Còn thiếu {money(total - Number(cashGiven || 0))}.</small>}
+                    </> : <div style={{ border: "1px solid #d1e9ff", background: "#f0f8ff", borderRadius: 12, padding: 14, color: "#175cd3", fontSize: 13, display: "grid", justifyItems: "center", gap: 10, textAlign: "center" }}>
+                        <strong style={{ fontSize: 15 }}>Quét mã QR để chuyển {money(total)}</strong>
+                        <img src={vietQrUrl} alt="Mã QR chuyển khoản FShop" style={{ width: 250, maxWidth: "100%", height: "auto", borderRadius: 10, border: "1px solid #e4e7ec", background: "white" }} />
+                        <div style={{ color: "#344054", textAlign: "left", width: "100%", background: "#fff", borderRadius: 9, padding: 12, boxSizing: "border-box" }}><div><strong>Ngân hàng:</strong> MB Bank</div><div><strong>Số tài khoản:</strong> {BANK_ACCOUNT_NO}</div><div><strong>Chủ tài khoản:</strong> {BANK_ACCOUNT_NAME}</div><div><strong>Số tiền:</strong> {money(total)}</div><div><strong>Nội dung:</strong> {transferContent}</div></div>
+                        <p style={{ margin: 0 }}>Quét mã để ứng dụng ngân hàng tự điền số tiền {money(total)} và nội dung chuyển khoản. Sau khi kiểm tra tài khoản đã nhận đúng tiền, nhấn xác nhận bên dưới; hệ thống chưa tự đối soát giao dịch ngân hàng.</p>
+                    </div>}
+                    {error && <div role="alert" style={{ padding: 11, borderRadius: 9, color: "#b42318", background: "#fff1f0", fontSize: 13 }}>{error}</div>}
+                </div>
+                <footer style={{ padding: "14px 24px 22px", borderTop: "1px solid #eee", display: "grid", gridTemplateColumns: "minmax(100px,.7fr) minmax(180px,1.5fr)", gap: 10 }}><button type="button" disabled={busy} onClick={() => setPaymentModalOpen(false)} style={{ border: "1px solid #e4e7ec", background: "#f9fafb", color: "#475467", borderRadius: 10, padding: 13, fontWeight: 700, cursor: "pointer" }}>Hủy</button><button type="button" disabled={busy || (phuongThucThanhToan === "TIEN_MAT" && Number(cashGiven || 0) < total)} onClick={confirmCheckout} style={{ ...buttonBase, borderRadius: 10, padding: 13, fontSize: 14, opacity: busy || (phuongThucThanhToan === "TIEN_MAT" && Number(cashGiven || 0) < total) ? .55 : 1, cursor: busy || (phuongThucThanhToan === "TIEN_MAT" && Number(cashGiven || 0) < total) ? "not-allowed" : "pointer" }}>{busy ? "Đang xử lý..." : `✓ Xác nhận thanh toán · ${money(total)}`}</button></footer>
+            </section>
+        </div>}
+        {selectedProduct && <div
+            onClick={() => setSelectedProduct(null)}
+            style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(20, 24, 32, .58)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        >
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 24, width: "min(560px, 100%)", maxHeight: "min(88vh, 760px)", overflowY: "auto", boxShadow: "0 24px 80px rgba(0,0,0,.24)" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, paddingBottom: 16, borderBottom: "1px solid #f0f0f0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+                        <img src={selectedProduct.hinhAnh || selectedProduct.anhDaiDien || selectedProduct.urlAnh || "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=200&q=80"} alt={selectedProduct.tenSanPham || "Sản phẩm"} style={{ width: 76, height: 76, objectFit: "contain", borderRadius: 12, background: "#f7f7f7", flexShrink: 0 }} />
+                        <div style={{ minWidth: 0 }}>
+                            <small style={{ color: "#ed4b2e", fontWeight: 800, textTransform: "uppercase" }}>{brandName(selectedProduct)}</small>
+                            <h2 style={{ margin: "4px 0", fontSize: 21, lineHeight: 1.3, overflowWrap: "anywhere" }}>{selectedProduct.tenSanPham}</h2>
+                            <small style={{ color: "#888" }}>{selectedProduct.maSanPham || `SP${selectedProduct.id}`} · Chỉ hiển thị biến thể còn hàng</small>
+                        </div>
+                    </div>
+                    <button type="button" aria-label="Đóng chọn size màu" onClick={() => setSelectedProduct(null)} style={{ width: 36, height: 36, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff", color: "#555", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>×</button>
+                </div>
+                {loadingVariants ? <div style={{ padding: 32, textAlign: "center", color: "#667085" }}>Đang tải size và màu...</div> : variants.length ? <>
+                    <div style={{ marginTop: 18, marginBottom: 10 }}>
+                        <strong style={{ display: "block", fontSize: 15 }}>1. Chọn size và màu</strong>
+                        <small style={{ color: "#777", display: "block", marginTop: 4 }}>Nhấn vào một ô để chọn đúng biến thể muốn mua.</small>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(145px, 1fr))", gap: 9 }}>
+                        {[...variants].sort((a, b) => Number(a.kichCo?.tenKichCo || a.kichCo?.kichCo || 0) - Number(b.kichCo?.tenKichCo || b.kichCo?.kichCo || 0) || String(a.mauSac?.tenMau || "").localeCompare(String(b.mauSac?.tenMau || ""), "vi")).map(v => {
+                            const selected = String(v.id) === String(selectedVariantId);
+                            return <button type="button" key={v.id} onClick={() => setSelectedVariantId(String(v.id))} aria-pressed={selected} style={{ textAlign: "left", border: `1.5px solid ${selected ? "#ed4b2e" : "#e5e7eb"}`, borderRadius: 12, padding: 12, background: selected ? "#fff3ef" : "#fff", cursor: "pointer", boxShadow: selected ? "0 0 0 2px rgba(237,75,46,.08)" : "none", minWidth: 0 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><strong style={{ fontSize: 15 }}>Size {v.kichCo?.tenKichCo || v.kichCo?.kichCo || "-"}</strong><span style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${selected ? "#ed4b2e" : "#d0d5dd"}`, background: selected ? "#ed4b2e" : "#fff", color: "#fff", display: "grid", placeItems: "center", fontSize: 12, flexShrink: 0 }}>{selected ? "✓" : ""}</span></div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, color: "#555", fontSize: 12 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: v.mauSac?.maMau && /^#[0-9a-f]{3,8}$/i.test(v.mauSac.maMau) ? v.mauSac.maMau : "#d0d5dd", border: "1px solid #ddd", flexShrink: 0 }} /><span>{v.mauSac?.tenMau || "Chưa rõ màu"}</span></div>
+                                <strong style={{ display: "block", color: "#ed4b2e", fontSize: 14, marginTop: 9 }}>{money(priceOf(selectedProduct, v))}</strong>
+                                <small style={{ display: "block", color: Number(v.soLuongTon) > 0 ? "#16834a" : "#b42318", marginTop: 5 }}>● Còn {Number(v.soLuongTon || 0)} đôi</small>
+                            </button>;
+                        })}
+                    </div>
+                    {(() => { const chosen = variants.find(v => String(v.id) === String(selectedVariantId)); return chosen ? <div style={{ marginTop: 16, padding: 14, borderRadius: 12, background: "#f8fafc", border: "1px solid #e9edf2", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div><small style={{ color: "#667085" }}>Bạn đang chọn</small><strong style={{ display: "block", marginTop: 4 }}>Size {chosen.kichCo?.tenKichCo || chosen.kichCo?.kichCo || "-"} · {chosen.mauSac?.tenMau || "-"}</strong></div><div style={{ textAlign: "right" }}><small style={{ color: "#667085" }}>Đơn giá</small><strong style={{ display: "block", color: "#ed4b2e", fontSize: 19, marginTop: 2 }}>{money(priceOf(selectedProduct, chosen))}</strong></div></div> : null; })()}
+                    <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                        <button type="button" onClick={() => setSelectedProduct(null)} style={{ flex: 1, border: "1px solid #d0d5dd", borderRadius: 10, padding: 13, background: "#fff", color: "#344054", fontWeight: 700, cursor: "pointer" }}>Quay lại</button>
+                        <button type="button" onClick={addSelectedVariant} disabled={!selectedVariantId} style={{ ...buttonBase, flex: 1.5, borderRadius: 10, padding: 13, opacity: selectedVariantId ? 1 : .55 }}>＋ Thêm vào giỏ hàng</button>
+                    </div>
+                </> : <div style={{ padding: 24, textAlign: "center" }}><div style={{ fontSize: 32 }}>📦</div><strong style={{ display: "block", marginTop: 8 }}>Hiện không có size/màu còn hàng</strong><small style={{ display: "block", color: "#667085", marginTop: 5 }}>Vui lòng chọn sản phẩm khác hoặc kiểm tra tồn kho.</small><button type="button" onClick={() => setSelectedProduct(null)} style={{ ...buttonBase, marginTop: 16 }}>Đóng</button></div>}
+            </div>
+        </div>}
+        <style>{`@media (max-width: 1450px) { .admin-main-body article img { height: 130px !important; } } @media (max-width: 1250px) { .admin-main-body > div > div[style*="minmax(180px"] { grid-template-columns: minmax(150px,.6fr) minmax(350px,1.4fr) !important; } .admin-main-body > div > div[style*="minmax(180px"] > aside:last-child { grid-column: 1 / -1; } } @media (max-width: 850px) { .admin-main-body > div > div[style*="minmax(180px"] { grid-template-columns: 1fr !important; } .admin-main-body > div > div[style*="minmax(180px"] > aside:last-child { grid-column: auto; } } @media (max-width: 1050px) { .admin-main-body article { min-width: 0; } }`}</style>
+    </div>;
+}
+
 function ComingSoon({ title, }) {
     return (<div className="admin-placeholder">
 
@@ -4276,7 +4546,7 @@ export default function AdminDashboard({ dangXuat, }) {
             <div className="admin-main-body">
 
                 {activeMenu ===
-                "dashboard" ? (<DashboardContent onViewAll={() => setActiveMenu("hoa-don")}/>) : activeMenu ===
+                "dashboard" ? (<DashboardContent onViewAll={() => setActiveMenu("hoa-don")}/>) : activeMenu === "ban-hang" ? (<BanHangTaiQuayContent />) : activeMenu ===
                 "hoa-don" ? (<HoaDonContent />) : activeMenu === "doi-tra" ? (<Returns mode="admin" />) : activeMenu ===
                 "thanh-toan" ? (<ThanhToanContent />) : activeMenu === "san-pham" ? (<AdminProducts />) : activeMenu === "danh-muc" ? (<AdminDanhMuc />) : activeMenu === "thuong-hieu" ? (<AdminThuongHieu />) : activeMenu === "kich-co" ? (<AdminKichCo />) : activeMenu === "mau-sac" ? (<AdminMauSac />) : activeMenu === "kho" ? (<AdminKho />) : activeMenu === "voucher" ? (<AdminVoucher />) : activeMenu === "khuyen-mai" ? (<AdminKhuyenMai />) : activeMenu ===
                 "khach-hang" ? (<CustomerContent />) : activeMenu ===

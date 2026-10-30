@@ -265,6 +265,14 @@ function App() {
 
     const [taiKhoan, setTaiKhoan] = useState(tkDaLuu);
     const [page, setPage] = useState(tkDaLuu ? layTrangTheoVaiTro(tkDaLuu) : "home");
+    const [sepayReturn] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const ketQua = String(params.get("sepay") || "").toLowerCase();
+        const hoaDonId = Number(params.get("hoaDonId"));
+        if (!["success", "error", "cancel"].includes(ketQua) ||
+            !Number.isInteger(hoaDonId) || hoaDonId <= 0) return null;
+        return { ketQua, hoaDonId };
+    });
     const [hoaDonCanTra, setHoaDonCanTra] = useState(null);
     const [sanPhams, setSanPhams] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -512,6 +520,11 @@ function App() {
         const vId = ct.id;
         const ton = Number(ct.soLuongTon ?? 0);
         if (ton <= 0) { alert("SP đã hết hàng"); return false; }
+
+        // Xác nhận trước khi thực hiện thêm sản phẩm vào giỏ hàng.
+        const xacNhanThem = window.confirm("Bạn xác nhận thêm vào giỏ hàng không?");
+        if (!xacNhanThem) return false;
+
         let ghId = gioHangId;
         if (!ghId) ghId = await taiGioHang(taiKhoan, sanPhams);
         if (!ghId) { alert("Không khởi tạo được giỏ"); return false; }
@@ -660,6 +673,13 @@ function App() {
         const g = i.chiTiet?.giaBan || i.sanPham?.giaBan || 0;
         return t + Number(g) * i.soLuong;
     }, 0);
+
+    if (sepayReturn) {
+        return <SePayPaymentReturn
+            hoaDonId={sepayReturn.hoaDonId}
+            ketQua={sepayReturn.ketQua}
+        />;
+    }
 
     if (page === "returns") {
         if (!taiKhoan) return <Login setPage={setPage} onLoginSuccess={xuLyDangNhapThanhCong} />;
@@ -1843,9 +1863,7 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                                 {isNgungHoatDong && <span style={{ color: "#e53935", fontSize: 11, fontWeight: "bold", marginTop: 4, display: "block" }}>(Ngừng kinh doanh)</span>}
                                                 {item.chiTiet?.kichCo && <small>Size: {item.chiTiet.kichCo.tenKichCo}</small>}
                                                 {item.chiTiet?.mauSac && <small>Màu: {item.chiTiet.mauSac.tenMau}</small>}
-                                                <div className="cart-product-actions" onClick={(e) => e.stopPropagation()}>
-                                                    <button type="button" className="remove-cart" onClick={() => xoaKhoiGio(item.variantId)}>Xóa</button>
-                                                </div>
+
                                             </div>
                                         </div>
 
@@ -1882,9 +1900,23 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
                                             <button type="button" onClick={() => tangSoLuong(item.variantId)} disabled={isNgungHoatDong}>+</button>
                                         </div>
 
-                                        <strong className="cart-total" style={{ color: km ? "#e53935" : undefined }}>
-                                            {formatGia(gia * item.soLuong)}
-                                        </strong>
+                                        <div className="cart-total-actions">
+                                            <strong className="cart-total">
+                                                {formatGia(gia * item.soLuong)}
+                                            </strong>
+
+                                            <button
+                                                type="button"
+                                                className="cart-remove-inline"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    xoaKhoiGio(item.variantId);
+                                                }}
+                                                title="Xóa sản phẩm khỏi giỏ hàng"
+                                            >
+                                                🗑 Xóa
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -1985,6 +2017,189 @@ function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage
     );
 }
 
+function SePayPaymentReturn({ hoaDonId, ketQua }) {
+    const [thanhToan, setThanhToan] = useState(null);
+    const [dangKiemTra, setDangKiemTra] = useState(false);
+    const [loiKiemTra, setLoiKiemTra] = useState("");
+    const [thongBao, setThongBao] = useState("");
+    const [lanCapNhat, setLanCapNhat] = useState(0);
+    const daThanhToan = String(thanhToan?.trangThai || "").trim().toUpperCase() === "DA_THANH_TOAN";
+
+    // Đọc được cả response trả về trực tiếp ThanhToan hoặc bọc trong data/thanhToan.
+    const docThanhToan = (value) => {
+        let current = value;
+        for (let i = 0; i < 4 && current; i += 1) {
+            if (current?.trangThai || current?.phuongThuc || current?.soTien) return current;
+            current = current?.thanhToan || current?.data || current?.result || current?.payload;
+        }
+        return current || value;
+    };
+
+    const kiemTraThanhToan = async (hienThongBao = false) => {
+        if (!hoaDonId) {
+            setLoiKiemTra("Không tìm thấy mã hóa đơn để kiểm tra.");
+            return;
+        }
+        setDangKiemTra(true);
+        setLoiKiemTra("");
+        setThongBao("");
+        try {
+            const response = await fetch(
+                `${API}/hoa-don/${encodeURIComponent(hoaDonId)}/thanh-toan`,
+                {
+                    method: "GET",
+                    cache: "no-store",
+                    headers: { Accept: "application/json" }
+                }
+            );
+            const raw = await response.text();
+            let data = null;
+            try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+
+            if (!response.ok) {
+                throw new Error(
+                    data?.message || data?.error ||
+                    `Máy chủ trả về HTTP ${response.status}. ${raw || "Không có nội dung phản hồi."}`
+                );
+            }
+            if (!data) {
+                throw new Error("API chưa trả về dữ liệu thanh toán hợp lệ.");
+            }
+
+            const payment = docThanhToan(data);
+            if (!payment || !payment.trangThai) {
+                throw new Error("Không tìm thấy trường trạng thái thanh toán trong phản hồi API.");
+            }
+            setThanhToan(payment);
+
+            const status = String(payment.trangThai).trim().toUpperCase();
+            if (status === "DA_THANH_TOAN") {
+                setThongBao("SePay đã được backend xác nhận thanh toán thành công.");
+            } else if (hienThongBao) {
+                setThongBao(`Đã kiểm tra: trạng thái hiện tại là ${payment.trangThai}. FShop chưa nhận được xác nhận thanh toán thành công.`);
+            }
+        } catch (error) {
+            console.error("Lỗi kiểm tra trạng thái SePay:", error);
+            setLoiKiemTra(error.message || "Không thể kiểm tra trạng thái thanh toán.");
+        } finally {
+            setDangKiemTra(false);
+        }
+    };
+
+    // Tự động kiểm tra định kỳ; nút bên dưới vẫn gọi API trực tiếp khi khách bấm.
+    useEffect(() => {
+        if (!hoaDonId || daThanhToan) return undefined;
+        let daHuy = false;
+        let timer = null;
+        let soLan = 0;
+
+        const kiemTraNen = async () => {
+            try {
+                const response = await fetch(
+                    `${API}/hoa-don/${encodeURIComponent(hoaDonId)}/thanh-toan`,
+                    { cache: "no-store", headers: { Accept: "application/json" } }
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    const payment = docThanhToan(data);
+                    if (payment?.trangThai && !daHuy) {
+                        setThanhToan(payment);
+                        if (String(payment.trangThai).trim().toUpperCase() === "DA_THANH_TOAN") {
+                            setThongBao("SePay đã được backend xác nhận thanh toán thành công.");
+                            return;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn("Chưa kiểm tra được trạng thái thanh toán:", error);
+            }
+            soLan += 1;
+            if (!daHuy && soLan < 30) timer = window.setTimeout(kiemTraNen, 3000);
+        };
+
+        kiemTraNen();
+        return () => {
+            daHuy = true;
+            if (timer) window.clearTimeout(timer);
+        };
+    }, [hoaDonId, lanCapNhat]);
+
+    const maDon = thanhToan?.hoaDon?.maHoaDon || thanhToan?.maHoaDon || `#${hoaDonId}`;
+    const laHuy = ketQua === "cancel";
+    const laLoi = ketQua === "error";
+    const tieuDe = daThanhToan
+        ? "Đơn hàng của bạn đã được tạo!"
+        : (laHuy || laLoi)
+            ? "Giao dịch chưa hoàn tất"
+            : "Đơn hàng đang chờ xác nhận";
+    const moTa = daThanhToan
+        ? "FShop đã nhận được tiền và xác nhận thanh toán thành công. Cảm ơn bạn đã mua hàng tại FShop!"
+        : "FShop chỉ xác nhận đơn hàng sau khi nhận được IPN hợp lệ từ SePay. Nếu bạn đã chuyển khoản, vui lòng chờ hệ thống cập nhật.";
+
+    return (
+        <main className="sepay-prepare-page">
+            <style>{`
+                .sepay-result-card{max-width:760px;margin:32px auto;padding:36px 42px;background:#fff;border:1px solid #e8eaf0;border-radius:18px;box-shadow:0 12px 38px rgba(20,30,55,.08);text-align:center}
+                .sepay-result-icon{width:68px;height:68px;border-radius:50%;display:grid;place-items:center;margin:0 auto 18px;background:${daThanhToan ? "#e8f8ef" : "#fff5e8"};color:${daThanhToan ? "#159451" : "#d97706"};font-size:34px;font-weight:800}
+                .sepay-result-card h1{font-size:28px;margin:8px 0 10px;color:#171923}
+                .sepay-result-card>p{color:#687083;line-height:1.7;margin:0 auto 22px;max-width:570px}
+                .sepay-result-meta{display:flex;justify-content:space-between;gap:16px;text-align:left;padding:16px 18px;border:1px solid #edf0f4;border-radius:12px;background:#fafbfc;margin:20px 0}
+                .sepay-result-meta span{color:#778094;font-size:13px}.sepay-result-meta strong{color:#202638}
+                .sepay-result-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+                .sepay-result-actions button{border:0;border-radius:10px;padding:14px 22px;font-weight:700;cursor:pointer}
+                .sepay-result-primary{background:#ed1c2e;color:#fff}.sepay-result-primary:disabled{opacity:.65;cursor:wait}.sepay-result-secondary{background:#f1f3f6;color:#303747}
+                .sepay-result-note{font-size:13px;color:#778094;margin-top:18px}
+                .sepay-result-error{color:#b42318;background:#fff1f0;border:1px solid #ffd1cc;padding:10px 12px;border-radius:9px;font-size:13px;text-align:left}
+                .sepay-result-success{color:#087443;background:#ecfdf3;border:1px solid #abefc6;padding:10px 12px;border-radius:9px;font-size:13px}
+                @media(max-width:600px){.sepay-result-card{margin:18px 12px;padding:26px 18px}.sepay-result-card h1{font-size:23px}.sepay-result-meta{flex-direction:column}}
+            `}</style>
+            <div className="sepay-prepare-shell">
+                <div className="sepay-prepare-brand">
+                    <span className="sepay-brand-mark">F</span><span>FShop</span>
+                    <span className="sepay-brand-divider" />
+                    <span className="sepay-brand-caption">Kết quả thanh toán</span>
+                </div>
+                <section className="sepay-result-card">
+                    <div className="sepay-result-icon">{daThanhToan ? "✓" : "…"}</div>
+                    <p className="sepay-eyebrow">{daThanhToan ? "ĐẶT HÀNG THÀNH CÔNG" : "TRẠNG THÁI THANH TOÁN"}</p>
+                    <h1>{tieuDe}</h1>
+                    <p>{moTa}</p>
+                    <div className="sepay-result-meta">
+                        <div><span>MÃ ĐƠN HÀNG</span><br /><strong>{maDon}</strong></div>
+                        <div><span>TRẠNG THÁI</span><br /><strong>{daThanhToan ? "Đã thanh toán" : (thanhToan?.trangThai || "Chưa xác nhận thanh toán")}</strong></div>
+                    </div>
+                    {thongBao && <div className={daThanhToan ? "sepay-result-success" : "sepay-result-note"}>{thongBao}</div>}
+                    {loiKiemTra && <div className="sepay-result-error">Không kiểm tra được: {loiKiemTra}</div>}
+                    {!daThanhToan && (
+                        <p className="sepay-result-note">
+                            {laHuy ? "Bạn đã quay lại hoặc hủy giao dịch trên SePay. Nếu đã chuyển khoản, hãy kiểm tra lại trạng thái." :
+                                laLoi ? "SePay đưa bạn quay lại do giao dịch chưa hoàn tất hoặc gặp lỗi." :
+                                    "Chỉ trạng thái DA_THANH_TOAN do backend cập nhật mới được xem là thanh toán thành công."}
+                        </p>
+                    )}
+                    <div className="sepay-result-actions">
+                        {!daThanhToan && (
+                            <button type="button" className="sepay-result-primary" disabled={dangKiemTra}
+                                    onClick={() => kiemTraThanhToan(true)}>
+                                {dangKiemTra ? "Đang kiểm tra..." : "Kiểm tra lại ngay"}
+                            </button>
+                        )}
+                        <button type="button" className="sepay-result-secondary"
+                                onClick={() => { window.location.href = "/"; }}>
+                            Về trang chủ FShop
+                        </button>
+                    </div>
+                    <div className="sepay-result-note">
+                        {daThanhToan
+                            ? "Cảm ơn bạn đã mua hàng tại FShop."
+                            : "Nếu bạn đã chuyển khoản nhưng vẫn chưa cập nhật, hãy kiểm tra nhật ký IPN và trạng thái thanh toán ở backend."}
+                    </div>
+                </section>
+            </div>
+        </main>
+    );
+}
+
 function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioHang, setSelectedVariantIds,
                       khuyenMaiActive = null }) {
     const [hoTen, setHoTen] = useState("");
@@ -2011,7 +2226,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [addrWard, setAddrWard] = useState("");
     const [addrDetail, setAddrDetail] = useState("");
     const [ghiChu, setGhiChu] = useState("");
-
     // ⭐ KIỂM TRA NGAY KHI VÀO TRANG CHECKOUT XEM CÓ SẢN PHẨM NÀO BỊ NGỪNG BÁN KHÔNG
     useEffect(() => {
         const coSanPhamNgung = gioHang.some(i => !isHoatDong(i.sanPham?.trangThai));
@@ -2279,19 +2493,37 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     };
     const xoaVoucher = (idx) => { setVouchers((p) => p.filter((_, i) => i !== idx)); setVoucherError(""); };
 
-    const NGAN_HANG_QR = "MB";
-    const SO_TAI_KHOAN = "0857325488";
-    const CHU_TAI_KHOAN = "FSHOP";
-    const taoNoiDungChuyenKhoan = (mhd = null) => mhd ? `FSHOP ${mhd}` : "FSHOP THANH TOAN";
-    const hienThiPT = (pt) => pt === "CHUYEN_KHOAN" ? "Chuyển khoản" : "Tiền mặt khi nhận hàng";
-    const taoQrUrl = (st, mhd = null) => {
-        const amt = Math.round(Number(st) || 0);
-        const nd = taoNoiDungChuyenKhoan(mhd);
-        return `https://img.vietqr.io/image/${NGAN_HANG_QR}-${SO_TAI_KHOAN}-compact2.png?amount=${amt}&addInfo=${encodeURIComponent(nd)}&accountName=${encodeURIComponent(CHU_TAI_KHOAN)}`;
-    };
-    const saoChep = async (nd, tb) => {
-        try { await navigator.clipboard.writeText(nd); alert(tb); }
-        catch (e) { alert(`Không sao chép được.\n\n${nd}`); }
+    const hienThiPT = (pt) => pt === "CHUYEN_KHOAN" ? "Chuyển khoản qua SePay" : "Tiền mặt khi nhận hàng";
+
+    // SePay yêu cầu gửi các trường thanh toán bằng HTTP POST, không đưa lên query string.
+    const guiFormSePay = (checkoutData) => {
+        if (!checkoutData || typeof checkoutData !== "object" || Array.isArray(checkoutData)) {
+            throw new Error("Dữ liệu checkout SePay không hợp lệ.");
+        }
+        const checkoutUrl = checkoutData.checkoutUrl;
+        if (typeof checkoutUrl !== "string" || !/^https:\/\//i.test(checkoutUrl)) {
+            throw new Error("Backend chưa trả về checkoutUrl hợp lệ từ SePay.");
+        }
+
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = checkoutUrl;
+        form.acceptCharset = "UTF-8";
+        form.style.display = "none";
+
+        Object.entries(checkoutData).forEach(([key, value]) => {
+            if (key === "checkoutUrl" || value === null || value === undefined) return;
+            if (typeof value === "object") return;
+
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = key;
+            input.value = String(value);
+            form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
     };
 
     const datHang = async () => {
@@ -2309,6 +2541,12 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
         if (!diaChi.trim()) { alert("Nhập địa chỉ"); return; }
         if (!gioHangId) { alert("Không xác định giỏ hàng"); return; }
         if (dangDatHang) return;
+
+        // Xác nhận trước khi tạo đơn hàng và chuyển sang thanh toán.
+        const dongY = window.confirm(
+            "Bạn có chắc chắn muốn xác nhận đặt hàng không?"
+        );
+        if (!dongY) return;
 
         const itemsForBill = gioHang.map((it) => {
             const { gia, km } = tinhGiaItem(it, khuyenMaiActive);
@@ -2387,7 +2625,48 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
             try { data = rt ? JSON.parse(rt) : null; } catch { data = null; }
             if (!res.ok) throw new Error(data?.message || data?.error || rt || "Không đặt được hàng");
 
-            const maHoaDon = data?.maHoaDon || data?.id || data?.hoaDon?.maHoaDon || data?.hoaDon?.id || `FS-${Date.now()}`;
+            // API đặt hàng có thể trả về hóa đơn trực tiếp hoặc bọc trong thuộc tính hoaDon.
+            const hoaDon = data?.hoaDon || data;
+            const hoaDonId = Number(hoaDon?.id ?? data?.hoaDonId);
+            const maHoaDon = hoaDon?.maHoaDon || data?.maHoaDon || (Number.isFinite(hoaDonId) ? `HD-${hoaDonId}` : null);
+
+            if (!Number.isFinite(hoaDonId) || hoaDonId <= 0) {
+                throw new Error(
+                    `Đơn hàng đã được tạo${maHoaDon ? ` (${maHoaDon})` : ""}, nhưng API không trả về ID hóa đơn để tạo thanh toán. Không bấm đặt hàng lại; hãy kiểm tra hóa đơn trong quản trị.`
+                );
+            }
+
+            // Chuyển khoản: yêu cầu backend tạo chữ ký, sau đó POST form sang SePay Sandbox.
+            if (phuongThuc === "CHUYEN_KHOAN") {
+                const checkoutRes = await fetch(`${API}/sepay/checkout/${hoaDonId}`, {
+                    method: "POST",
+                    headers: { "Accept": "application/json" },
+                });
+                const checkoutText = await checkoutRes.text();
+                let checkoutData = null;
+                try { checkoutData = checkoutText ? JSON.parse(checkoutText) : null; }
+                catch { checkoutData = null; }
+
+                if (!checkoutRes.ok) {
+                    // Đơn đã tồn tại trên server. Đồng bộ giỏ phía giao diện và ngăn khách đặt trùng.
+                    setGioHang((o) => o.filter((i) => !variantIdsDat.includes(i.variantId)));
+                    if (setSelectedVariantIds) setSelectedVariantIds((p) => p.filter((id) => !variantIdsDat.includes(id)));
+                    throw new Error(
+                        `Đơn ${maHoaDon} đã được tạo nhưng chưa khởi tạo được thanh toán SePay. Không đặt lại đơn này. Chi tiết: ${checkoutData?.message || checkoutData?.error || checkoutText || "Không nhận được phản hồi hợp lệ từ backend."}`
+                    );
+                }
+
+                // Đồng bộ giỏ hàng rồi chuyển thẳng sang cổng SePay.
+                // Không hiển thị màn hình trung gian và không báo thành công ở bước này.
+                setGioHang((o) => o.filter((i) => !variantIdsDat.includes(i.variantId)));
+                if (setSelectedVariantIds) {
+                    setSelectedVariantIds((p) => p.filter((id) => !variantIdsDat.includes(id)));
+                }
+                guiFormSePay(checkoutData);
+                return;
+            }
+
+            // Tiền mặt khi nhận hàng: giữ nguyên màn hình hóa đơn hiện tại.
             setBill({
                 maHoaDon, ngayDat: new Date().toLocaleString("vi-VN"),
                 hoTen: hoTen.trim(), soDienThoai: soDienThoai.trim(),
@@ -2396,7 +2675,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                 tamTinh: Number(tongTienSale),
                 phiVanChuyen, tienGiam,
                 maVoucher: vouchers.map((v) => v.maVoucher).filter(Boolean).join(" + ") || null,
-                tongThanhToan, noiDungChuyenKhoan: taoNoiDungChuyenKhoan(maHoaDon),
+                tongThanhToan,
             });
             setGioHang((o) => o.filter((i) => !variantIdsDat.includes(i.variantId)));
             if (setSelectedVariantIds) setSelectedVariantIds((p) => p.filter((id) => !variantIdsDat.includes(id)));
@@ -2405,8 +2684,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     };
 
     if (bill) {
-        const laCK = bill.phuongThuc === "CHUYEN_KHOAN";
-        const qrUrl = laCK ? taoQrUrl(bill.tongThanhToan, bill.maHoaDon) : null;
         return (
             <main className="cart-page">
                 <div className="container">
@@ -2422,43 +2699,12 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                             <div><span style={{ color: "#888", display: "block", marginBottom: "5px" }}>Ngày đặt</span><strong>{bill.ngayDat}</strong></div>
                             <div><span style={{ color: "#888", display: "block", marginBottom: "5px" }}>Phương thức</span><strong>{hienThiPT(bill.phuongThuc)}</strong></div>
                         </div>
-                        {laCK && (
-                            <div style={{ marginBottom: "28px", padding: "22px", border: "1px solid #e0e0e0", borderRadius: "12px", background: "#fffaf5" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px", flexWrap: "wrap", marginBottom: "18px" }}>
-                                    <div>
-                                        <h2 style={{ fontSize: "19px", margin: "0 0 6px" }}>🏦 Thông tin chuyển khoản</h2>
-                                        <p style={{ margin: 0, color: "#777", fontSize: "13px" }}>Vui lòng chuyển đúng số tiền và nội dung.</p>
-                                    </div>
-                                    <div style={{ padding: "8px 12px", borderRadius: "999px", background: "#fff", border: "1px solid #eee", fontSize: "12px", fontWeight: 700 }}>CHỜ THANH TOÁN</div>
-                                </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 220px", gap: "25px", alignItems: "center" }}>
-                                    <div style={{ display: "grid", gap: "12px" }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", gap: "15px", padding: "11px 0", borderBottom: "1px solid #eee" }}><span>Ngân hàng</span><strong>{NGAN_HANG_QR}</strong></div>
-                                        <div style={{ display: "flex", justifyContent: "space-between", gap: "15px", padding: "11px 0", borderBottom: "1px solid #eee" }}>
-                                            <span>Số tài khoản</span>
-                                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                                <strong>{SO_TAI_KHOAN}</strong>
-                                                <button type="button" onClick={() => saoChep(SO_TAI_KHOAN, "Đã sao chép STK")} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: "6px", padding: "5px 8px", cursor: "pointer" }}>📋</button>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: "flex", justifyContent: "space-between", gap: "15px", padding: "11px 0", borderBottom: "1px solid #eee" }}><span>Chủ TK</span><strong>{CHU_TAI_KHOAN}</strong></div>
-                                        <div style={{ display: "flex", justifyContent: "space-between", gap: "15px", padding: "11px 0", borderBottom: "1px solid #eee" }}><span>Số tiền</span><strong style={{ color: "#e53935", fontSize: "18px" }}>{formatGia(bill.tongThanhToan)}</strong></div>
-                                        <div style={{ padding: "13px", background: "#fff", borderRadius: "8px", border: "1px solid #eee" }}>
-                                            <div style={{ fontSize: "12px", color: "#777", marginBottom: "5px" }}>Nội dung CK</div>
-                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
-                                                <strong style={{ color: "#111", wordBreak: "break-word" }}>{bill.noiDungChuyenKhoan}</strong>
-                                                <button type="button" onClick={() => saoChep(bill.noiDungChuyenKhoan, "Đã sao chép")} style={{ flexShrink: 0, border: "1px solid #ddd", background: "#fff", borderRadius: "6px", padding: "5px 8px", cursor: "pointer" }}>📋</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div style={{ textAlign: "center" }}>
-                                        <div style={{ background: "#fff", padding: "10px", border: "1px solid #eee", borderRadius: "10px", display: "inline-block" }}>
-                                            <img src={qrUrl} alt="QR" style={{ width: "190px", height: "190px", objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                                        </div>
-                                        <div style={{ marginTop: "10px", fontSize: "12px", color: "#777" }}>Quét QR để thanh toán</div>
-                                    </div>
-                                </div>
-                                <div style={{ marginTop: "18px", padding: "12px 14px", background: "#fff", borderRadius: "8px", fontSize: "13px", color: "#666" }}>⚠️ Sau khi CK, FShop sẽ kiểm tra và xác nhận.</div>
+                        {bill.phuongThuc === "CHUYEN_KHOAN" && (
+                            <div style={{ marginBottom: "28px", padding: "18px", border: "1px solid #e0e0e0", borderRadius: "12px", background: "#fffaf5" }}>
+                                <strong>Thanh toán qua SePay</strong>
+                                <p style={{ margin: "8px 0 0", color: "#666", fontSize: "13px" }}>
+                                    Đơn hàng đang chờ xác nhận thanh toán. Trạng thái thanh toán sẽ được cập nhật khi hệ thống nhận được IPN hợp lệ từ SePay.
+                                </p>
                             </div>
                         )}
                         <h2 style={{ fontSize: "18px", marginBottom: "15px" }}>Thông tin nhận hàng</h2>
@@ -2823,57 +3069,48 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                     <span style={{ color: "#888", fontSize: 24 }}>›</span>
                                 </button>
                             </div>
-                            <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>Phương thức thanh toán</label>
-                                <select className="price-input" value={phuongThuc} onChange={(e) => setPhuongThuc(e.target.value)}>
-                                    <option value="TIEN_MAT">Tiền mặt khi nhận hàng</option>
-                                    <option value="CHUYEN_KHOAN">Chuyển khoản</option>
-                                </select>
+                            <div className="checkout-payment-section">
+                                <div className="checkout-section-heading">
+                                    <span className="checkout-section-icon">▣</span>
+                                    <div>
+                                        <strong>Phương thức thanh toán</strong>
+                                        <small>Chọn cách thanh toán phù hợp với bạn</small>
+                                    </div>
+                                </div>
+                                <div className="payment-method-grid">
+                                    <button type="button" className={`payment-method-card ${phuongThuc === "TIEN_MAT" ? "active" : ""}`} onClick={() => setPhuongThuc("TIEN_MAT")} aria-pressed={phuongThuc === "TIEN_MAT"}>
+                                        <span className="payment-method-icon cod-icon">▣</span>
+                                        <span className="payment-method-copy">
+                                            <strong>Thanh toán khi nhận hàng</strong>
+                                            <small>Kiểm tra hàng và thanh toán cho shipper</small>
+                                        </span>
+                                        <span className="payment-method-radio" />
+                                    </button>
+                                    <button type="button" className={`payment-method-card ${phuongThuc === "CHUYEN_KHOAN" ? "active" : ""}`} onClick={() => setPhuongThuc("CHUYEN_KHOAN")} aria-pressed={phuongThuc === "CHUYEN_KHOAN"}>
+                                        <span className="payment-method-icon bank-icon">⌁</span>
+                                        <span className="payment-method-copy">
+                                            <strong>Chuyển khoản ngân hàng</strong>
+                                            <small>Thanh toán trực tuyến qua SePay</small>
+                                        </span>
+                                        <span className="payment-method-radio" />
+                                    </button>
+                                </div>
                                 {phuongThuc === "CHUYEN_KHOAN" && (
-                                    <div style={{ marginTop: "15px", padding: "20px", border: "1px solid #e3e3e3", borderRadius: "12px", background: "#fffaf5" }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
-                                            <div>
-                                                <h3 style={{ margin: 0, fontSize: "18px" }}>🏦 Chuyển khoản ngân hàng</h3>
-                                                <p style={{ margin: "5px 0 0", color: "#777", fontSize: "12px" }}>Chuyển khoản đúng số tiền và nội dung.</p>
+                                    <div className="sepay-info-card">
+                                        <div className="sepay-info-top">
+                                            <span className="sepay-brand-icon">S</span>
+                                            <div className="sepay-info-title">
+                                                <strong>Thanh toán an toàn qua SePay</strong>
+                                                <small>Cổng thanh toán trực tuyến của FShop</small>
                                             </div>
-                                            <span style={{ padding: "6px 10px", background: "#fff", border: "1px solid #eee", borderRadius: "999px", fontSize: "11px", fontWeight: 700 }}>QR BANKING</span>
+                                            <span className="sepay-secure-tag">⌑ Bảo mật</span>
                                         </div>
-                                        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 190px", gap: "20px", alignItems: "center" }}>
-                                            <div style={{ display: "grid", gap: "10px" }}>
-                                                <div style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>
-                                                    <div style={{ fontSize: "12px", color: "#777" }}>Ngân hàng</div>
-                                                    <strong>{NGAN_HANG_QR}</strong>
-                                                </div>
-                                                <div style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>
-                                                    <div style={{ fontSize: "12px", color: "#777", marginBottom: "4px" }}>Số tài khoản</div>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                                        <strong>{SO_TAI_KHOAN}</strong>
-                                                        <button type="button" onClick={() => saoChep(SO_TAI_KHOAN, "Đã sao chép STK")} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: "6px", padding: "5px 8px", cursor: "pointer" }}>📋</button>
-                                                    </div>
-                                                </div>
-                                                <div style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>
-                                                    <div style={{ fontSize: "12px", color: "#777" }}>Chủ TK</div>
-                                                    <strong>{CHU_TAI_KHOAN}</strong>
-                                                </div>
-                                                <div style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>
-                                                    <div style={{ fontSize: "12px", color: "#777" }}>Số tiền cần chuyển</div>
-                                                    <strong style={{ color: "#e53935", fontSize: "20px" }}>{formatGia(tongThanhToan)}</strong>
-                                                </div>
-                                                <div style={{ padding: "12px", background: "#fff", border: "1px solid #eee", borderRadius: "8px" }}>
-                                                    <div style={{ fontSize: "12px", color: "#777", marginBottom: "5px" }}>Nội dung CK</div>
-                                                    <strong>{taoNoiDungChuyenKhoan()}</strong>
-                                                </div>
-                                            </div>
-                                            <div style={{ textAlign: "center" }}>
-                                                <div style={{ background: "#fff", padding: "8px", border: "1px solid #eee", borderRadius: "10px", display: "inline-block" }}>
-                                                    <img src={taoQrUrl(tongThanhToan)} alt="QR" style={{ width: "170px", height: "170px", display: "block", objectFit: "contain" }} />
-                                                </div>
-                                                <div style={{ marginTop: "8px", fontSize: "11px", color: "#777" }}>Quét QR bằng app ngân hàng</div>
-                                            </div>
+                                        <div className="sepay-steps">
+                                            <div className="sepay-step"><span>1</span><p><strong>Xác nhận đặt hàng</strong><small>FShop tạo đơn hàng của bạn</small></p></div>
+                                            <div className="sepay-step"><span>2</span><p><strong>Thanh toán trên SePay</strong><small>Quét mã QR hoặc chọn ngân hàng hỗ trợ</small></p></div>
+                                            <div className="sepay-step"><span>3</span><p><strong>Hoàn tất tự động</strong><small>FShop cập nhật trạng thái khi nhận IPN hợp lệ</small></p></div>
                                         </div>
-                                        <div style={{ marginTop: "15px", padding: "11px 13px", background: "#fff", borderRadius: "8px", fontSize: "12px", color: "#666" }}>
-                                            ⚠️ Sau khi CK, FShop sẽ kiểm tra giao dịch và xác nhận thanh toán.
-                                        </div>
+
                                     </div>
                                 )}
                             </div>
@@ -2980,6 +3217,7 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
+    const [searchOrder, setSearchOrder] = useState("");
 
     const khachHangId = taiKhoan?.khachHangId;
 
@@ -3023,36 +3261,132 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
         ["DA_HUY", "Đã hủy"],
     ];
 
-    const filteredOrders = statusFilter === "ALL"
-        ? orders
-        : orders.filter((order) =>
-            normalizeStatus(order?.trangThai || order?.trangThaiDonHang || order?.trangThaiHoaDon) === statusFilter
+    const filteredOrders = orders.filter((order) => {
+        const keyword = searchOrder.trim().toLocaleLowerCase("vi-VN");
+        const searchableValues = [
+            order?.maHoaDon,
+            order?.id,
+            order?.hoaDonId,
+            order?.tenKhachHang,
+            order?.khachHang?.hoTen,
+            order?.khachHang?.tenKhachHang,
+            order?.hoTen,
+            order?.soDienThoai,
+            order?.diaChi,
+            order?.ghiChu,
+            order?.trangThai,
+            order?.trangThaiDonHang,
+            order?.trangThaiHoaDon,
+        ];
+        const matchesSearch = !keyword || searchableValues.some((value) =>
+            String(value ?? "").toLocaleLowerCase("vi-VN").includes(keyword)
         );
+        const status = normalizeStatus(
+            order?.trangThai || order?.trangThaiDonHang || order?.trangThaiHoaDon
+        );
+        const matchesStatus = statusFilter === "ALL" || status === statusFilter;
+        return matchesSearch && matchesStatus;
+    });
 
     const openOrder = async (order) => {
         setShowOrderDetail(true);
-        setSelectedOrder({ ...order, __chiTiet: order.__chiTiet || [], __lichSu: order.__lichSu || [] });
+        setSelectedOrder({
+            ...order,
+            __chiTiet: order.__chiTiet || [],
+            __lichSu: order.__lichSu || [],
+            __thanhToan: order.__thanhToan || null,
+        });
         setDetailLoading(true);
         setDetailError("");
+
         const id = getOrderId(order);
-        if (!id) { setDetailLoading(false); return; }
+        if (!id) {
+            setDetailLoading(false);
+            return;
+        }
+
         try {
-            const [detailResponse, historyResponse] = await Promise.all([
+            const [detailResponse, historyResponse, paymentResponse] = await Promise.all([
                 fetch(`${API}/hoa-don/${id}/chi-tiet`),
                 fetch(`${API}/hoa-don/${id}/lich-su`),
+                fetch(`${API}/hoa-don/${id}/thanh-toan`),
             ]);
+
             const detailData = detailResponse.ok ? await detailResponse.json() : [];
             const historyData = historyResponse.ok ? await historyResponse.json() : [];
+            const paymentData = paymentResponse.ok ? await paymentResponse.json() : null;
+
             setSelectedOrder({
                 ...order,
                 __chiTiet: Array.isArray(detailData) ? detailData : [],
                 __lichSu: Array.isArray(historyData) ? historyData : [],
+                __thanhToan: paymentData,
             });
         } catch (err) {
             console.error("Lỗi tải chi tiết đơn hàng:", err);
             setDetailError("Không tải được chi tiết đơn hàng. Bạn vẫn có thể xem trạng thái hiện tại.");
-        } finally { setDetailLoading(false); }
+        } finally {
+            setDetailLoading(false);
+        }
     };
+
+    // Tự cập nhật trạng thái thanh toán khi khách đang xem đơn chuyển khoản.
+    // Chỉ polling đơn còn CHO_THANH_TOAN; dừng ngay khi đã thanh toán hoặc trạng thái khác.
+    const selectedOrderId = selectedOrder ? getOrderId(selectedOrder) : null;
+
+    useEffect(() => {
+        if (!showOrderDetail || !selectedOrderId) return undefined;
+
+        const payment = selectedOrder?.__thanhToan;
+        const paymentStatus = normalizeStatus(payment?.trangThai);
+        const paymentMethod = normalizeStatus(
+            payment?.phuongThuc ||
+            payment?.phuongThucThanhToan ||
+            selectedOrder?.phuongThucThanhToan ||
+            ""
+        );
+
+        if (paymentMethod !== "CHUYEN_KHOAN" || paymentStatus !== "CHO_THANH_TOAN") {
+            return undefined;
+        }
+
+        let dangXuLy = false;
+
+        const capNhatThanhToan = async () => {
+            if (dangXuLy) return;
+            dangXuLy = true;
+
+            try {
+                const response = await fetch(`${API}/hoa-don/${selectedOrderId}/thanh-toan`);
+                if (!response.ok) return;
+
+                const data = await response.json();
+
+                setSelectedOrder((previous) => {
+                    if (
+                        !previous ||
+                        String(getOrderId(previous)) !== String(selectedOrderId)
+                    ) {
+                        return previous;
+                    }
+                    return { ...previous, __thanhToan: data };
+                });
+            } catch (err) {
+                console.error("Lỗi cập nhật trạng thái thanh toán:", err);
+            } finally {
+                dangXuLy = false;
+            }
+        };
+
+        const timer = setInterval(capNhatThanhToan, 5000);
+        return () => clearInterval(timer);
+    }, [
+        showOrderDetail,
+        selectedOrderId,
+        selectedOrder?.__thanhToan?.trangThai,
+        selectedOrder?.__thanhToan?.phuongThuc,
+        selectedOrder?.phuongThucThanhToan,
+    ]);
 
     const loadOrders = async (keepSelected = false) => {
         if (!khachHangId) { setOrders([]); setLoading(false); return; }
@@ -3126,6 +3460,51 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
                     </div>
                 ) : (
                     <>
+                        {!showOrderDetail && (
+                            <div
+                                className="order-search-bar"
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 12,
+                                    width: "100%",
+                                    boxSizing: "border-box",
+                                    marginBottom: 18,
+                                    padding: "12px 16px",
+                                    background: "#fff",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: 12,
+                                }}
+                            >
+                                <span aria-hidden="true" style={{ fontSize: 22, color: "#777" }}>⌕</span>
+                                <input
+                                    type="search"
+                                    aria-label="Tìm kiếm đơn hàng"
+                                    placeholder="Tìm theo mã đơn hàng, tên khách hàng, số điện thoại hoặc trạng thái..."
+                                    value={searchOrder}
+                                    onChange={(event) => setSearchOrder(event.target.value)}
+                                    style={{
+                                        flex: 1,
+                                        minWidth: 0,
+                                        border: 0,
+                                        outline: "none",
+                                        background: "transparent",
+                                        fontSize: 14,
+                                    }}
+                                />
+                                {searchOrder && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchOrder("")}
+                                        aria-label="Xóa nội dung tìm kiếm"
+                                        style={{ border: 0, background: "transparent", color: "#dc2626", cursor: "pointer" }}
+                                    >
+                                        Xóa
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
                         {!showOrderDetail && (
                             <div className="order-status-filters" role="group" aria-label="Lọc trạng thái đơn hàng">
                                 {statusFilters.map(([key, label]) => {
@@ -3271,6 +3650,79 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
                                                             selectedOrder.maVoucher || selectedOrder.maGiamGia || "Không sử dụng"}
                                                     </strong>
                                                 </div>
+                                            </div>
+
+                                            {/* TRẠNG THÁI THANH TOÁN */}
+                                            <div
+                                                className="order-payment-box"
+                                                style={{
+                                                    marginTop: 18,
+                                                    padding: "18px 20px",
+                                                    borderRadius: 12,
+                                                    border: "1px solid #e5e7eb",
+                                                    background: "#fff",
+                                                }}
+                                            >
+                                                {(() => {
+                                                    const payment = selectedOrder.__thanhToan;
+                                                    const paymentStatus = normalizeStatus(payment?.trangThai);
+                                                    const daThanhToan = paymentStatus === "DA_THANH_TOAN";
+                                                    const daHuy = paymentStatus === "DA_HUY" || paymentStatus === "THAT_BAI";
+
+                                                    const badgeStyle = daThanhToan
+                                                        ? { color: "#15803d", background: "#dcfce7", label: "✓ Đã thanh toán" }
+                                                        : daHuy
+                                                            ? { color: "#b91c1c", background: "#fee2e2", label: "Đã hủy / thất bại" }
+                                                            : { color: "#b45309", background: "#fef3c7", label: payment ? "Đang chờ thanh toán" : "Chưa có dữ liệu thanh toán" };
+
+                                                    return (
+                                                        <>
+                                                            <div style={{
+                                                                display: "flex",
+                                                                justifyContent: "space-between",
+                                                                alignItems: "center",
+                                                                flexWrap: "wrap",
+                                                                gap: 10,
+                                                            }}>
+                                                                <div>
+                                                                    <strong style={{ fontSize: 15 }}>Trạng thái thanh toán</strong>
+                                                                    <p style={{ margin: "6px 0 0", color: "#777", fontSize: 13 }}>
+                                                                        {payment?.phuongThuc || payment?.phuongThucThanhToan ||
+                                                                            selectedOrder.phuongThucThanhToan || "Chưa cập nhật"}
+                                                                    </p>
+                                                                </div>
+                                                                <span style={{
+                                                                    padding: "8px 14px",
+                                                                    borderRadius: 20,
+                                                                    fontSize: 13,
+                                                                    fontWeight: 700,
+                                                                    color: badgeStyle.color,
+                                                                    background: badgeStyle.background,
+                                                                }}>
+                                                                    {badgeStyle.label}
+                                                                </span>
+                                                            </div>
+
+                                                            {payment?.maGiaoDich && (
+                                                                <div style={{ marginTop: 12, fontSize: 13, color: "#555" }}>
+                                                                    Mã giao dịch: <strong>{payment.maGiaoDich}</strong>
+                                                                </div>
+                                                            )}
+
+                                                            {payment?.ngayThanhToan && (
+                                                                <div style={{ marginTop: 6, fontSize: 13, color: "#555" }}>
+                                                                    Thời gian thanh toán: <strong>{formatDate(payment.ngayThanhToan)}</strong>
+                                                                </div>
+                                                            )}
+
+                                                            {paymentStatus === "CHO_THANH_TOAN" && (
+                                                                <p style={{ margin: "12px 0 0", fontSize: 12, color: "#888" }}>
+                                                                    Hệ thống đang chờ xác nhận từ SePay. Trạng thái sẽ tự động cập nhật khi nhận được xác nhận thanh toán.
+                                                                </p>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
 
                                             <div className="order-section-block">

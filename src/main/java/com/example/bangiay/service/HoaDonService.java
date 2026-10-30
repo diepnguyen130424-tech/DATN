@@ -5,7 +5,7 @@ import com.example.bangiay.dto.HoaDonResponse;
 import com.example.bangiay.dto.TaoHoaDonTaiQuayRequest;
 import com.example.bangiay.entity.*;
 import com.example.bangiay.repository.*;
-
+import java.util.Map;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -1995,4 +1995,219 @@ public class HoaDonService {
         return daLuu;
     }
 
+    @Transactional
+    public void xuLyIpnSePay(Map<String, Object> payload) {
+
+        if (payload == null || payload.isEmpty()) {
+            throw new RuntimeException("Dữ liệu IPN SePay trống");
+        }
+
+        // 1. Kiểm tra loại thông báo
+        String notificationType = String.valueOf(
+                payload.get("notification_type")
+        );
+
+        if (!"ORDER_PAID".equalsIgnoreCase(notificationType)) {
+            System.out.println(
+                    "SePay bỏ qua thông báo: " + notificationType
+            );
+            return;
+        }
+
+        // 2. Lấy thông tin order và transaction
+        Object orderObject = payload.get("order");
+        Object transactionObject = payload.get("transaction");
+
+        if (!(orderObject instanceof Map)
+                || !(transactionObject instanceof Map)) {
+            throw new RuntimeException(
+                    "Dữ liệu order hoặc transaction không hợp lệ"
+            );
+        }
+
+        Map<?, ?> order = (Map<?, ?>) orderObject;
+        Map<?, ?> transaction = (Map<?, ?>) transactionObject;
+
+        // 3. Kiểm tra trạng thái giao dịch
+        String orderStatus = String.valueOf(
+                order.get("order_status")
+        );
+
+        String transactionStatus = String.valueOf(
+                transaction.get("transaction_status")
+        );
+
+        if (!"CAPTURED".equalsIgnoreCase(orderStatus)
+                || !"APPROVED".equalsIgnoreCase(transactionStatus)) {
+            throw new RuntimeException(
+                    "Giao dịch SePay chưa thanh toán thành công"
+            );
+        }
+
+        // 4. Lấy mã hóa đơn
+        String maHoaDon = String.valueOf(
+                order.get("order_invoice_number")
+        );
+
+        if (maHoaDon.isBlank()
+                || "null".equalsIgnoreCase(maHoaDon)) {
+            throw new RuntimeException(
+                    "Không tìm thấy mã hóa đơn trong IPN"
+            );
+        }
+
+        // 5. Tìm hóa đơn
+        HoaDon hoaDon = hoaDonRepository
+                .findByMaHoaDon(maHoaDon)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Không tìm thấy hóa đơn: " + maHoaDon
+                        )
+                );
+
+        // 6. Tìm thông tin thanh toán
+        ThanhToan thanhToan = thanhToanRepository
+                .findByHoaDon_Id(hoaDon.getId())
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Không tìm thấy thông tin thanh toán"
+                        )
+                );
+
+        // 7. Kiểm tra phương thức thanh toán
+        if (!"CHUYEN_KHOAN".equalsIgnoreCase(
+                thanhToan.getPhuongThuc())) {
+            throw new RuntimeException(
+                    "Hóa đơn không sử dụng chuyển khoản"
+            );
+        }
+
+        // 8. Kiểm tra tiền tệ
+        String orderCurrency = String.valueOf(
+                order.get("order_currency")
+        );
+
+        String transactionCurrency = String.valueOf(
+                transaction.get("transaction_currency")
+        );
+
+        if (!"VND".equalsIgnoreCase(orderCurrency)
+                || !"VND".equalsIgnoreCase(transactionCurrency)) {
+            throw new RuntimeException(
+                    "Đơn vị tiền tệ không hợp lệ"
+            );
+        }
+
+        // 9. Kiểm tra số tiền
+        BigDecimal soTienDon;
+        BigDecimal soTienGiaoDich;
+
+        try {
+            soTienDon = new BigDecimal(
+                    String.valueOf(order.get("order_amount"))
+            );
+
+            soTienGiaoDich = new BigDecimal(
+                    String.valueOf(transaction.get("transaction_amount"))
+            );
+
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Số tiền IPN không hợp lệ"
+            );
+        }
+
+        BigDecimal soTienCanThanhToan =
+                thanhToan.getSoTien();
+
+        if (soTienCanThanhToan == null
+                || soTienDon.compareTo(soTienCanThanhToan) != 0
+                || soTienGiaoDich.compareTo(soTienCanThanhToan) != 0) {
+            throw new RuntimeException(
+                    "Số tiền SePay không khớp hóa đơn"
+            );
+        }
+
+        // =====================================================
+        // 10. XÁC NHẬN THANH TOÁN - CHỐNG IPN GỬI LẶP
+        // =====================================================
+
+        boolean daThanhToan =
+                "DA_THANH_TOAN".equalsIgnoreCase(
+                        thanhToan.getTrangThai()
+                );
+
+        if (!daThanhToan) {
+
+            String transactionId = String.valueOf(
+                    transaction.get("transaction_id")
+            );
+
+            if (transactionId.isBlank()
+                    || "null".equalsIgnoreCase(transactionId)) {
+                throw new RuntimeException(
+                        "Thiếu mã giao dịch SePay"
+                );
+            }
+
+            thanhToan.setTrangThai("DA_THANH_TOAN");
+            thanhToan.setMaGiaoDich(transactionId);
+            thanhToan.setNgayThanhToan(LocalDateTime.now());
+
+            thanhToanRepository.save(thanhToan);
+
+            System.out.println(
+                    "Đã xác nhận thanh toán SePay: " + maHoaDon
+            );
+
+        } else {
+            System.out.println(
+                    "SePay gửi IPN lặp, thanh toán đã xác nhận: "
+                            + maHoaDon
+            );
+        }
+
+        // =====================================================
+        // 11. TỰ ĐỘNG XÁC NHẬN ĐƠN HÀNG
+        // =====================================================
+
+        if ("CHO_XAC_NHAN".equalsIgnoreCase(
+                hoaDon.getTrangThai())) {
+
+            LocalDateTime now = LocalDateTime.now();
+
+            hoaDon.setTrangThai("DA_XAC_NHAN");
+            hoaDon.setNgayCapNhat(now);
+
+            HoaDon hoaDonDaLuu =
+                    hoaDonRepository.save(hoaDon);
+
+            // Ghi lịch sử thay đổi trạng thái
+            LichSuHoaDon lichSu = new LichSuHoaDon();
+
+            lichSu.setHoaDon(hoaDonDaLuu);
+            lichSu.setTrangThai("DA_XAC_NHAN");
+            lichSu.setThoiGian(now);
+
+            lichSu.setGhiChu(
+                    "Thanh toán SePay thành công. "
+                            + "Hệ thống tự động xác nhận đơn hàng."
+            );
+
+            lichSuHoaDonRepository.save(lichSu);
+
+            System.out.println(
+                    "Đã tự động xác nhận đơn hàng: " + maHoaDon
+            );
+
+        } else {
+
+            System.out.println(
+                    "Đơn hàng " + maHoaDon
+                            + " hiện ở trạng thái "
+                            + hoaDon.getTrangThai()
+                            + ", không thay đổi trạng thái."
+            );
+        }
+    }
 }

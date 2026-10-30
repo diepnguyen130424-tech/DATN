@@ -464,4 +464,30 @@
         background: #fff1f0;
         border-color: #e53935;
     }
+
+    .cart-total-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        white-space: nowrap;
+    }
+
+    .cart-total-actions .cart-remove-inline {
+        flex-shrink: 0;
+        padding: 6px 10px;
+        border: 1px solid #ffd5d2;
+        border-radius: 7px;
+        background: #fff;
+        color: #e53935;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .cart-total-actions .cart-remove-inline:hover {
+        background: #e53935;
+        border-color: #e53935;
+        color: #fff;
+    }
 }

@@ -19,6 +19,7 @@ const emptyForm = {
 
 function AdminProducts() {
     const [products, setProducts] = useState([]);
+    const [stockByProductId, setStockByProductId] = useState({});
     const [categories, setCategories] = useState([]);
     const [brands, setBrands] = useState([]);
 
@@ -64,9 +65,31 @@ function AdminProducts() {
                 ? await brandRes.json()
                 : [];
 
-            setProducts(Array.isArray(productData) ? productData : []);
+            const productList = Array.isArray(productData) ? productData : [];
+            setProducts(productList);
             setCategories(Array.isArray(categoryData) ? categoryData : []);
             setBrands(Array.isArray(brandData) ? brandData : []);
+
+            // Tải tồn kho của từng sản phẩm từ danh sách biến thể (size/màu).
+            // API chi tiết này cũng được dùng trong chức năng Xem sản phẩm.
+            const stockEntries = await Promise.all(
+                productList.map(async (product) => {
+                    try {
+                        const detailRes = await fetch(`${API}/san-pham/${product.id}/chi-tiet`);
+                        if (!detailRes.ok) return [product.id, null];
+                        const variants = await detailRes.json();
+                        if (!Array.isArray(variants)) return [product.id, null];
+                        const totalStock = variants.reduce(
+                            (sum, variant) => sum + Math.max(0, Number(variant.soLuongTon) || 0),
+                            0
+                        );
+                        return [product.id, totalStock];
+                    } catch {
+                        return [product.id, null];
+                    }
+                })
+            );
+            setStockByProductId(Object.fromEntries(stockEntries));
         } catch (err) {
             setError(err.message || "Có lỗi xảy ra");
         } finally {
@@ -435,6 +458,7 @@ function AdminProducts() {
                             <tr>
                                 <th>Ảnh</th>
                                 <th>Mã SP</th>
+                                <th>Tồn kho</th>
                                 <th>Tên sản phẩm</th>
                                 <th>Danh mục</th>
                                 <th>Thương hiệu</th>
@@ -466,6 +490,42 @@ function AdminProducts() {
                                         <strong>
                                             {product.maSanPham || "-"}
                                         </strong>
+                                    </td>
+
+                                    <td>
+                                        {stockByProductId[product.id] == null ? (
+                                            <span title="Chưa tải được số lượng tồn kho">—</span>
+                                        ) : (
+                                            <span
+                                                style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    minWidth: 38,
+                                                    padding: "5px 9px",
+                                                    borderRadius: 999,
+                                                    fontWeight: 700,
+                                                    fontSize: 13,
+                                                    color: stockByProductId[product.id] === 0
+                                                        ? "#dc2626"
+                                                        : stockByProductId[product.id] <= 5
+                                                            ? "#b45309"
+                                                            : "#15803d",
+                                                    background: stockByProductId[product.id] === 0
+                                                        ? "#fee2e2"
+                                                        : stockByProductId[product.id] <= 5
+                                                            ? "#fef3c7"
+                                                            : "#dcfce7",
+                                                }}
+                                                title={stockByProductId[product.id] === 0
+                                                    ? "Hết hàng"
+                                                    : stockByProductId[product.id] <= 5
+                                                        ? "Sắp hết hàng"
+                                                        : "Còn hàng"}
+                                            >
+                                                {stockByProductId[product.id]}
+                                            </span>
+                                        )}
                                     </td>
 
                                     <td>
@@ -1092,7 +1152,7 @@ function AdminProducts() {
                                         Đang tải biến thể...
                                     </div>
                                 ) : !selectedProduct.chiTiets ||
-                                  selectedProduct.chiTiets.length === 0 ? (
+                                selectedProduct.chiTiets.length === 0 ? (
                                     <div
                                         style={{
                                             textAlign: "center",
