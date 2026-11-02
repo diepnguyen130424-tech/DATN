@@ -1912,45 +1912,50 @@ function HoaDonContent() {
                             );
                         }
 
-                        return (
-                            <>
-                                <select
-                                    value={selectedHoaDon?.trangThai || ""}
-                                    disabled={updatingStatus}
-                                    onChange={(e) => capNhatTrangThai(e.target.value)}
-                                    style={{
-                                        padding: "10px",
-                                        border: "1px solid #ddd",
-                                        borderRadius: "8px",
-                                        minWidth: "250px",
-                                    }}
-                                >
-                                    {TRANG_THAI_HOA_DON.map((item) => (
-                                        <option key={item} value={item}>
-                                            {tenTrangThaiHoaDon(item)}
-                                        </option>
-                                    ))}
-                                </select>
+                        const btnLabels = {
+                            DA_XAC_NHAN: "Xác nhận đơn hàng",
+                            DANG_CHUAN_BI: "Chuẩn bị hàng",
+                            DANG_GIAO: "Bắt đầu giao hàng",
+                            DA_GIAO: "Đã giao hàng",
+                            DA_THANH_TOAN: "Xác nhận thanh toán",
+                            DA_HUY: "Hủy đơn",
+                        };
 
-                                <div
-                                    style={{
-                                        marginTop: 8,
-                                        fontSize: 12,
-                                        color: "#777",
-                                    }}
-                                >
+                        return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                <div style={{ fontSize: "14px", color: "#666" }}>
                                     Trạng thái hiện tại:{" "}
-                                    <strong style={{ color: "#111" }}>
+                                    <strong style={{ color: "#111", fontSize: "16px" }}>
                                         {tenTrangThaiHoaDon(ttHienTai)}
                                     </strong>
-
-                                    {dsChoPhep.length > 0 && (
-                                        <>
-                                            {" "}· Chỉ có thể chuyển sang {dsChoPhep.length} bước tiếp theo
-                                        </>
-                                    )}
                                 </div>
-                            </>
+
+                                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                                    {dsChoPhep.map((trangThaiMoi) => (
+                                        <button
+                                            key={trangThaiMoi}
+                                            type="button"
+                                            onClick={() => capNhatTrangThai(trangThaiMoi)}
+                                            disabled={updatingStatus}
+                                            style={{
+                                                padding: "10px 20px",
+                                                borderRadius: "8px",
+                                                border: "none",
+                                                fontWeight: 600,
+                                                fontSize: "14px",
+                                                cursor: updatingStatus ? "not-allowed" : "pointer",
+                                                opacity: updatingStatus ? 0.7 : 1,
+                                                background: trangThaiMoi === "DA_HUY" ? "#ffebee" : "#1976d2",
+                                                color: trangThaiMoi === "DA_HUY" ? "#c62828" : "#fff",
+                                                transition: "all 0.2s ease",
+                                                boxShadow: "0 2px 5px rgba(0,0,0,0.1)"
+                                            }}
+                                        >
+                                            {updatingStatus ? "Đang xử lý..." : (btnLabels[trangThaiMoi] || tenTrangThaiHoaDon(trangThaiMoi))}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         );
                     })()}
                 </section>
@@ -4559,4 +4564,3 @@ export default function AdminDashboard({ dangXuat, }) {
 
     </div>);
 }
-
