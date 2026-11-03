@@ -4121,10 +4121,206 @@ function EmployeeContent() {
     </div>);
 }
 function printAdminPosInvoice() {
-    // In ngay tren tab hien tai, giong luong in hoa don ban online.
-    // CSS @media print ben AdminDashboard.css se chi hien thi hoa don POS.
-    window.focus();
-    window.print();
+    const invoice = document.querySelector(".admin-pos-invoice");
+
+    if (!invoice) {
+        console.error("Không tìm thấy nội dung hóa đơn để in.");
+        alert("Không tìm thấy nội dung hóa đơn để in.");
+        return;
+    }
+
+    // Sao chép riêng phần hóa đơn, không lấy giao diện quản trị.
+    const invoiceHTML = invoice.cloneNode(true);
+
+    // Loại bỏ các nút Đóng / In khỏi bản in.
+    invoiceHTML
+        .querySelectorAll(".admin-pos-print-hide")
+        .forEach((element) => element.remove());
+
+    const iframe = document.createElement("iframe");
+
+    iframe.setAttribute("title", "Bản in hóa đơn FShop");
+    iframe.setAttribute("aria-hidden", "true");
+
+    Object.assign(iframe.style, {
+        position: "fixed",
+        right: "0",
+        bottom: "0",
+        width: "0",
+        height: "0",
+        border: "0",
+        visibility: "hidden",
+    });
+
+    const printDocument = `
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Hóa đơn FShop</title>
+
+            <style>
+                @page {
+                    size: 80mm auto;
+                    margin: 3mm;
+                }
+
+                * {
+                    box-sizing: border-box !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+
+                html,
+                body {
+                    width: 74mm !important;
+                    min-width: 74mm !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                    color: #111 !important;
+                    font-family: Arial, Helvetica, sans-serif !important;
+                }
+
+                body {
+                    font-size: 10px;
+                }
+
+                .admin-pos-invoice {
+                    display: block !important;
+                    position: static !important;
+                    width: 74mm !important;
+                    min-width: 0 !important;
+                    max-width: 74mm !important;
+                    height: auto !important;
+                    min-height: 0 !important;
+                    max-height: none !important;
+                    margin: 0 auto !important;
+                    padding: 3mm !important;
+                    overflow: visible !important;
+                    border: 0 !important;
+                    border-radius: 0 !important;
+                    box-shadow: none !important;
+                    background: #fff !important;
+                    color: #111 !important;
+                    font-family: Arial, Helvetica, sans-serif !important;
+                    font-size: 10px !important;
+                }
+
+                .admin-pos-print-hide {
+                    display: none !important;
+                }
+
+                .admin-pos-bill-meta {
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    gap: 3mm !important;
+                }
+
+                .admin-pos-customer-info {
+                    display: grid !important;
+                    grid-template-columns: 1fr 1fr !important;
+                    gap: 3mm !important;
+                }
+
+                .admin-pos-items {
+                    width: 100% !important;
+                    overflow: visible !important;
+                }
+
+                .admin-pos-items-head,
+                .admin-pos-items-row {
+                    display: grid !important;
+                    grid-template-columns: minmax(0, 1fr) 8mm 22mm !important;
+                    gap: 2mm !important;
+                    align-items: start !important;
+                    padding: 2mm !important;
+                    font-size: 9px !important;
+                }
+
+                .admin-pos-items-head span,
+                .admin-pos-items-row span,
+                .admin-pos-items-row strong {
+                    min-width: 0 !important;
+                }
+
+                .admin-pos-items-row > div {
+                    min-width: 0 !important;
+                    overflow-wrap: anywhere !important;
+                    word-break: break-word !important;
+                }
+
+                h2 {
+                    font-size: 16px !important;
+                }
+
+                img {
+                    max-width: 100% !important;
+                }
+
+                @media print {
+                    html,
+                    body {
+                        width: 74mm !important;
+                        height: auto !important;
+                    }
+
+                    .admin-pos-invoice {
+                        break-inside: auto;
+                    }
+
+                    .admin-pos-items-row {
+                        break-inside: avoid;
+                    }
+                }
+            </style>
+        </head>
+
+        <body>
+            ${invoiceHTML.outerHTML}
+        </body>
+        </html>
+    `;
+
+    iframe.onload = () => {
+        const printWindow = iframe.contentWindow;
+
+        if (!printWindow) {
+            iframe.remove();
+            alert("Không thể mở cửa sổ in hóa đơn.");
+            return;
+        }
+
+        const removePrintFrame = () => {
+            if (iframe.parentNode) {
+                iframe.parentNode.removeChild(iframe);
+            }
+        };
+
+        printWindow.addEventListener(
+            "afterprint",
+            removePrintFrame,
+            { once: true }
+        );
+
+        printWindow.focus();
+
+        // Chờ trình duyệt dựng xong nội dung trước khi mở hộp thoại in.
+        printWindow.requestAnimationFrame(() => {
+            printWindow.requestAnimationFrame(() => {
+                printWindow.print();
+            });
+        });
+    };
+
+    iframe.onerror = () => {
+        iframe.remove();
+        alert("Không thể tạo bản in hóa đơn.");
+    };
+
+    iframe.srcdoc = printDocument;
+    document.body.appendChild(iframe);
 }
 
 function BanHangTaiQuayContent() {
