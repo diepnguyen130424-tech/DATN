@@ -22,6 +22,10 @@ function AdminProducts() {
     const [stockByProductId, setStockByProductId] = useState({});
     const [categories, setCategories] = useState([]);
     const [brands, setBrands] = useState([]);
+    const [sizes, setSizes] = useState([]);
+    const [colors, setColors] = useState([]);
+    const [warehouses, setWarehouses] = useState([]);
+    const [variantDrafts, setVariantDrafts] = useState([]);
 
     const [keyword, setKeyword] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("");
@@ -47,10 +51,13 @@ function AdminProducts() {
             setLoading(true);
             setError("");
 
-            const [productRes, categoryRes, brandRes] = await Promise.all([
+            const [productRes, categoryRes, brandRes, sizeRes, colorRes, warehouseRes] = await Promise.all([
                 fetch(`${API}/san-pham`),
                 fetch(`${API}/danh-muc`),
                 fetch(`${API}/thuong-hieu`),
+                fetch(`${API}/kich-co`).catch(() => null),
+                fetch(`${API}/mau-sac`).catch(() => null),
+                fetch(`${API}/kho/danh-sach`).catch(() => null),
             ]);
 
             if (!productRes.ok) {
@@ -64,6 +71,13 @@ function AdminProducts() {
             const brandData = brandRes.ok
                 ? await brandRes.json()
                 : [];
+            const sizeData = sizeRes?.ok ? await sizeRes.json().catch(() => []) : [];
+            const colorData = colorRes?.ok ? await colorRes.json().catch(() => []) : [];
+            const warehouseData = warehouseRes?.ok ? await warehouseRes.json().catch(() => []) : [];
+
+            setSizes(Array.isArray(sizeData) ? sizeData : []);
+            setColors(Array.isArray(colorData) ? colorData : []);
+            setWarehouses(Array.isArray(warehouseData) ? warehouseData : []);
 
             const productList = Array.isArray(productData) ? productData : [];
             setProducts(productList);
@@ -103,33 +117,36 @@ function AdminProducts() {
 
 
     const filteredProducts = useMemo(() => {
-        return products.filter((product) => {
-            const text = keyword.trim().toLowerCase();
+        return products
+            .filter((product) => {
+                const text = keyword.trim().toLowerCase();
 
-            const matchKeyword =
-                !text ||
-                product.tenSanPham?.toLowerCase().includes(text) ||
-                product.maSanPham?.toLowerCase().includes(text);
+                const matchKeyword =
+                    !text ||
+                    product.tenSanPham?.toLowerCase().includes(text) ||
+                    product.maSanPham?.toLowerCase().includes(text);
 
-            const matchCategory =
-                !categoryFilter ||
-                String(product.danhMuc?.id) === String(categoryFilter);
+                const matchCategory =
+                    !categoryFilter ||
+                    String(product.danhMuc?.id) === String(categoryFilter);
 
-            const matchBrand =
-                !brandFilter ||
-                String(product.thuongHieu?.id) === String(brandFilter);
+                const matchBrand =
+                    !brandFilter ||
+                    String(product.thuongHieu?.id) === String(brandFilter);
 
-            const matchStatus =
-                !statusFilter ||
-                product.trangThai === statusFilter;
+                const matchStatus =
+                    !statusFilter ||
+                    product.trangThai === statusFilter;
 
-            return (
-                matchKeyword &&
-                matchCategory &&
-                matchBrand &&
-                matchStatus
-            );
-        });
+                return (
+                    matchKeyword &&
+                    matchCategory &&
+                    matchBrand &&
+                    matchStatus
+                );
+            })
+            // Sản phẩm có ID lớn hơn thường được tạo sau, hiển thị trước.
+            .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
     }, [
         products,
         keyword,
@@ -169,16 +186,25 @@ function AdminProducts() {
         }));
     };
 
+    const emptyVariantDraft = () => ({
+        id: null,
+        kichCoId: "",
+        mauSacId: "",
+        giaBan: "",
+        soLuongTon: "0",
+        maSku: "",
+        trangThai: "HOAT_DONG",
+    });
+
     const openCreate = () => {
         setEditingId(null);
         setForm(emptyForm);
+        setVariantDrafts([emptyVariantDraft()]);
         setShowModal(true);
     };
 
-    const openEdit = (product) => {
-
+    const openEdit = async (product) => {
         setEditingId(product.id);
-
         setForm({
             maSanPham: product.maSanPham || "",
             tenSanPham: product.tenSanPham || "",
@@ -191,8 +217,41 @@ function AdminProducts() {
             hinhAnh: product.hinhAnh || "",
             trangThai: product.trangThai || "HOAT_DONG",
         });
-
+        try {
+            const response = await fetch(`${API}/san-pham/${product.id}/chi-tiet`);
+            const data = response.ok ? await response.json() : [];
+            const rows = Array.isArray(data) ? data.map((variant) => ({
+                id: variant.id,
+                kichCoId: String(variant.kichCo?.id || ""),
+                mauSacId: String(variant.mauSac?.id || ""),
+                giaBan: String(variant.giaBan ?? ""),
+                soLuongTon: String(variant.soLuongTon ?? 0),
+                maSku: variant.maSku || "",
+                trangThai: variant.trangThai || "HOAT_DONG",
+            })) : [];
+            setVariantDrafts(rows.length ? [...rows, emptyVariantDraft()] : [emptyVariantDraft()]);
+        } catch (error) {
+            console.error("Không tải được biến thể sản phẩm:", error);
+            setVariantDrafts([emptyVariantDraft()]);
+        }
         setShowModal(true);
+    };
+
+    const updateVariantDraft = (index, field, value) => {
+        setVariantDrafts((current) => current.map((row, rowIndex) =>
+            rowIndex === index ? { ...row, [field]: value } : row
+        ));
+    };
+
+    const addVariantDraft = () => setVariantDrafts((current) => [...current, emptyVariantDraft()]);
+    const removeVariantDraft = (index) => setVariantDrafts((current) => current.filter((_, i) => i !== index));
+
+    const taoMaSku = (maSanPham, sizeId, colorId) => {
+        const size = sizes.find((item) => String(item.id) === String(sizeId));
+        const color = colors.find((item) => String(item.id) === String(colorId));
+        const clean = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/đ/g, "d").replace(/Đ/g, "D").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toUpperCase();
+        return `${clean(maSanPham)}-${clean(size?.tenKichCo || sizeId)}-${clean(color?.tenMau || colorId)}`;
     };
 
     // ⭐ SỬA — thêm async
@@ -232,21 +291,49 @@ function AdminProducts() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        const partiallyFilled = variantDrafts.some((row) =>
+            (row.kichCoId || row.mauSacId || row.giaBan !== "") &&
+            (!row.kichCoId || !row.mauSacId || row.giaBan === "")
+        );
+        const validDrafts = variantDrafts.filter((row) =>
+            row.kichCoId && row.mauSacId && row.giaBan !== ""
+        );
+
+        if (partiallyFilled) {
+            alert("Vui lòng chọn đầy đủ size, màu sắc và giá bán cho từng biến thể.");
+            return;
+        }
+        if (validDrafts.length === 0) {
+            alert("Bạn cần thêm ít nhất một biến thể size/màu và giá bán để khách hàng có thể mua sản phẩm.");
+            return;
+        }
+        const combinationKeys = validDrafts.map((row) => `${row.kichCoId}-${row.mauSacId}`);
+        if (new Set(combinationKeys).size !== combinationKeys.length) {
+            alert("Không thể tạo hai biến thể trùng cùng size và màu sắc.");
+            return;
+        }
+        if (validDrafts.some((row) => Number(row.giaBan) <= 0 || !Number.isFinite(Number(row.giaBan)))) {
+            alert("Giá bán của từng biến thể phải lớn hơn 0.");
+            return;
+        }
+        if (validDrafts.some((row) => !row.id && (!Number.isInteger(Number(row.soLuongTon || 0)) || Number(row.soLuongTon || 0) < 0))) {
+            alert("Số lượng ban đầu phải là số nguyên lớn hơn hoặc bằng 0.");
+            return;
+        }
+        const newStockTotal = validDrafts.filter((row) => !row.id)
+            .reduce((sum, row) => sum + Math.max(0, Number(row.soLuongTon) || 0), 0);
+        if (newStockTotal > 0 && !warehouses[0]?.id) {
+            alert("Chưa có kho hàng mặc định. Hãy tạo kho trong mục Kho hàng trước khi nhập số lượng ban đầu.");
+            return;
+        }
+
         try {
             setSaving(true);
-
             const payload = {
                 maSanPham: form.maSanPham,
                 tenSanPham: form.tenSanPham,
-
-                danhMuc: form.danhMucId
-                    ? { id: Number(form.danhMucId) }
-                    : null,
-
-                thuongHieu: form.thuongHieuId
-                    ? { id: Number(form.thuongHieuId) }
-                    : null,
-
+                danhMuc: form.danhMucId ? { id: Number(form.danhMucId) } : null,
+                thuongHieu: form.thuongHieuId ? { id: Number(form.thuongHieuId) } : null,
                 chatLieu: form.chatLieu,
                 kieuDang: form.kieuDang,
                 xuatXu: form.xuatXu,
@@ -255,31 +342,91 @@ function AdminProducts() {
                 trangThai: form.trangThai,
             };
 
-            const url = editingId
-                ? `${API}/san-pham/${editingId}`
-                : `${API}/san-pham`;
-
-            const method = editingId ? "PUT" : "POST";
-
+            const url = editingId ? `${API}/san-pham/${editingId}` : `${API}/san-pham`;
             const response = await fetch(url, {
-                method,
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                method: editingId ? "PUT" : "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
+            const responseText = await response.text();
+            let savedProduct = null;
+            try { savedProduct = responseText ? JSON.parse(responseText) : null; } catch { savedProduct = null; }
+            if (!response.ok || !savedProduct?.id) {
+                throw new Error(savedProduct?.message || savedProduct?.error || responseText || "Lưu sản phẩm thất bại");
+            }
 
-            if (!response.ok) {
-                throw new Error("Lưu sản phẩm thất bại");
+            const stockImportItems = [];
+            for (const row of validDrafts) {
+                const isNewVariant = !row.id;
+                const sku = row.maSku || taoMaSku(form.maSanPham, row.kichCoId, row.mauSacId);
+                const variantPayload = {
+                    sanPham: { id: Number(savedProduct.id) },
+                    kichCo: { id: Number(row.kichCoId) },
+                    mauSac: { id: Number(row.mauSacId) },
+                    maSku: sku,
+                    giaBan: Number(row.giaBan),
+                    // Tồn kho hiện có chỉ được điều chỉnh qua mục Kho hàng.
+                    soLuongTon: isNewVariant ? 0 : Math.max(0, Number(row.soLuongTon) || 0),
+                    trangThai: row.trangThai || "HOAT_DONG",
+                };
+                const variantResponse = await fetch(
+                    isNewVariant ? `${API}/san-pham-chi-tiet` : `${API}/san-pham-chi-tiet/${row.id}`,
+                    {
+                        method: isNewVariant ? "POST" : "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(variantPayload),
+                    }
+                );
+                const variantText = await variantResponse.text();
+                let savedVariant = null;
+                try { savedVariant = variantText ? JSON.parse(variantText) : null; } catch { savedVariant = null; }
+                if (!variantResponse.ok || !savedVariant?.id) {
+                    throw new Error(savedVariant?.message || savedVariant?.error || variantText || `Không lưu được biến thể ${sku}`);
+                }
+                const initialStock = isNewVariant ? Math.max(0, Number(row.soLuongTon) || 0) : 0;
+                if (initialStock > 0) {
+                    stockImportItems.push({
+                        sanPhamChiTietId: savedVariant.id,
+                        soLuong: initialStock,
+                        donGia: Number(row.giaBan),
+                    });
+                }
+            }
+
+            // Ghi tồn ban đầu qua phiếu nhập để đồng bộ cả bảng tồn kho và lịch sử biến động.
+            if (stockImportItems.length > 0) {
+                const importResponse = await fetch(`${API}/kho/phieu`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        maPhieu: `NK-${Date.now()}`,
+                        loaiPhieu: "NHAP",
+                        khoId: Number(warehouses[0].id),
+                        lyDo: "Nhập tồn kho ban đầu khi tạo biến thể sản phẩm",
+                        ghiChu: `Tạo từ màn hình quản lý sản phẩm ${savedProduct.maSanPham || form.maSanPham}`,
+                        chiTiet: stockImportItems,
+                    }),
+                });
+                const importText = await importResponse.text();
+                if (!importResponse.ok) {
+                    throw new Error(importText || "Đã lưu sản phẩm/biến thể nhưng chưa nhập được tồn kho. Vui lòng vào Kho hàng để nhập bổ sung.");
+                }
             }
 
             setShowModal(false);
             setForm(emptyForm);
-            setEditingId(null);
 
+            // Sau khi thêm mới, quay về trang đầu để thấy sản phẩm vừa tạo.
+            if (!editingId) {
+                setCurrentPage(1);
+            }
+
+            setEditingId(null);
+            setVariantDrafts([]);
             await loadData();
         } catch (err) {
-            alert(err.message || "Có lỗi xảy ra");
+            alert(err.message || "Có lỗi xảy ra khi lưu sản phẩm và biến thể.");
+            await loadData();
         } finally {
             setSaving(false);
         }
@@ -936,6 +1083,61 @@ function AdminProducts() {
                                 </div>
 
                             </div>
+
+                            <section className="product-variant-editor">
+                                <div className="product-variant-editor-heading">
+                                    <div>
+                                        <h3>Biến thể sản phẩm</h3>
+                                        <p>Chọn size, màu sắc, giá bán và số lượng ban đầu cho từng biến thể.</p>
+                                    </div>
+                                    <button type="button" className="variant-add-button" onClick={addVariantDraft}>+ Thêm biến thể</button>
+                                </div>
+
+                                {variantDrafts.map((row, index) => (
+                                    <div className="product-variant-draft" key={row.id || `new-${index}`}>
+                                        <div className="variant-draft-title">
+                                            <strong>{row.id ? `Biến thể ${row.maSku || index + 1}` : `Biến thể mới ${index + 1}`}</strong>
+                                            {row.id ? <span>Đang có {Number(row.soLuongTon || 0)} đôi trong kho</span> : <span>SKU sẽ tự tạo khi lưu</span>}
+                                        </div>
+                                        <div className="variant-draft-fields">
+                                            <label>
+                                                Size *
+                                                <select value={row.kichCoId} onChange={(event) => updateVariantDraft(index, "kichCoId", event.target.value)}>
+                                                    <option value="">Chọn size</option>
+                                                    {sizes.filter((size) => ["HOAT_DONG", "ACTIVE"].includes(size.trangThai) || String(size.id) === String(row.kichCoId)).map((size) => (
+                                                        <option key={size.id} value={size.id}>{size.tenKichCo}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            <label>
+                                                Màu sắc *
+                                                <select value={row.mauSacId} onChange={(event) => updateVariantDraft(index, "mauSacId", event.target.value)}>
+                                                    <option value="">Chọn màu</option>
+                                                    {colors.filter((color) => ["HOAT_DONG", "ACTIVE"].includes(color.trangThai) || String(color.id) === String(row.mauSacId)).map((color) => (
+                                                        <option key={color.id} value={color.id}>{color.tenMau}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            <label>
+                                                Giá bán (VNĐ) *
+                                                <input type="number" min="1" step="1" value={row.giaBan} onChange={(event) => updateVariantDraft(index, "giaBan", event.target.value)} placeholder="Nhập giá bán tùy ý (VNĐ)" />
+                                            </label>
+                                            <label>
+                                                Số lượng ban đầu
+                                                <input type="number" min="0" step="1" value={row.soLuongTon} disabled={Boolean(row.id)} onChange={(event) => updateVariantDraft(index, "soLuongTon", event.target.value)} placeholder="0" />
+                                                {row.id ? <small>Muốn tăng/giảm tồn hiện tại, thao tác trong mục Kho hàng.</small> : <small>Số lượng sẽ được ghi nhận bằng phiếu nhập kho.</small>}
+                                            </label>
+                                        </div>
+                                        <div className="variant-draft-footer">
+                                            {row.id ? <span>SKU: {row.maSku || "Tự động"}</span> : <span>Size + màu tạo thành một biến thể riêng.</span>}
+                                            <button type="button" onClick={() => removeVariantDraft(index)} disabled={variantDrafts.length === 1 || Boolean(row.id)}>Xóa dòng</button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {sizes.length === 0 || colors.length === 0 ? (
+                                    <p className="variant-editor-warning">Chưa tải được danh sách size hoặc màu. Hãy kiểm tra mục Kích cỡ và Màu sắc trong Admin.</p>
+                                ) : null}
+                            </section>
 
                             <div className="modal-footer">
 

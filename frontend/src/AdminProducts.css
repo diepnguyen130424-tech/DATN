@@ -414,3 +414,112 @@
         grid-column: auto;
     }
 }
+/* Trình quản lý biến thể size/màu trong form thêm và sửa sản phẩm */
+.product-variant-editor {
+    margin-top: 24px;
+    padding: 18px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fafbfc;
+}
+.product-variant-editor-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.product-variant-editor-heading h3 {
+    margin: 0;
+    color: #171a1f;
+    font-size: 17px;
+}
+.product-variant-editor-heading p {
+    margin: 5px 0 0;
+    color: #7b828c;
+    font-size: 12px;
+}
+.variant-add-button {
+    flex-shrink: 0;
+    padding: 9px 12px;
+    border: 1px solid #20242a;
+    border-radius: 8px;
+    background: #20242a;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.variant-add-button:hover { background: #3b414a; }
+.product-variant-draft {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid #e6e8eb;
+    border-radius: 10px;
+    background: #fff;
+}
+.variant-draft-title,
+.variant-draft-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.variant-draft-title strong { color: #252a31; font-size: 13px; }
+.variant-draft-title span,
+.variant-draft-footer span { color: #858b95; font-size: 11px; }
+.variant-draft-fields {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+.variant-draft-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #3b414a;
+    font-size: 12px;
+    font-weight: 600;
+}
+.variant-draft-fields input,
+.variant-draft-fields select {
+    width: 100%;
+    min-width: 0;
+    height: 39px;
+    padding: 0 9px;
+    border: 1px solid #d9dce1;
+    border-radius: 7px;
+    background: #fff;
+    color: #252a31;
+    font-size: 13px;
+}
+.variant-draft-fields input:disabled { background: #f1f2f4; color: #777; }
+.variant-draft-fields small { color: #858b95; font-size: 10px; font-weight: 400; line-height: 1.4; }
+.variant-draft-footer {
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px solid #f0f1f3;
+}
+.variant-draft-footer button {
+    border: 0;
+    background: transparent;
+    color: #dc3545;
+    font-size: 11px;
+    cursor: pointer;
+}
+.variant-draft-footer button:disabled { color: #b6bbc2; cursor: not-allowed; }
+.variant-editor-warning {
+    margin: 12px 0 0;
+    color: #b45309;
+    font-size: 12px;
+}
+@media (max-width: 900px) {
+    .variant-draft-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+    .product-variant-editor { padding: 12px; }
+    .product-variant-editor-heading { flex-direction: column; }
+    .variant-draft-fields { grid-template-columns: 1fr; }
+    .variant-draft-title, .variant-draft-footer { align-items: flex-start; flex-direction: column; }
+}

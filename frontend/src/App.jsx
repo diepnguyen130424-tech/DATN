@@ -2683,6 +2683,378 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
         finally { setDangDatHang(false); }
     };
 
+    // In hóa đơn khách hàng bằng tài liệu iframe độc lập.
+    // Tránh xung đột với các quy tắc @media print của trang quản trị.
+    const handlePrintCustomerInvoice = () => {
+        const invoice = document.getElementById("invoice-print-area");
+        if (!invoice) {
+            alert("Không tìm thấy nội dung hóa đơn để in. Vui lòng tải lại trang.");
+            return;
+        }
+
+        const printFrame = document.createElement("iframe");
+        printFrame.setAttribute("title", "Bản in hóa đơn khách hàng FShop");
+        printFrame.style.position = "fixed";
+        printFrame.style.right = "0";
+        printFrame.style.bottom = "0";
+        printFrame.style.width = "0";
+        printFrame.style.height = "0";
+        printFrame.style.border = "0";
+        printFrame.style.visibility = "hidden";
+        document.body.appendChild(printFrame);
+
+        const printDocument = printFrame.contentDocument;
+        const frameWindow = printFrame.contentWindow;
+        if (!printDocument || !frameWindow) {
+            printFrame.remove();
+            alert("Trình duyệt không thể tạo bản in hóa đơn.");
+            return;
+        }
+
+        const invoiceHtml = invoice.cloneNode(true);
+        invoiceHtml.removeAttribute("id");
+        const actionButtons = invoiceHtml.querySelector(".bill-actions");
+        if (actionButtons) actionButtons.remove();
+
+        printDocument.open();
+        printDocument.write(`<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hóa đơn FShop - Khổ giấy 80mm</title>
+<style>
+    @page {
+        size: 80mm auto;
+        margin: 3mm;
+    }
+
+    * {
+        box-sizing: border-box !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    html, body {
+        display: block !important;
+        width: 74mm !important;
+        min-width: 74mm !important;
+        max-width: 74mm !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        background: #fff !important;
+        color: #111 !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 10px !important;
+        line-height: 1.4 !important;
+    }
+
+    .bill-card,
+    #invoice-print-area {
+        display: block !important;
+        position: static !important;
+        width: 74mm !important;
+        min-width: 0 !important;
+        max-width: 74mm !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        margin: 0 auto !important;
+        padding: 3mm !important;
+        overflow: visible !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #fff !important;
+        color: #111 !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 10px !important;
+    }
+
+    /* Header receipt giống hóa đơn bán hàng tại quầy */
+    .bill-card > div:first-child {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 0 3mm !important;
+        border-bottom: 1px dashed #aab0b8 !important;
+        text-align: center !important;
+    }
+
+    .bill-card > div:first-child > div:first-child {
+        width: 10mm !important;
+        height: 10mm !important;
+        margin: 0 auto 2mm !important;
+        border-radius: 50% !important;
+        font-size: 19px !important;
+    }
+
+    .bill-card .section-label {
+        display: block !important;
+        margin: 0 0 1mm !important;
+        color: #111 !important;
+        font-size: 9px !important;
+        font-weight: 800 !important;
+        letter-spacing: 1.5px !important;
+    }
+
+    .bill-card h1 {
+        margin: 1mm 0 !important;
+        color: #111 !important;
+        font-size: 16px !important;
+        line-height: 1.25 !important;
+    }
+
+    .bill-card > div:first-child p {
+        margin: 1mm 0 0 !important;
+        color: #555 !important;
+        font-size: 9px !important;
+    }
+
+    /* Mã hóa đơn / ngày đặt / phương thức */
+    .bill-card .bill-meta {
+        display: block !important;
+        padding: 3mm 0 !important;
+        margin: 0 !important;
+        border-bottom: 1px solid #ddd !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        font-size: 9px !important;
+    }
+
+    .bill-card .bill-meta > div {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: baseline !important;
+        gap: 2mm !important;
+        margin: 1mm 0 !important;
+    }
+
+    .bill-card .bill-meta span {
+        display: inline !important;
+        margin: 0 !important;
+        color: #666 !important;
+        font-size: 9px !important;
+    }
+
+    .bill-card .bill-meta strong {
+        display: inline !important;
+        text-align: right !important;
+        font-size: 9px !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .bill-card .bill-payment-note {
+        margin: 2mm 0 !important;
+        padding: 2mm !important;
+        border: 1px solid #ddd !important;
+        border-radius: 2mm !important;
+        background: #fff !important;
+        font-size: 9px !important;
+    }
+
+    .bill-card .bill-payment-note p {
+        margin: 1mm 0 0 !important;
+        font-size: 8px !important;
+    }
+
+    /* Người nhận */
+    .bill-card .bill-section-title {
+        margin: 3mm 0 1.5mm !important;
+        padding: 0 0 1mm !important;
+        border-bottom: 1px dashed #c7c7c7 !important;
+        color: #111 !important;
+        font-size: 11px !important;
+        line-height: 1.3 !important;
+        break-after: avoid !important;
+        page-break-after: avoid !important;
+    }
+
+    .bill-card .bill-recipient {
+        margin: 0 0 2mm !important;
+        font-size: 9px !important;
+        line-height: 1.55 !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+    }
+
+    .bill-card .bill-recipient > div {
+        margin: .5mm 0 !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    /* Bảng hàng hóa dạng receipt 80mm */
+    .bill-card .bill-table-wrap {
+        width: 100% !important;
+        margin: 0 !important;
+        overflow: visible !important;
+    }
+
+    .bill-card table {
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        font-size: 8px !important;
+    }
+
+    .bill-card th,
+    .bill-card td {
+        min-width: 0 !important;
+        padding: 1.7mm 1mm !important;
+        border-bottom: 1px solid #ddd !important;
+        color: #111 !important;
+        vertical-align: top !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: normal !important;
+        font-size: 8px !important;
+    }
+
+    .bill-card th {
+        background: #f4f4f4 !important;
+        font-weight: 800 !important;
+        font-size: 7.5px !important;
+    }
+
+    .bill-card th:nth-child(1),
+    .bill-card td:nth-child(1) { width: 42% !important; text-align: left !important; }
+
+    .bill-card th:nth-child(2),
+    .bill-card td:nth-child(2) { width: 20% !important; text-align: right !important; }
+
+    .bill-card th:nth-child(3),
+    .bill-card td:nth-child(3) { width: 8% !important; text-align: center !important; }
+
+    .bill-card th:nth-child(4),
+    .bill-card td:nth-child(4) { width: 30% !important; text-align: right !important; }
+
+    .bill-card td strong {
+        font-size: 8px !important;
+    }
+
+    .bill-card td div {
+        margin-top: .5mm !important;
+        color: #555 !important;
+        font-size: 7px !important;
+        line-height: 1.3 !important;
+    }
+
+    /* Tổng tiền căn phải, cùng nhịp với hóa đơn tại quầy */
+    .bill-card .bill-summary {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 3mm 0 0 !important;
+        padding: 2mm 0 0 !important;
+        border-top: 1px dashed #999 !important;
+        font-size: 9px !important;
+    }
+
+    .summary-line {
+        display: flex !important;
+        justify-content: space-between !important;
+        gap: 2mm !important;
+        padding: 1mm 0 !important;
+        font-size: 9px !important;
+    }
+
+    .summary-line > span {
+        color: #555 !important;
+    }
+
+    .summary-line > strong {
+        text-align: right !important;
+        color: #111 !important;
+        white-space: nowrap !important;
+    }
+
+    .summary-total {
+        display: flex !important;
+        justify-content: space-between !important;
+        gap: 2mm !important;
+        margin-top: 1mm !important;
+        padding: 2mm 0 0 !important;
+        border-top: 1px solid #111 !important;
+        font-size: 11px !important;
+        font-weight: 800 !important;
+    }
+
+    .summary-total strong {
+        color: #111 !important;
+        font-size: 12px !important;
+        white-space: nowrap !important;
+    }
+
+    .summary-divider {
+        margin: 1mm 0 !important;
+        border: 0 !important;
+        border-top: 1px dashed #bbb !important;
+    }
+
+    .discount-line,
+    .discount-line strong {
+        color: #b42318 !important;
+    }
+
+    .ship-fee-tag {
+        display: inline-block !important;
+        margin-left: 1mm !important;
+        font-size: 7px !important;
+        font-weight: 800 !important;
+    }
+
+    .bill-actions,
+    button {
+        display: none !important;
+    }
+
+    tr {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+    }
+
+    @media print {
+        html, body {
+            width: 74mm !important;
+            height: auto !important;
+        }
+
+        .bill-card {
+            break-inside: auto !important;
+        }
+    }
+</style>
+</head>
+<body>
+${invoiceHtml.outerHTML}
+</body>
+</html>`);
+        printDocument.close();
+
+        let cleaned = false;
+        const cleanup = () => {
+            if (cleaned) return;
+            cleaned = true;
+            if (printFrame.parentNode) printFrame.parentNode.removeChild(printFrame);
+        };
+        frameWindow.onafterprint = () => window.setTimeout(cleanup, 500);
+
+        // Chờ trình duyệt dựng nội dung iframe rồi mới mở hộp thoại in.
+        window.setTimeout(() => {
+            if (!printFrame.isConnected) return;
+            try {
+                frameWindow.focus();
+                frameWindow.print();
+            } catch (error) {
+                console.error("Lỗi in hóa đơn:", error);
+                cleanup();
+                alert("Không thể in hóa đơn. Vui lòng thử lại.");
+            }
+        }, 500);
+    };
+
     if (bill) {
         return (
             <main className="cart-page">
@@ -2694,28 +3066,28 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                             <h1 style={{ margin: "8px 0", fontSize: "30px" }}>Đặt hàng thành công!</h1>
                             <p style={{ color: "#777", margin: 0 }}>Cảm ơn bạn đã mua hàng.</p>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", padding: "18px", background: "#fafafa", borderRadius: "6px", marginBottom: "25px", fontSize: "13px" }}>
+                        <div className="bill-meta" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", padding: "18px", background: "#fafafa", borderRadius: "6px", marginBottom: "25px", fontSize: "13px" }}>
                             <div><span style={{ color: "#888", display: "block", marginBottom: "5px" }}>Mã hóa đơn</span><strong>{bill.maHoaDon}</strong></div>
                             <div><span style={{ color: "#888", display: "block", marginBottom: "5px" }}>Ngày đặt</span><strong>{bill.ngayDat}</strong></div>
                             <div><span style={{ color: "#888", display: "block", marginBottom: "5px" }}>Phương thức</span><strong>{hienThiPT(bill.phuongThuc)}</strong></div>
                         </div>
                         {bill.phuongThuc === "CHUYEN_KHOAN" && (
-                            <div style={{ marginBottom: "28px", padding: "18px", border: "1px solid #e0e0e0", borderRadius: "12px", background: "#fffaf5" }}>
+                            <div className="bill-payment-note" style={{ marginBottom: "28px", padding: "18px", border: "1px solid #e0e0e0", borderRadius: "12px", background: "#fffaf5" }}>
                                 <strong>Thanh toán qua SePay</strong>
                                 <p style={{ margin: "8px 0 0", color: "#666", fontSize: "13px" }}>
                                     Đơn hàng đang chờ xác nhận thanh toán. Trạng thái thanh toán sẽ được cập nhật khi hệ thống nhận được IPN hợp lệ từ SePay.
                                 </p>
                             </div>
                         )}
-                        <h2 style={{ fontSize: "18px", marginBottom: "15px" }}>Thông tin nhận hàng</h2>
-                        <div style={{ lineHeight: 1.8, fontSize: "13px", marginBottom: "25px" }}>
+                        <h2 className="bill-section-title">Thông tin nhận hàng</h2>
+                        <div className="bill-recipient" style={{ lineHeight: 1.8, fontSize: "13px", marginBottom: "25px" }}>
                             <div><strong>Người nhận: </strong>{bill.hoTen}</div>
                             <div><strong>SĐT: </strong>{bill.soDienThoai}</div>
                             <div><strong>Địa chỉ: </strong>{bill.diaChi}</div>
                             {bill.ghiChu && <div><strong>Ghi chú: </strong>{bill.ghiChu}</div>}
                         </div>
-                        <h2 style={{ fontSize: "18px", marginBottom: "15px" }}>Chi tiết hóa đơn</h2>
-                        <div style={{ overflowX: "auto" }}>
+                        <h2 className="bill-section-title">Chi tiết hóa đơn</h2>
+                        <div className="bill-table-wrap" style={{ overflowX: "auto" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                                 <thead>
                                 <tr style={{ background: "#f7f7f7", textAlign: "left" }}>
@@ -2747,7 +3119,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                                 </tbody>
                             </table>
                         </div>
-                        <div style={{ maxWidth: "360px", margin: "22px 0 0 auto" }}>
+                        <div className="bill-summary" style={{ maxWidth: "360px", margin: "22px 0 0 auto" }}>
                             <div className="summary-line"><span>Tạm tính</span><strong>{formatGia(bill.tamTinh)}</strong></div>
                             <div className="summary-line">
                                 <span>Phí vận chuyển</span>
@@ -2766,7 +3138,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                             <div className="summary-total"><span>Tổng thanh toán</span><strong>{formatGia(bill.tongThanhToan)}</strong></div>
                         </div>
                         <div className="bill-actions" style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "30px" }}>
-                            <button className="checkout-button" style={{ width: "auto", minWidth: "180px", padding: "0 22px" }} onClick={() => window.print()}>🖨 In hóa đơn / Lưu PDF</button>
+                            <button className="checkout-button" style={{ width: "auto", minWidth: "180px", padding: "0 22px" }} onClick={handlePrintCustomerInvoice}>🖨 In hóa đơn / Lưu PDF</button>
                             <button className="continue-shopping" style={{ marginTop: 0, border: "1px solid #ddd", borderRadius: "4px", padding: "0 22px", minHeight: "48px" }} onClick={() => setPage("home")}>Tiếp tục mua hàng</button>
                         </div>
                     </div>
