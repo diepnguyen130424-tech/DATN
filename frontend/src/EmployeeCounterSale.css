@@ -719,3 +719,6 @@
     border-left: 1px solid #f0f0f0;
     padding-left: 16px;
 }
+.pos-layout {
+    grid-template-columns: minmax(0, 1fr) 390px; /* 2 cột: Sản phẩm & Giỏ hàng */
+}
