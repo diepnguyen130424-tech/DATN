@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, no-empty */
 import { useEffect, useRef, useState } from "react";
-import "./AdminKhuyenMai.css"; // ⭐ Import file CSS
+import "./AdminKhuyenMai.css";
 
 const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_khuyen_mai_cache";
@@ -10,6 +10,7 @@ const EMPTY_FORM = {
     tenChuongTrinh: "",
     loaiGiam: "PHAN_TRAM",
     giaTriGiam: "",
+    giamToiDa: "",
     ngayBatDau: "",
     ngayKetThuc: "",
     trangThai: "HOAT_DONG",
@@ -22,17 +23,11 @@ function formatGia(gia) {
 
 function formatDate(str) {
     if (!str) return "—";
-    try {
-        return new Date(str).toLocaleDateString("vi-VN");
-    } catch {
-        return str;
-    }
+    try { return new Date(str).toLocaleDateString("vi-VN"); } catch { return str; }
 }
 
 function getTrangThaiThuc(item) {
-    if (item?.trangThai === "HET_HAN" || item?.trangThai === "NGUNG_HOAT_DONG") {
-        return "HET_HAN";
-    }
+    if (item?.trangThai === "HET_HAN" || item?.trangThai === "NGUNG_HOAT_DONG") return "HET_HAN";
     const now = new Date();
     if (item?.ngayBatDau) {
         const bd = new Date(item.ngayBatDau);
@@ -61,15 +56,11 @@ function readCache() {
         const parsed = JSON.parse(raw);
         if (Date.now() - parsed.time > CACHE_TTL) return null;
         return parsed.data;
-    } catch {
-        return null;
-    }
+    } catch { return null; }
 }
 
 function writeCache(data) {
-    try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, time: Date.now() }));
-    } catch {}
+    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, time: Date.now() })); } catch {}
 }
 
 export default function AdminKhuyenMai() {
@@ -84,14 +75,18 @@ export default function AdminKhuyenMai() {
     const [formError, setFormError] = useState("");
 
     const [sanPhamList, setSanPhamList] = useState([]);
-    const [bienTheList, setBienTheList] = useState([]);
-    const [activeSanPhamId, setActiveSanPhamId] = useState("");
+    const [activeSanPhamIds, setActiveSanPhamIds] = useState([]);
+    const [bienTheTheoSanPham, setBienTheTheoSanPham] = useState({});
     const [selectedBienTheIds, setSelectedBienTheIds] = useState([]);
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
     const [filterStartDate, setFilterStartDate] = useState("");
     const [filterEndDate, setFilterEndDate] = useState("");
+
+    // ⭐ STATE CHO SẮP XẾP
+    const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
+
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
@@ -100,10 +95,7 @@ export default function AdminKhuyenMai() {
 
     useEffect(() => {
         isMountedRef.current = true;
-        return () => {
-            isMountedRef.current = false;
-            if (abortRef.current) abortRef.current.abort();
-        };
+        return () => { isMountedRef.current = false; if (abortRef.current) abortRef.current.abort(); };
     }, []);
 
     const loadDanhSach = async (background = false) => {
@@ -145,31 +137,46 @@ export default function AdminKhuyenMai() {
     };
 
     useEffect(() => {
-        fetch(`${API}/san-pham`)
-            .then((r) => (r.ok ? r.json() : []))
-            .then((d) => setSanPhamList(Array.isArray(d) ? d : []))
-            .catch(() => setSanPhamList([]));
+        fetch(`${API}/san-pham`).then((r) => (r.ok ? r.json() : [])).then((d) => setSanPhamList(Array.isArray(d) ? d : [])).catch(() => setSanPhamList([]));
     }, []);
 
     useEffect(() => {
-        if (!activeSanPhamId) {
-            setBienTheList([]);
+        if (activeSanPhamIds.length === 0) {
+            setBienTheTheoSanPham({});
             return;
         }
-        fetch(`${API}/san-pham-chi-tiet/san-pham/${activeSanPhamId}`)
-            .then((r) => (r.ok ? r.json() : []))
-            .then((d) => setBienTheList(Array.isArray(d) ? d : []))
-            .catch(() => setBienTheList([]));
-    }, [activeSanPhamId]);
+
+        const fetchVariants = async () => {
+            const newData = { ...bienTheTheoSanPham };
+            for (const id of activeSanPhamIds) {
+                if (!newData[id]) {
+                    try {
+                        const res = await fetch(`${API}/san-pham-chi-tiet/san-pham/${id}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            newData[id] = data;
+                        } else {
+                            newData[id] = [];
+                        }
+                    } catch {
+                        newData[id] = [];
+                    }
+                }
+            }
+            setBienTheTheoSanPham(newData);
+        };
+
+        fetchVariants();
+    }, [activeSanPhamIds]);
 
     useEffect(() => { loadDanhSach(); }, []);
 
     const openCreate = () => {
         setEditing(null);
         setForm(EMPTY_FORM);
-        setActiveSanPhamId("");
+        setActiveSanPhamIds([]);
         setSelectedBienTheIds([]);
-        setBienTheList([]);
+        setBienTheTheoSanPham({});
         setFormError("");
         setShowModal(true);
     };
@@ -180,6 +187,7 @@ export default function AdminKhuyenMai() {
             tenChuongTrinh: v.tenChuongTrinh || "",
             loaiGiam: v.loaiGiam || "PHAN_TRAM",
             giaTriGiam: v.giaTriGiam ?? "",
+            giamToiDa: v.giamToiDa ?? "",
             ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
             ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
             trangThai: (v.trangThai === "HET_HAN" || v.trangThai === "NGUNG_HOAT_DONG") ? "HET_HAN" : (v.trangThai || "HOAT_DONG"),
@@ -188,12 +196,10 @@ export default function AdminKhuyenMai() {
         const btIds = (v.bienThes || []).map((x) => x.sanPhamChiTietId);
         setSelectedBienTheIds(btIds);
 
-        if (v.bienThes && v.bienThes.length > 0) {
-            setActiveSanPhamId(v.bienThes[0].sanPhamId);
-        } else {
-            setActiveSanPhamId("");
-        }
-        setBienTheList([]);
+        const uniqueSpIds = [...new Set((v.bienThes || []).map(x => String(x.sanPhamId)))];
+        setActiveSanPhamIds(uniqueSpIds);
+        setBienTheTheoSanPham({});
+
         setFormError("");
         setShowModal(true);
     };
@@ -203,9 +209,9 @@ export default function AdminKhuyenMai() {
         setShowModal(false);
         setEditing(null);
         setForm(EMPTY_FORM);
-        setActiveSanPhamId("");
+        setActiveSanPhamIds([]);
         setSelectedBienTheIds([]);
-        setBienTheList([]);
+        setBienTheTheoSanPham({});
         setFormError("");
     };
 
@@ -239,6 +245,7 @@ export default function AdminKhuyenMai() {
                 tenChuongTrinh: form.tenChuongTrinh.trim(),
                 loaiGiam: form.loaiGiam,
                 giaTriGiam: Number(form.giaTriGiam),
+                giamToiDa: form.loaiGiam === "PHAN_TRAM" ? (form.giamToiDa ? Number(form.giamToiDa) : null) : null,
                 ngayBatDau: form.ngayBatDau + ":00",
                 ngayKetThuc: form.ngayKetThuc + ":00",
                 trangThai: form.trangThai,
@@ -300,35 +307,66 @@ export default function AdminKhuyenMai() {
         }
     };
 
-    const filtered = danhSach.filter((v) => {
-        const kw = search.trim().toLowerCase();
-        const matchKw = !kw || v.tenChuongTrinh?.toLowerCase().includes(kw);
-        const ttThuc = getTrangThaiThuc(v);
-        const matchTT = filterTrangThai === "TAT_CA" || ttThuc === filterTrangThai;
-        let matchTime = true;
-        if (v.ngayBatDau) {
-            const vDate = new Date(v.ngayBatDau).setHours(0, 0, 0, 0);
-            if (filterStartDate) {
-                const fStart = new Date(filterStartDate).setHours(0, 0, 0, 0);
-                if (vDate < fStart) matchTime = false;
-            }
-            if (filterEndDate) {
-                const fEnd = new Date(filterEndDate).setHours(23, 59, 59, 999);
-                if (vDate > fEnd) matchTime = false;
-            }
-        } else if (filterStartDate || filterEndDate) {
-            matchTime = false;
+    // ⭐ HÀM XỬ LÝ CLICK SẮP XẾP
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
         }
-        return matchKw && matchTT && matchTime;
-    });
+        setSortConfig({ key, direction });
+    };
+
+    // ⭐ LOGIC FILTER VÀ SẮP XẾP
+    const filtered = danhSach
+        .filter((v) => {
+            const kw = search.trim().toLowerCase();
+            const matchKw = !kw || v.tenChuongTrinh?.toLowerCase().includes(kw);
+            const ttThuc = getTrangThaiThuc(v);
+            const matchTT = filterTrangThai === "TAT_CA" || ttThuc === filterTrangThai;
+            let matchTime = true;
+            if (v.ngayBatDau) {
+                const vDate = new Date(v.ngayBatDau).setHours(0, 0, 0, 0);
+                if (filterStartDate) {
+                    const fStart = new Date(filterStartDate).setHours(0, 0, 0, 0);
+                    if (vDate < fStart) matchTime = false;
+                }
+                if (filterEndDate) {
+                    const fEnd = new Date(filterEndDate).setHours(23, 59, 59, 999);
+                    if (vDate > fEnd) matchTime = false;
+                }
+            } else if (filterStartDate || filterEndDate) {
+                matchTime = false;
+            }
+            return matchKw && matchTT && matchTime;
+        })
+        // ⭐ SẮP XẾP THEO CẤU HÌNH (MẶC ĐỊNH ID GIẢM DẦN)
+        .sort((a, b) => {
+            if (sortConfig.key === 'id') {
+                return sortConfig.direction === 'asc' ? a.id - b.id : b.id - a.id;
+            }
+            if (sortConfig.key === 'tenChuongTrinh') {
+                const valA = a.tenChuongTrinh || "";
+                const valB = b.tenChuongTrinh || "";
+                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            }
+            return 0;
+        });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
 
-    useEffect(() => { setCurrentPage(1); }, [search, filterTrangThai, filterStartDate, filterEndDate]);
+    useEffect(() => { setCurrentPage(1); }, [search, filterTrangThai, filterStartDate, filterEndDate, sortConfig]);
     useEffect(() => { setCurrentPage((page) => Math.min(page, totalPages)); }, [totalPages]);
 
     const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const showSkeleton = loading && danhSach.length === 0;
+
+    // Component Icon Sắp xếp nhỏ
+    const SortIcon = ({ columnKey }) => {
+        if (sortConfig.key !== columnKey) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
+        return <span style={{ marginLeft: 4 }}>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>;
+    };
 
     return (
         <div className="km-container">
@@ -346,17 +384,8 @@ export default function AdminKhuyenMai() {
 
             {/* BỘ LỌC */}
             <div className="km-filters">
-                <input
-                    className="km-input-base km-filter-search"
-                    placeholder="Tìm theo tên chương trình..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                />
-                <select
-                    className="km-input-base km-filter-select"
-                    value={filterTrangThai}
-                    onChange={(e) => setFilterTrangThai(e.target.value)}
-                >
+                <input className="km-input-base km-filter-search" placeholder="Tìm theo tên chương trình..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                <select className="km-input-base km-filter-select" value={filterTrangThai} onChange={(e) => setFilterTrangThai(e.target.value)}>
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="HOAT_DONG">Hoạt động</option>
                     <option value="HET_HAN">Hết hạn</option>
@@ -371,16 +400,10 @@ export default function AdminKhuyenMai() {
             </div>
 
             {/* BẢNG DỮ LIỆU */}
-            {showSkeleton && (
-                <div className="km-table-wrapper" style={{ padding: 20 }}>
-                    <p style={{ color: "var(--text-muted)" }}>Đang tải dữ liệu...</p>
-                </div>
-            )}
+            {showSkeleton && <div className="km-table-wrapper" style={{ padding: 20 }}><p style={{ color: "var(--text-muted)" }}>Đang tải dữ liệu...</p></div>}
 
             {!showSkeleton && error && danhSach.length === 0 && (
-                <div className="km-table-wrapper" style={{ color: "var(--badge-danger-text)", padding: 20 }}>
-                    <h3>Lỗi</h3><p>{error}</p>
-                </div>
+                <div className="km-table-wrapper" style={{ color: "var(--badge-danger-text)", padding: 20 }}><h3>Lỗi</h3><p>{error}</p></div>
             )}
 
             {!showSkeleton && danhSach.length > 0 && (
@@ -392,8 +415,24 @@ export default function AdminKhuyenMai() {
                     <table className="km-table">
                         <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Tên chương trình</th>
+                            {/* ⭐ CỘT ID CÓ THỂ CLICK ĐỂ SẮP XẾP */}
+                            <th
+                                onClick={() => requestSort('id')}
+                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                title="Click để sắp xếp theo ID"
+                            >
+                                ID <SortIcon columnKey="id" />
+                            </th>
+
+                            {/* ⭐ CỘT TÊN CÓ THỂ CLICK ĐỂ SẮP XẾP */}
+                            <th
+                                onClick={() => requestSort('tenChuongTrinh')}
+                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                title="Click để sắp xếp theo Tên"
+                            >
+                                Tên chương trình <SortIcon columnKey="tenChuongTrinh" />
+                            </th>
+
                             <th>Loại giảm</th>
                             <th>Giá trị</th>
                             <th>Bắt đầu</th>
@@ -412,11 +451,7 @@ export default function AdminKhuyenMai() {
                                 <td>{v.loaiGiam === "PHAN_TRAM" ? `${v.giaTriGiam}%` : formatGia(v.giaTriGiam)}</td>
                                 <td>{formatDate(v.ngayBatDau)}</td>
                                 <td>{formatDate(v.ngayKetThuc)}</td>
-                                <td>
-                                    <span className="km-badge km-badge-success">
-                                        {(v.bienThes || []).length} biến thể
-                                    </span>
-                                </td>
+                                <td><span className="km-badge km-badge-success">{(v.bienThes || []).length} biến thể</span></td>
                                 <td>
                                     {(() => {
                                         const ttThuc = getTrangThaiThuc(v);
@@ -455,7 +490,6 @@ export default function AdminKhuyenMai() {
                     <div className="km-modal-content" onClick={(e) => e.stopPropagation()}>
 
                         <h2 className="km-modal-title">{editing ? "Sửa chương trình" : "Thêm chương trình"}</h2>
-
                         {formError && <div className="km-error-box">{formError}</div>}
 
                         <div className="km-form-grid">
@@ -478,6 +512,13 @@ export default function AdminKhuyenMai() {
                                 <input className="km-input-base" type="number" value={form.giaTriGiam} onChange={(e) => handleChange("giaTriGiam", e.target.value)} placeholder={form.loaiGiam === "PHAN_TRAM" ? "VD: 50 (Tối đa 60)" : "VD: 100000"} max={form.loaiGiam === "PHAN_TRAM" ? 60 : undefined} />
                             </div>
 
+                            {form.loaiGiam === "PHAN_TRAM" && (
+                                <div className="km-form-group">
+                                    <label className="km-label">Số tiền giảm tối đa (đ)</label>
+                                    <input className="km-input-base" type="number" value={form.giamToiDa} onChange={(e) => handleChange("giamToiDa", e.target.value)} placeholder="VD: 200000 (Để trống nếu không giới hạn)" />
+                                </div>
+                            )}
+
                             <div className="km-form-group">
                                 <label className="km-label">Ngày bắt đầu *</label>
                                 <input className="km-input-base" type="datetime-local" value={form.ngayBatDau} onChange={(e) => handleChange("ngayBatDau", e.target.value)} style={{ colorScheme: "light dark" }} />
@@ -492,26 +533,38 @@ export default function AdminKhuyenMai() {
                             <div className="km-form-group km-form-full" style={{ marginTop: "10px" }}>
                                 <label className="km-label">
                                     Chọn sản phẩm & biến thể * <br/>
-                                    <span>(Bấm vào ảnh sản phẩm để chọn size/màu)</span>
+                                    <span>(Bấm vào ảnh để chọn/bỏ chọn nhiều sản phẩm)</span>
                                 </label>
 
-                                {/* Lưới sản phẩm */}
                                 <div className="km-product-grid">
                                     {sanPhamList.map((sp) => {
-                                        const isActive = String(activeSanPhamId) === String(sp.id);
-                                        const hasSelectedVariant = (editing?.bienThes || []).some(bt => String(bt.sanPhamId) === String(sp.id)) || selectedBienTheIds.some(id => {
-                                            const bt = bienTheList.find(b => b.id === id);
-                                            return bt && String(bt.sanPhamId) === String(sp.id);
+                                        const isActive = activeSanPhamIds.includes(String(sp.id));
+                                        const hasSelectedVariant = selectedBienTheIds.some(id => {
+                                            const listVariants = bienTheTheoSanPham[sp.id] || [];
+                                            const bt = listVariants.find(b => b.id === id);
+                                            return !!bt;
                                         });
 
                                         return (
-                                            <div key={sp.id} className={`km-product-card ${isActive ? 'active' : ''}`} onClick={() => setActiveSanPhamId(sp.id)}>
+                                            <div
+                                                key={sp.id}
+                                                className={`km-product-card ${isActive ? 'active' : ''}`}
+                                                onClick={() => {
+                                                    setActiveSanPhamIds(prev => {
+                                                        if (prev.includes(String(sp.id))) {
+                                                            return prev.filter(id => id !== String(sp.id));
+                                                        } else {
+                                                            return [...prev, String(sp.id)];
+                                                        }
+                                                    });
+                                                }}
+                                            >
                                                 <div className="km-product-img-wrapper">
                                                     <img src={sp.hinhAnh || sp.anhDaiDien || "https://via.placeholder.com/150"} alt={sp.tenSanPham} className="km-product-img" />
                                                     {hasSelectedVariant && <div className="km-product-check">✓</div>}
                                                 </div>
                                                 <div className="km-product-info">
-                                                    <div className="km-product-name">{sp.tenSanPham}</div>
+                                                    <div className="km-product-name" title={sp.tenSanPham}>{sp.tenSanPham}</div>
                                                     <div className="km-product-brand">{sp.thuongHieu?.tenThuongHieu || "N/A"}</div>
                                                 </div>
                                             </div>
@@ -519,32 +572,56 @@ export default function AdminKhuyenMai() {
                                     })}
                                 </div>
 
-                                {/* Khung chọn biến thể */}
-                                {activeSanPhamId && (
-                                    <div className="km-variant-section">
-                                        <label className="km-label">
-                                            Chọn size & màu cho sản phẩm này: ({selectedBienTheIds.length} đã chọn)
-                                        </label>
-                                        <div className="km-variant-container">
-                                            {bienTheList.length === 0 && <span style={{color: "var(--text-muted)"}}>Sản phẩm này chưa có biến thể.</span>}
-                                            {bienTheList.map((bt) => {
-                                                const checked = selectedBienTheIds.includes(bt.id);
-                                                return (
-                                                    <div
-                                                        key={bt.id}
-                                                        className={`km-variant-pill ${checked ? 'active' : ''}`}
-                                                        onClick={() => {
-                                                            if (checked) setSelectedBienTheIds((p) => p.filter((x) => x !== bt.id));
-                                                            else setSelectedBienTheIds((p) => [...p, bt.id]);
-                                                        }}
-                                                    >
-                                                        <span className="km-variant-color">{bt.mauSac?.tenMau || "?"}</span>
-                                                        <span className="km-variant-size">Size {bt.kichCo?.tenKichCo || "?"}</span>
-                                                        {bt.maSku && <span className="km-variant-sku">({bt.maSku})</span>}
+                                {/* Hiển thị biến thể TÁCH RIÊNG theo từng sản phẩm */}
+                                {activeSanPhamIds.length > 0 && (
+                                    <div className="km-variant-wrapper">
+                                        {activeSanPhamIds.map(spId => {
+                                            const sp = sanPhamList.find(s => String(s.id) === spId);
+                                            const variants = bienTheTheoSanPham[spId];
+
+                                            if (!sp) return null;
+
+                                            const soLuongDaChon = variants
+                                                ? variants.filter(v => selectedBienTheIds.includes(v.id)).length
+                                                : 0;
+
+                                            return (
+                                                <div key={spId} className="km-variant-group">
+                                                    <div className="km-variant-group-header">
+                                                        <span className="km-variant-group-title">{sp.tenSanPham}</span>
+                                                        <span className="km-variant-group-count">
+                                                            ({soLuongDaChon} đã chọn)
+                                                        </span>
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
+
+                                                    <div className="km-variant-container">
+                                                        {!variants ? (
+                                                            <span style={{color: "var(--text-muted)", fontSize: 13}}>Đang tải biến thể...</span>
+                                                        ) : variants.length === 0 ? (
+                                                            <span style={{color: "var(--text-muted)", fontSize: 13}}>Sản phẩm này chưa có biến thể.</span>
+                                                        ) : (
+                                                            variants.map((bt) => {
+                                                                const checked = selectedBienTheIds.includes(bt.id);
+                                                                return (
+                                                                    <div
+                                                                        key={bt.id}
+                                                                        className={`km-variant-pill ${checked ? 'active' : ''}`}
+                                                                        onClick={() => {
+                                                                            if (checked) setSelectedBienTheIds((p) => p.filter((x) => x !== bt.id));
+                                                                            else setSelectedBienTheIds((p) => [...p, bt.id]);
+                                                                        }}
+                                                                    >
+                                                                        <span className="km-variant-color">{bt.mauSac?.tenMau || "?"}</span>
+                                                                        <span className="km-variant-size">Size {bt.kichCo?.tenKichCo || "?"}</span>
+                                                                        {bt.maSku && <span className="km-variant-sku">({bt.maSku})</span>}
+                                                                    </div>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

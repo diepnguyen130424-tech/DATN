@@ -5,7 +5,6 @@ const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_voucher_cache";
 const CACHE_TTL = 60 * 1000;
 
-// ⭐ Format số tiền có dấu chấm: 200000 → "200.000"
 function formatSoTienInput(value) {
     if (!value) return "";
     const num = String(value).replace(/\D/g, "");
@@ -13,7 +12,6 @@ function formatSoTienInput(value) {
     return Number(num).toLocaleString("vi-VN");
 }
 
-// ⭐ Bỏ dấu chấm: "200.000" → "200000"
 function parseSoTienInput(value) {
     if (!value) return "";
     return String(value).replace(/\./g, "");
@@ -47,39 +45,31 @@ function formatDate(str) {
     }
 }
 
-// ⭐ HÀM MỚI: Tính toán trạng thái thực tế dựa trên thời gian
 function getComputedStatus(v) {
-    // Nếu admin đã chủ động ngừng hoạt động thì giữ nguyên
     if (v.trangThai === "NGUNG_HOAT_DONG") return "NGUNG_HOAT_DONG";
-
     const now = new Date().getTime();
-
-    // Nếu có ngày bắt đầu và hiện tại < ngày bắt đầu => Chuẩn bị hoạt động
     if (v.ngayBatDau) {
         const start = new Date(v.ngayBatDau).getTime();
         if (now < start) return "CHUAN_BI";
     }
-
-    // Nếu có ngày kết thúc và hiện tại > ngày kết thúc => Ngừng hoạt động (Hết hạn)
     if (v.ngayKetThuc) {
         const end = new Date(v.ngayKetThuc).getTime();
         if (now > end) return "NGUNG_HOAT_DONG";
     }
-
     return "HOAT_DONG";
 }
 
 function getTrangThaiClass(trangThai) {
     if (trangThai === "HOAT_DONG") return "active";
     if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
-    if (trangThai === "CHUAN_BI") return "pending"; // Class CSS mới cho màu vàng
+    if (trangThai === "CHUAN_BI") return "pending";
     return "";
 }
 
 function getTrangThaiLabel(trangThai) {
     if (trangThai === "HOAT_DONG") return "Hoạt động";
     if (trangThai === "NGUNG_HOAT_DONG") return "Hết hạn";
-    if (trangThai === "CHUAN_BI") return "Chuẩn bị hoạt động"; // Label mới
+    if (trangThai === "CHUAN_BI") return "Chuẩn bị hoạt động";
     return trangThai;
 }
 
@@ -117,9 +107,10 @@ export default function AdminVoucher() {
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
-    // ⭐ STATE MỚI: Lọc theo thời gian
     const [filterStartDate, setFilterStartDate] = useState("");
     const [filterEndDate, setFilterEndDate] = useState("");
+
+    const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
@@ -238,7 +229,8 @@ export default function AdminVoucher() {
         if (form.loaiGiam !== "FREESHIP") {
             if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0)
                 return "Giá trị giảm phải lớn hơn 0";
-            if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 100)
+
+            if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 50)
                 return "Giảm % không được vượt quá 50%";
         }
 
@@ -342,38 +334,56 @@ export default function AdminVoucher() {
         }
     };
 
-    // ⭐ CẬP NHẬT LOGIC FILTER
-    const filtered = danhSach.filter((v) => {
-        const kw = search.trim().toLowerCase();
-        const matchKw =
-            !kw ||
-            v.maVoucher?.toLowerCase().includes(kw) ||
-            v.tenVoucher?.toLowerCase().includes(kw);
-
-        // Tính toán trạng thái động trước khi filter
-        const computedStatus = getComputedStatus(v);
-        const matchTT =
-            filterTrangThai === "TAT_CA" || computedStatus === filterTrangThai;
-
-        // Lọc theo khoảng thời gian (Ngày bắt đầu của voucher phải nằm trong khoảng lọc)
-        let matchTime = true;
-        if (v.ngayBatDau) {
-            const vDate = new Date(v.ngayBatDau).setHours(0,0,0,0); // Chỉ so sánh ngày
-            if (filterStartDate) {
-                const fStart = new Date(filterStartDate).setHours(0,0,0,0);
-                if (vDate < fStart) matchTime = false;
-            }
-            if (filterEndDate) {
-                const fEnd = new Date(filterEndDate).setHours(23,59,59,999);
-                if (vDate > fEnd) matchTime = false;
-            }
-        } else if (filterStartDate || filterEndDate) {
-            // Nếu voucher không có ngày bắt đầu mà lại có filter thời gian thì loại
-            matchTime = false;
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
         }
+        setSortConfig({ key, direction });
+    };
 
-        return matchKw && matchTT && matchTime;
-    });
+    const filtered = danhSach
+        .filter((v) => {
+            const kw = search.trim().toLowerCase();
+            const matchKw =
+                !kw ||
+                v.maVoucher?.toLowerCase().includes(kw) ||
+                v.tenVoucher?.toLowerCase().includes(kw);
+
+            const computedStatus = getComputedStatus(v);
+            const matchTT =
+                filterTrangThai === "TAT_CA" || computedStatus === filterTrangThai;
+
+            let matchTime = true;
+            if (v.ngayBatDau) {
+                const vDate = new Date(v.ngayBatDau).setHours(0,0,0,0);
+                if (filterStartDate) {
+                    const fStart = new Date(filterStartDate).setHours(0,0,0,0);
+                    if (vDate < fStart) matchTime = false;
+                }
+                if (filterEndDate) {
+                    const fEnd = new Date(filterEndDate).setHours(23,59,59,999);
+                    if (vDate > fEnd) matchTime = false;
+                }
+            } else if (filterStartDate || filterEndDate) {
+                matchTime = false;
+            }
+
+            return matchKw && matchTT && matchTime;
+        })
+        .sort((a, b) => {
+            if (sortConfig.key === 'id') {
+                return sortConfig.direction === 'asc' ? a.id - b.id : b.id - a.id;
+            }
+            if (sortConfig.key === 'maVoucher') {
+                const valA = a.maVoucher || "";
+                const valB = b.maVoucher || "";
+                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            }
+            return 0;
+        });
 
     const totalPages = Math.max(
         1,
@@ -382,7 +392,7 @@ export default function AdminVoucher() {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, filterTrangThai, filterStartDate, filterEndDate]); // Thêm dependencies
+    }, [search, filterTrangThai, filterStartDate, filterEndDate, sortConfig]);
 
     useEffect(() => {
         setCurrentPage((page) =>
@@ -397,6 +407,11 @@ export default function AdminVoucher() {
 
     const showSkeleton = loading && danhSach.length === 0;
 
+    const SortIcon = ({ columnKey }) => {
+        if (sortConfig.key !== columnKey) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
+        return <span style={{ marginLeft: 4 }}>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>;
+    };
+
     return (
         <div className="admin-voucher">
             <div className="admin-page-heading">
@@ -410,7 +425,6 @@ export default function AdminVoucher() {
                 </button>
             </div>
 
-            {/* ⭐ CẬP NHẬT GIAO DIỆN FILTER */}
             <div className="admin-filters" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <input
                     placeholder="Tìm theo mã hoặc tên voucher..."
@@ -424,11 +438,10 @@ export default function AdminVoucher() {
                 >
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="HOAT_DONG">Hoạt động</option>
-                    <option value="CHUAN_BI">Chuẩn bị hoạt động</option> {/* Thêm mới */}
-                    <option value="NGUNG_HOAT_DONG">Hêt hạn</option>
+                    <option value="CHUAN_BI">Chuẩn bị hoạt động</option>
+                    <option value="NGUNG_HOAT_DONG">Hết hạn</option>
                 </select>
 
-                {/* ⭐ BỘ LỌC THỜI GIAN */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '0 10px', border: '1px solid #ddd', borderRadius: '4px' }}>
                     <span style={{ fontSize: '13px', color: '#666' }}>Từ ngày:</span>
                     <input
@@ -453,14 +466,16 @@ export default function AdminVoucher() {
                     <table className="admin-table">
                         <thead>
                         <tr>
-                            {/* ⭐ ĐÃ XÓA CỘT ID */}
+                            <th>ID</th>
                             <th>Mã</th>
                             <th>Tên</th>
                             <th>Loại</th>
                             <th>Giá trị</th>
                             <th>Giảm tối đa</th>
                             <th>Đơn tối thiểu</th>
-                            <th>SL/ đã dùng</th>
+                            {/* ⭐ Cập nhật Skeleton cho 2 cột mới */}
+                            <th>Số lượng</th>
+                            <th>Đã dùng</th>
                             <th>Bắt đầu</th>
                             <th>Hết hạn</th>
                             <th>Trạng thái</th>
@@ -470,7 +485,7 @@ export default function AdminVoucher() {
                         <tbody>
                         {[1, 2, 3, 4, 5].map((i) => (
                             <tr key={i} className="skeleton-row">
-                                {Array.from({ length: 10 }).map((_, j) => ( // Giảm 1 cột
+                                {Array.from({ length: 12 }).map((_, j) => (
                                     <td key={j}>
                                         <div className="skeleton-bar" />
                                     </td>
@@ -500,14 +515,31 @@ export default function AdminVoucher() {
                     <table className="admin-table">
                         <thead>
                         <tr>
-                            {/* ⭐ ĐÃ XÓA CỘT ID Ở HEADER */}
-                            <th>Mã</th>
+                            <th
+                                onClick={() => requestSort('id')}
+                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                title="Click để sắp xếp theo ID"
+                            >
+                                ID <SortIcon columnKey="id" />
+                            </th>
+
+                            <th
+                                onClick={() => requestSort('maVoucher')}
+                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                title="Click để sắp xếp theo Mã"
+                            >
+                                Mã <SortIcon columnKey="maVoucher" />
+                            </th>
+
                             <th>Tên</th>
                             <th>Loại</th>
                             <th>Giá trị</th>
                             <th>Giảm tối đa</th>
                             <th>Đơn tối thiểu</th>
-                            <th>SL/ đã dùng</th>
+                            {/* ⭐ TÁCH RIÊNG 2 CỘT */}
+                            <th>Số lượng</th>
+                            <th>Đã dùng</th>
+
                             <th>Bắt đầu</th>
                             <th>Hết hạn</th>
                             <th>Trạng thái</th>
@@ -516,12 +548,13 @@ export default function AdminVoucher() {
                         </thead>
                         <tbody>
                         {currentItems.map((v) => {
-                            // Tính toán trạng thái động cho từng dòng
                             const computedStatus = getComputedStatus(v);
 
                             return (
                                 <tr key={v.id}>
-                                    {/* ⭐ ĐÃ XÓA CỘT ID Ở BODY */}
+                                    <td>
+                                        <strong>#{v.id}</strong>
+                                    </td>
                                     <td>
                                         <strong>{v.maVoucher}</strong>
                                     </td>
@@ -558,9 +591,14 @@ export default function AdminVoucher() {
                                     </td>
 
                                     <td>{formatGia(v.donToiThieu)}</td>
+
+                                    {/* ⭐ TÁCH RIÊNG DỮ LIỆU */}
                                     <td>
-                                        <strong>
-                                            {v.soLuong ?? 0}/{v.soLuongDaDung ?? 0}
+                                        <strong>{v.soLuong ?? 0}</strong>
+                                    </td>
+                                    <td>
+                                        <strong style={{ color: v.soLuongDaDung > 0 ? '#d94b3f' : 'inherit' }}>
+                                            {v.soLuongDaDung ?? 0}
                                         </strong>
                                     </td>
 
@@ -572,8 +610,8 @@ export default function AdminVoucher() {
                                                 computedStatus
                                             )}`}
                                             style={computedStatus === "CHUAN_BI" ? {
-                                                background: '#fff3cd', // Màu vàng nhạt
-                                                color: '#856404',     // Chữ màu nâu vàng
+                                                background: '#fff3cd',
+                                                color: '#856404',
                                                 padding: '4px 8px',
                                                 borderRadius: '4px',
                                                 fontSize: '12px',
@@ -603,7 +641,7 @@ export default function AdminVoucher() {
                             )})}
                         {filtered.length === 0 && (
                             <tr>
-                                <td colSpan={11} className="admin-empty"> {/* Giảm colSpan xuống 11 */}
+                                <td colSpan={13} className="admin-empty">
                                     Không có voucher nào phù hợp
                                 </td>
                             </tr>
@@ -611,7 +649,7 @@ export default function AdminVoucher() {
 
                         <tr>
                             <td
-                                colSpan={11} // Giảm colSpan xuống 11
+                                colSpan={13}
                                 style={{
                                     textAlign: "center",
                                     padding: "12px"
@@ -757,7 +795,6 @@ export default function AdminVoucher() {
                                 gap: 14,
                             }}
                         >
-                            {/* ID trong Modal vẫn giữ nguyên để admin biết đang sửa mã nào (nếu cần) */}
                             {editing && (
                                 <Field label="ID">
                                     <input
@@ -821,7 +858,6 @@ export default function AdminVoucher() {
                             {form.loaiGiam !== "FREESHIP" && (
                                 <>
                                     <Field label="Giá trị giảm *">
-                                        {/* ⭐ CẬP NHẬT: Nếu là SỐ TIỀN thì hiển thị dạng có dấu chấm (10.000) */}
                                         {form.loaiGiam === "SO_TIEN" ? (
                                             <input
                                                 className="price-input"
@@ -930,9 +966,11 @@ export default function AdminVoucher() {
                                         handleChange("trangThai", e.target.value)
                                     }
                                 >
-                                    {/* Ở form nhập liệu, chỉ cần chọn Hoạt động hoặc Ngừng. Trạng thái "Chuẩn bị" là tự động */}
                                     <option value="HOAT_DONG">Hoạt động</option>
                                     <option value="CHUAN_BI">Chuẩn bị hoạt động</option>
+                                    <option value="NGUNG_HOAT_DONG">
+                                        Hết hạn
+                                    </option>
                                 </select>
                             </Field>
                         </div>
