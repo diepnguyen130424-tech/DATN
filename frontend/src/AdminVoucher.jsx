@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_voucher_cache";
 const CACHE_TTL = 60 * 1000;
+
 // ⭐ Format số tiền có dấu chấm: 200000 → "200.000"
 function formatSoTienInput(value) {
     if (!value) return "";
@@ -17,7 +18,6 @@ function parseSoTienInput(value) {
     if (!value) return "";
     return String(value).replace(/\./g, "");
 }
-
 
 const EMPTY_FORM = {
     maVoucher: "",
@@ -47,15 +47,39 @@ function formatDate(str) {
     }
 }
 
+// ⭐ HÀM MỚI: Tính toán trạng thái thực tế dựa trên thời gian
+function getComputedStatus(v) {
+    // Nếu admin đã chủ động ngừng hoạt động thì giữ nguyên
+    if (v.trangThai === "NGUNG_HOAT_DONG") return "NGUNG_HOAT_DONG";
+
+    const now = new Date().getTime();
+
+    // Nếu có ngày bắt đầu và hiện tại < ngày bắt đầu => Chuẩn bị hoạt động
+    if (v.ngayBatDau) {
+        const start = new Date(v.ngayBatDau).getTime();
+        if (now < start) return "CHUAN_BI";
+    }
+
+    // Nếu có ngày kết thúc và hiện tại > ngày kết thúc => Ngừng hoạt động (Hết hạn)
+    if (v.ngayKetThuc) {
+        const end = new Date(v.ngayKetThuc).getTime();
+        if (now > end) return "NGUNG_HOAT_DONG";
+    }
+
+    return "HOAT_DONG";
+}
+
 function getTrangThaiClass(trangThai) {
     if (trangThai === "HOAT_DONG") return "active";
     if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
+    if (trangThai === "CHUAN_BI") return "pending"; // Class CSS mới cho màu vàng
     return "";
 }
 
 function getTrangThaiLabel(trangThai) {
     if (trangThai === "HOAT_DONG") return "Hoạt động";
-    if (trangThai === "NGUNG_HOAT_DONG") return "Ngừng hoạt động";
+    if (trangThai === "NGUNG_HOAT_DONG") return "Hết hạn";
+    if (trangThai === "CHUAN_BI") return "Chuẩn bị hoạt động"; // Label mới
     return trangThai;
 }
 
@@ -93,6 +117,10 @@ export default function AdminVoucher() {
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
+    // ⭐ STATE MỚI: Lọc theo thời gian
+    const [filterStartDate, setFilterStartDate] = useState("");
+    const [filterEndDate, setFilterEndDate] = useState("");
+
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
@@ -176,7 +204,6 @@ export default function AdminVoucher() {
             maVoucher: v.maVoucher || "",
             tenVoucher: v.tenVoucher || "",
             loaiGiam: v.loaiGiam || "PHAN_TRAM",
-            // ⭐ Với FREESHIP thì để trống, không hiển thị giá trị giảm
             giaTriGiam: v.loaiGiam === "FREESHIP" ? "" : (v.giaTriGiam ?? ""),
             giamToiDa: v.loaiGiam === "FREESHIP" ? "" : (v.giamToiDa ?? ""),
             donToiThieu: v.donToiThieu ?? "",
@@ -208,12 +235,11 @@ export default function AdminVoucher() {
             return "Mã chỉ dùng chữ HOA, số và dấu gạch dưới";
         if (!form.tenVoucher.trim()) return "Vui lòng nhập tên voucher";
 
-        // ⭐ FREESHIP không cần giá trị giảm
         if (form.loaiGiam !== "FREESHIP") {
             if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0)
                 return "Giá trị giảm phải lớn hơn 0";
             if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 100)
-                return "Giảm % không được vượt quá 100";
+                return "Giảm % không được vượt quá 50%";
         }
 
         if (!form.soLuong || Number(form.soLuong) <= 0)
@@ -232,7 +258,6 @@ export default function AdminVoucher() {
         setFormError("");
 
         try {
-            // ⭐ Nếu là FREESHIP thì giaTriGiam = 0, giamToiDa = null
             const laFreeship = form.loaiGiam === "FREESHIP";
 
             const body = {
@@ -317,15 +342,37 @@ export default function AdminVoucher() {
         }
     };
 
+    // ⭐ CẬP NHẬT LOGIC FILTER
     const filtered = danhSach.filter((v) => {
         const kw = search.trim().toLowerCase();
         const matchKw =
             !kw ||
             v.maVoucher?.toLowerCase().includes(kw) ||
             v.tenVoucher?.toLowerCase().includes(kw);
+
+        // Tính toán trạng thái động trước khi filter
+        const computedStatus = getComputedStatus(v);
         const matchTT =
-            filterTrangThai === "TAT_CA" || v.trangThai === filterTrangThai;
-        return matchKw && matchTT;
+            filterTrangThai === "TAT_CA" || computedStatus === filterTrangThai;
+
+        // Lọc theo khoảng thời gian (Ngày bắt đầu của voucher phải nằm trong khoảng lọc)
+        let matchTime = true;
+        if (v.ngayBatDau) {
+            const vDate = new Date(v.ngayBatDau).setHours(0,0,0,0); // Chỉ so sánh ngày
+            if (filterStartDate) {
+                const fStart = new Date(filterStartDate).setHours(0,0,0,0);
+                if (vDate < fStart) matchTime = false;
+            }
+            if (filterEndDate) {
+                const fEnd = new Date(filterEndDate).setHours(23,59,59,999);
+                if (vDate > fEnd) matchTime = false;
+            }
+        } else if (filterStartDate || filterEndDate) {
+            // Nếu voucher không có ngày bắt đầu mà lại có filter thời gian thì loại
+            matchTime = false;
+        }
+
+        return matchKw && matchTT && matchTime;
     });
 
     const totalPages = Math.max(
@@ -335,7 +382,7 @@ export default function AdminVoucher() {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, filterTrangThai]);
+    }, [search, filterTrangThai, filterStartDate, filterEndDate]); // Thêm dependencies
 
     useEffect(() => {
         setCurrentPage((page) =>
@@ -363,11 +410,13 @@ export default function AdminVoucher() {
                 </button>
             </div>
 
-            <div className="admin-filters">
+            {/* ⭐ CẬP NHẬT GIAO DIỆN FILTER */}
+            <div className="admin-filters" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <input
                     placeholder="Tìm theo mã hoặc tên voucher..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px' }}
                 />
                 <select
                     value={filterTrangThai}
@@ -375,9 +424,28 @@ export default function AdminVoucher() {
                 >
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="HOAT_DONG">Hoạt động</option>
-                    <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
-
+                    <option value="CHUAN_BI">Chuẩn bị hoạt động</option> {/* Thêm mới */}
+                    <option value="NGUNG_HOAT_DONG">Hêt hạn</option>
                 </select>
+
+                {/* ⭐ BỘ LỌC THỜI GIAN */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '0 10px', border: '1px solid #ddd', borderRadius: '4px' }}>
+                    <span style={{ fontSize: '13px', color: '#666' }}>Từ ngày:</span>
+                    <input
+                        type="date"
+                        value={filterStartDate}
+                        onChange={(e) => setFilterStartDate(e.target.value)}
+                        style={{ border: 'none', outline: 'none', padding: '8px 0', fontSize: '14px' }}
+                    />
+                    <span style={{ color: '#ccc' }}>|</span>
+                    <span style={{ fontSize: '13px', color: '#666' }}>Đến:</span>
+                    <input
+                        type="date"
+                        value={filterEndDate}
+                        onChange={(e) => setFilterEndDate(e.target.value)}
+                        style={{ border: 'none', outline: 'none', padding: '8px 0', fontSize: '14px' }}
+                    />
+                </div>
             </div>
 
             {showSkeleton && (
@@ -385,7 +453,7 @@ export default function AdminVoucher() {
                     <table className="admin-table">
                         <thead>
                         <tr>
-                            <th>ID</th>
+                            {/* ⭐ ĐÃ XÓA CỘT ID */}
                             <th>Mã</th>
                             <th>Tên</th>
                             <th>Loại</th>
@@ -402,7 +470,7 @@ export default function AdminVoucher() {
                         <tbody>
                         {[1, 2, 3, 4, 5].map((i) => (
                             <tr key={i} className="skeleton-row">
-                                {Array.from({ length: 10 }).map((_, j) => (
+                                {Array.from({ length: 10 }).map((_, j) => ( // Giảm 1 cột
                                     <td key={j}>
                                         <div className="skeleton-bar" />
                                     </td>
@@ -432,7 +500,7 @@ export default function AdminVoucher() {
                     <table className="admin-table">
                         <thead>
                         <tr>
-                            <th>ID</th>
+                            {/* ⭐ ĐÃ XÓA CỘT ID Ở HEADER */}
                             <th>Mã</th>
                             <th>Tên</th>
                             <th>Loại</th>
@@ -447,95 +515,103 @@ export default function AdminVoucher() {
                         </tr>
                         </thead>
                         <tbody>
-                        {currentItems.map((v) => (
-                            <tr key={v.id}>
-                                <td>
-                                    <strong>#{v.id}</strong>
-                                </td>
-                                <td>
-                                    <strong>{v.maVoucher}</strong>
-                                </td>
-                                <td>{v.tenVoucher}</td>
-                                <td>
-                                    {v.loaiGiam === "PHAN_TRAM" && "Phần trăm"}
-                                    {v.loaiGiam === "SO_TIEN" && "Số tiền"}
-                                    {v.loaiGiam === "FREESHIP" && (
-                                        <span
-                                            style={{
-                                                padding: "4px 10px",
-                                                background: "#eaf7ed",
-                                                color: "#24833b",
-                                                borderRadius: 999,
-                                                fontSize: 12,
-                                                fontWeight: 700,
-                                                whiteSpace: "nowrap",
-                                            }}
-                                        >
+                        {currentItems.map((v) => {
+                            // Tính toán trạng thái động cho từng dòng
+                            const computedStatus = getComputedStatus(v);
+
+                            return (
+                                <tr key={v.id}>
+                                    {/* ⭐ ĐÃ XÓA CỘT ID Ở BODY */}
+                                    <td>
+                                        <strong>{v.maVoucher}</strong>
+                                    </td>
+                                    <td>{v.tenVoucher}</td>
+                                    <td>
+                                        {v.loaiGiam === "PHAN_TRAM" && "Phần trăm"}
+                                        {v.loaiGiam === "SO_TIEN" && "Số tiền"}
+                                        {v.loaiGiam === "FREESHIP" && (
+                                            <span
+                                                style={{
+                                                    padding: "4px 10px",
+                                                    background: "#eaf7ed",
+                                                    color: "#24833b",
+                                                    borderRadius: 999,
+                                                    fontSize: 12,
+                                                    fontWeight: 700,
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                            >
                                             🚚 FREESHIP
                                         </span>
-                                    )}
-                                </td>
+                                        )}
+                                    </td>
 
-                                <td>
-                                    {v.loaiGiam === "PHAN_TRAM" && `${v.giaTriGiam}%`}
-                                    {v.loaiGiam === "SO_TIEN" && formatGia(v.giaTriGiam)}
-                                    {v.loaiGiam === "FREESHIP" && "—"}
-                                </td>
-                                <td>
-                                    {v.giamToiDa
-                                        ? formatGia(v.giamToiDa)
-                                        : "—"}
-                                </td>
+                                    <td>
+                                        {v.loaiGiam === "PHAN_TRAM" && `${v.giaTriGiam}%`}
+                                        {v.loaiGiam === "SO_TIEN" && formatGia(v.giaTriGiam)}
+                                        {v.loaiGiam === "FREESHIP" && "—"}
+                                    </td>
+                                    <td>
+                                        {v.giamToiDa
+                                            ? formatGia(v.giamToiDa)
+                                            : "—"}
+                                    </td>
 
-                                <td>{formatGia(v.donToiThieu)}</td>
-                                {/* ⭐ GỘP — SL / Đã dùng */}
-                                <td>
-                                    <strong>
-                                        {v.soLuong ?? 0}/{v.soLuongDaDung ?? 0}
-                                    </strong>
-                                </td>
+                                    <td>{formatGia(v.donToiThieu)}</td>
+                                    <td>
+                                        <strong>
+                                            {v.soLuong ?? 0}/{v.soLuongDaDung ?? 0}
+                                        </strong>
+                                    </td>
 
-                                {/* ⭐ MỚI — Ngày bắt đầu */}
-                                <td>{formatDate(v.ngayBatDau)}</td>
-                                <td>{formatDate(v.ngayKetThuc)}</td>
-                                <td>
+                                    <td>{formatDate(v.ngayBatDau)}</td>
+                                    <td>{formatDate(v.ngayKetThuc)}</td>
+                                    <td>
                                         <span
                                             className={`order-status ${getTrangThaiClass(
-                                                v.trangThai
+                                                computedStatus
                                             )}`}
+                                            style={computedStatus === "CHUAN_BI" ? {
+                                                background: '#fff3cd', // Màu vàng nhạt
+                                                color: '#856404',     // Chữ màu nâu vàng
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                fontSize: '12px',
+                                                fontWeight: '600'
+                                            } : {}}
                                         >
-                                            {getTrangThaiLabel(v.trangThai)}
+                                            {getTrangThaiLabel(computedStatus)}
                                         </span>
-                                </td>
-                                <td style={{ whiteSpace: "nowrap" }}>
-                                    <button
-                                        type="button"
-                                        className="btn-edit"
-                                        onClick={() => openEdit(v)}
-                                    >
-                                        Sửa
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn-delete"
-                                        onClick={() => handleDelete(v)}
-                                    >
-                                        Xóa
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
+                                    </td>
+                                    <td style={{ whiteSpace: "nowrap" }}>
+                                        <button
+                                            type="button"
+                                            className="btn-edit"
+                                            onClick={() => openEdit(v)}
+                                        >
+                                            Sửa
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn-delete"
+                                            onClick={() => handleDelete(v)}
+                                        >
+                                            Xóa
+                                        </button>
+                                    </td>
+                                </tr>
+                            )})}
                         {filtered.length === 0 && (
                             <tr>
-                                <td colSpan={12} className="admin-empty">
-                                    Không có voucher nào
+                                <td colSpan={11} className="admin-empty"> {/* Giảm colSpan xuống 11 */}
+                                    Không có voucher nào phù hợp
                                 </td>
                             </tr>
                         )}
 
                         <tr>
                             <td
-                                colSpan={12}
+                                colSpan={11} // Giảm colSpan xuống 11
                                 style={{
                                     textAlign: "center",
                                     padding: "12px"
@@ -681,7 +757,7 @@ export default function AdminVoucher() {
                                 gap: 14,
                             }}
                         >
-                            {/* ⭐ ID — chỉ hiển thị, không cho sửa */}
+                            {/* ID trong Modal vẫn giữ nguyên để admin biết đang sửa mã nào (nếu cần) */}
                             {editing && (
                                 <Field label="ID">
                                     <input
@@ -728,7 +804,6 @@ export default function AdminVoucher() {
                                     value={form.loaiGiam}
                                     onChange={(e) => {
                                         const loai = e.target.value;
-                                        // ⭐ Reset giá trị khi chuyển sang FREESHIP
                                         setForm((old) => ({
                                             ...old,
                                             loaiGiam: loai,
@@ -743,23 +818,32 @@ export default function AdminVoucher() {
                                 </select>
                             </Field>
 
-                            {/* ⭐ Chỉ hiện khi KHÔNG phải FREESHIP */}
                             {form.loaiGiam !== "FREESHIP" && (
                                 <>
                                     <Field label="Giá trị giảm *">
-                                        <input
-                                            className="price-input"
-                                            type="number"
-                                            value={form.giaTriGiam}
-                                            onChange={(e) =>
-                                                handleChange("giaTriGiam", e.target.value)
-                                            }
-                                            placeholder={
-                                                form.loaiGiam === "PHAN_TRAM"
-                                                    ? "VD: 10"
-                                                    : "VD: 50000"
-                                            }
-                                        />
+                                        {/* ⭐ CẬP NHẬT: Nếu là SỐ TIỀN thì hiển thị dạng có dấu chấm (10.000) */}
+                                        {form.loaiGiam === "SO_TIEN" ? (
+                                            <input
+                                                className="price-input"
+                                                type="text"
+                                                value={formatSoTienInput(form.giaTriGiam)}
+                                                onChange={(e) =>
+                                                    handleChange("giaTriGiam", parseSoTienInput(e.target.value))
+                                                }
+                                                placeholder="VD: 10.000"
+                                            />
+                                        ) : (
+                                            <input
+                                                className="price-input"
+                                                type="number"
+                                                value={form.giaTriGiam}
+                                                onChange={(e) =>
+                                                    handleChange("giaTriGiam", e.target.value)
+                                                }
+                                                placeholder="VD: 10 (Tối đa 50)"
+                                                max="50"
+                                            />
+                                        )}
                                     </Field>
 
                                     <Field label="Giảm tối đa (đ)">
@@ -776,7 +860,6 @@ export default function AdminVoucher() {
                                 </>
                             )}
 
-                            {/* ⭐ Thông báo khi chọn FREESHIP */}
                             {form.loaiGiam === "FREESHIP" && (
                                 <div
                                     style={{
@@ -847,10 +930,9 @@ export default function AdminVoucher() {
                                         handleChange("trangThai", e.target.value)
                                     }
                                 >
+                                    {/* Ở form nhập liệu, chỉ cần chọn Hoạt động hoặc Ngừng. Trạng thái "Chuẩn bị" là tự động */}
                                     <option value="HOAT_DONG">Hoạt động</option>
-                                    <option value="NGUNG_HOAT_DONG">
-                                        Ngừng hoạt động
-                                    </option>
+                                    <option value="CHUAN_BI">Chuẩn bị hoạt động</option>
                                 </select>
                             </Field>
                         </div>

@@ -1,0 +1,275 @@
+/* ====================================================
+   ADMIN KHUYẾN MÃI STYLES (HỖ TRỢ SÁNG/TỐI)
+   ==================================================== */
+
+:root {
+    /* --- BIẾN MÀU CHO CHẾ ĐỘ SÁNG (Mặc định) --- */
+    --bg-main: #f8f9fa;
+    --bg-card: #ffffff;
+    --bg-hover: #f1f3f5;
+    --bg-input: #ffffff;
+
+    --text-main: #1a1a1a;
+    --text-muted: #6c757d;
+
+    --border-color: #dee2e6;
+    --border-input: #ced4da;
+
+    --primary-color: #d94b3f;
+    --primary-hover: #c0392b;
+
+    --badge-success-bg: #e8f5e9;
+    --badge-success-text: #2e7d32;
+    --badge-danger-bg: #fdecea;
+    --badge-danger-text: #c0392b;
+
+    --shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* --- BIẾN MÀU CHO CHẾ ĐỘ TỐI (Tự động kích hoạt nếu máy bật Dark Mode) --- */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-main: #1a1a1a;
+        --bg-card: #1e1e1e;
+        --bg-hover: #2a2a2a;
+        --bg-input: #2a2a2a;
+
+        --text-main: #ffffff;
+        --text-muted: #888888;
+
+        --border-color: #333333;
+        --border-input: #444444;
+
+        --badge-success-bg: rgba(46, 125, 50, 0.2);
+        --badge-success-text: #4caf50;
+        --badge-danger-bg: rgba(192, 57, 43, 0.2);
+        --badge-danger-text: #ff6b6b;
+
+        --shadow-modal: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+}
+
+/* --- Tổng quan --- */
+.km-container {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    padding: 20px;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* --- Header --- */
+.km-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.km-eyebrow { color: var(--text-muted); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+.km-title { margin: 4px 0; font-size: 28px; font-weight: 700; }
+.km-subtitle { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+.km-btn-add {
+    background: var(--text-main);
+    color: var(--bg-main);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: opacity 0.2s;
+}
+.km-btn-add:hover { opacity: 0.8; }
+
+/* --- Bộ lọc (Filters) --- */
+.km-filters { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+
+.km-input-base {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-input);
+    color: var(--text-main);
+    border-radius: 8px;
+    outline: none;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 46px;
+    box-sizing: border-box;
+    transition: border-color 0.2s, background-color 0.3s, color 0.3s;
+}
+.km-input-base:focus { border-color: var(--primary-color); }
+
+.km-filter-search { flex: 1; min-width: 240px; }
+.km-filter-select { width: auto; min-width: 180px; cursor: pointer; }
+
+.km-date-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-input);
+    padding: 0 12px;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    min-height: 46px;
+}
+.km-date-group span { font-size: 13px; color: var(--text-muted); }
+
+.km-date-input {
+    background: transparent;
+    color: var(--text-main);
+    border: none;
+    outline: none;
+    padding: 10px 0;
+    cursor: pointer;
+    font-family: inherit;
+    color-scheme: light dark; /* Tự đổi icon lịch cho phù hợp */
+}
+
+/* --- Bảng dữ liệu --- */
+.km-table-wrapper {
+    background: var(--bg-card);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.km-table-head {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+}
+.km-table-head h2 { margin: 0; font-size: 18px; }
+.km-table-head span { color: var(--text-muted); font-size: 14px; }
+
+.km-table { width: 100%; border-collapse: collapse; text-align: left; }
+
+.km-table th {
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    padding: 16px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.km-table td {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+    color: var(--text-main);
+}
+.km-table tbody tr:hover { background: var(--bg-hover); }
+.km-table tbody tr:last-child td { border-bottom: none; }
+
+/* Badges (Nhãn trạng thái) */
+.km-badge { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.km-badge-success { background: var(--badge-success-bg); color: var(--badge-success-text); }
+.km-badge-danger { background: var(--badge-danger-bg); color: var(--badge-danger-text); }
+
+/* Nút thao tác */
+.km-btn-action {
+    background: transparent; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 13px; transition: all 0.2s;
+}
+.km-btn-edit { border: 1px solid var(--border-input); color: var(--text-main); margin-right: 8px; }
+.km-btn-edit:hover { background: var(--bg-hover); }
+.km-btn-delete { border: 1px solid var(--primary-color); color: var(--primary-color); }
+.km-btn-delete:hover { background: var(--badge-danger-bg); }
+
+/* Phân trang */
+.km-pagination { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 20px; }
+.km-page-btn {
+    width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border-input);
+    background: var(--bg-card); color: var(--text-main); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.km-page-btn:disabled { color: var(--text-muted); cursor: default; opacity: 0.5; }
+.km-page-btn:not(:disabled):hover { background: var(--bg-hover); }
+
+/* --- Modal (Thêm/Sửa) --- */
+.km-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+    display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+    backdrop-filter: blur(4px);
+}
+
+.km-modal-content {
+    background: var(--bg-card); border-radius: 12px; padding: 28px; width: 100%;
+    max-width: 700px; max-height: 90vh; overflow-y: auto;
+    border: 1px solid var(--border-color); box-shadow: var(--shadow-modal);
+    color: var(--text-main);
+}
+
+.km-modal-title { margin-top: 0; font-size: 24px; margin-bottom: 20px; }
+
+.km-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.km-form-group { display: flex; flex-direction: column; }
+.km-form-full { grid-column: 1 / -1; }
+
+.km-label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-main); }
+.km-label span { font-weight: normal; color: var(--text-muted); font-size: 12px; }
+
+.km-error-box { background: var(--badge-danger-bg); color: var(--badge-danger-text); padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-weight: 500; }
+
+/* --- Chọn Sản phẩm (Grid Ảnh) --- */
+.km-product-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px;
+    max-height: 260px; overflow-y: auto; padding: 10px;
+    border: 1px solid var(--border-color); border-radius: 8px;
+    background: var(--bg-main); margin-bottom: 16px;
+}
+
+.km-product-card {
+    border: 2px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer;
+    background: var(--bg-card); transition: all 0.2s ease; position: relative;
+    display: flex; flex-direction: column; border: 1px solid var(--border-color);
+}
+
+.km-product-card:hover { border-color: var(--text-muted); }
+.km-product-card.active { border-color: var(--primary-color); box-shadow: 0 0 0 1px var(--primary-color); }
+
+.km-product-img-wrapper { position: relative; width: 100%; aspect-ratio: 1/1; background: #fff; }
+.km-product-img { width: 100%; height: 100%; object-fit: cover; }
+
+.km-product-check {
+    position: absolute; top: 6px; right: 6px; background: var(--primary-color); color: white;
+    width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: bold;
+}
+
+.km-product-info { padding: 8px; text-align: center; }
+.km-product-name { font-size: 12px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.km-product-brand { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* --- Chọn Biến thể (Nút bấm) --- */
+.km-variant-section { padding: 16px; background: var(--bg-hover); border-radius: 8px; border: 1px dashed var(--border-input); margin-top: 10px; }
+.km-variant-section .km-label { color: var(--primary-color); margin-bottom: 12px; }
+
+.km-variant-container { display: flex; flex-wrap: wrap; gap: 10px; max-height: 200px; overflow-y: auto; padding: 4px; }
+
+.km-variant-pill {
+    padding: 8px 14px; border: 1px solid var(--border-input); border-radius: 20px;
+    background: var(--bg-card); cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;
+    transition: all 0.2s; color: var(--text-main); line-height: 1.4;
+}
+.km-variant-pill:hover { border-color: var(--text-muted); }
+.km-variant-pill.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+
+.km-variant-color { font-weight: 600; }
+.km-variant-size { padding-left: 6px; border-left: 1px solid currentColor; opacity: 0.8; }
+.km-variant-sku { font-size: 11px; opacity: 0.6; }
+
+/* --- Nút Hành động Modal --- */
+.km-modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 30px; }
+
+.km-btn-cancel {
+    padding: 12px 24px; border: 1px solid var(--border-input); border-radius: 8px;
+    background: transparent; color: var(--text-main); cursor: pointer; font-weight: 600;
+}
+.km-btn-cancel:hover { background: var(--bg-hover); }
+
+.km-btn-save {
+    padding: 12px 24px; border: none; border-radius: 8px;
+    background: var(--primary-color); color: #fff; cursor: pointer; font-weight: 700;
+}
+.km-btn-save:hover { background: var(--primary-hover); }
