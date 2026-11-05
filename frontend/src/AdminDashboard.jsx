@@ -107,22 +107,19 @@ async function getThanhToanByHoaDonId(id, force = false) {
     return promise;
 }
 async function prefetchAdminData() {
-    const [hoaDonResult] = await Promise.allSettled([
-        getHoaDons(),
-        getKhachHangs()
-    ]);
-    if (hoaDonResult.status === "fulfilled") {
-        const danhSachHoaDon = hoaDonResult.value;
-        danhSachHoaDon.forEach((hoaDon) => {
-            getThanhToanByHoaDonId(hoaDon.id).catch((err) => {
-                console.error(`Lỗi tải thanh toán hóa đơn ${hoaDon.id}:`, err);
-            });
-        });
-    }
-    else {
-        console.error("Lỗi preload hóa đơn:", hoaDonResult.reason);
-    }
+    // Chỉ preload danh sách hóa đơn/khách hàng dùng chung cho các màn quản lý.
+    // Không gọi API thanh toán lặp lại cho từng hóa đơn khi vừa mở Admin.
+    const results = await Promise.allSettled([getHoaDons(), getKhachHangs()]);
+    results.forEach((result, index) => {
+        if (result.status === "rejected") {
+            console.error(
+                index === 0 ? "Lỗi preload hóa đơn:" : "Lỗi preload khách hàng:",
+                result.reason
+            );
+        }
+    });
 }
+
 const menuItems = [
     { id: "dashboard", icon: "▦", label: "Tổng quan" },
     { id: "ban-hang", icon: "🛒", label: "Bán hàng tại quầy" },
@@ -359,286 +356,78 @@ function toDateInputValue(date) {
 }
 
 function DashboardContent({ onViewAll }) {
-    // Mỗi loại dữ liệu có state riêng.
-    // API nào trả về trước thì giao diện cập nhật trước,
-    // không chờ tất cả API xong mới hiển thị.
-    const [productCount, setProductCount] = useState(null);
-    const [customerCount, setCustomerCount] = useState(
-        adminDataCache.khachHangs?.length ?? null
-    );
-    const [hoaDons, setHoaDons] = useState(
-        adminDataCache.hoaDons || []
-    );
-
-    const [loadingOrders, setLoadingOrders] = useState(
-        !adminDataCache.hoaDons
-    );
-
-    const [loadingProducts, setLoadingProducts] = useState(
-        true
-    );
-
-    const [loadingCustomers, setLoadingCustomers] = useState(
-        !adminDataCache.khachHangs
-    );
-
-    const [dashboardError, setDashboardError] =
-        useState("");
+    const [dashboardError, setDashboardError] = useState("");
     const [dateFrom, setDateFrom] = useState(() => {
         const now = new Date();
         return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
     });
     const [dateTo, setDateTo] = useState(() => toDateInputValue(new Date()));
-    const [productsForDashboard, setProductsForDashboard] = useState([]);
-    const [inventoryByProductId, setInventoryByProductId] = useState({});
-    const [salesDetails, setSalesDetails] = useState([]);
-    const [loadingProductStats, setLoadingProductStats] = useState(true);
+    const [dashboardStats, setDashboardStats] = useState(null);
+    const [loadingDashboardStats, setLoadingDashboardStats] = useState(true);
+    const [filterStatus, setFilterStatus] = useState("");
+    const [filterOrderType, setFilterOrderType] = useState("");
+    const [filterPaymentMethod, setFilterPaymentMethod] = useState("");
 
-    // Tải danh sách sản phẩm và tồn kho theo từng biến thể.
+    // Một API backend trả số liệu đã tổng hợp, tránh gọi chi tiết từng hóa đơn/SP.
     useEffect(() => {
         let mounted = true;
+        const params = new URLSearchParams();
+        if (dateFrom) params.set("tuNgay", dateFrom);
+        if (dateTo) params.set("denNgay", dateTo);
+        if (filterStatus) params.set("trangThai", filterStatus);
+        if (filterOrderType) params.set("loaiHoaDon", filterOrderType);
+        if (filterPaymentMethod) params.set("phuongThucThanhToan", filterPaymentMethod);
 
-        const loadProducts = async () => {
-            try {
-                const response = await fetch(`${API}/san-pham`);
-                const data = await response.json().catch(() => []);
-                if (!response.ok) {
-                    throw new Error(data?.message || data?.error || "Không thể tải sản phẩm");
-                }
-                const list = Array.isArray(data) ? data : [];
-                if (!mounted) return;
-                setProductCount(list.length);
-                setProductsForDashboard(list);
-
-                const inventoryEntries = await Promise.all(list.map(async (product) => {
-                    try {
-                        const detailResponse = await fetch(`${API}/san-pham/${product.id}/chi-tiet`);
-                        const variants = detailResponse.ok ? await detailResponse.json() : [];
-                        const stock = Array.isArray(variants)
-                            ? variants.reduce((sum, variant) => sum + Math.max(0, Number(variant.soLuongTon) || 0), 0)
-                            : 0;
-                        return [product.id, stock];
-                    } catch {
-                        return [product.id, 0];
-                    }
-                }));
-                if (mounted) setInventoryByProductId(Object.fromEntries(inventoryEntries));
-            } catch (err) {
-                console.error("Lỗi tải sản phẩm Dashboard:", err);
-                if (mounted) {
-                    setProductCount(0);
-                    setProductsForDashboard([]);
-                    setDashboardError((old) => old || "Không thể tải dữ liệu sản phẩm.");
-                }
-            } finally {
-                if (mounted) setLoadingProducts(false);
-                if (mounted) setLoadingProductStats(false);
-            }
-        };
-
-        loadProducts();
-        return () => { mounted = false; };
-    }, []);
-
-    // Tải khách hàng độc lập.
-    useEffect(() => {
-        let mounted = true;
-
-        if (adminDataCache.khachHangs) {
-            setCustomerCount(
-                adminDataCache.khachHangs.length
-            );
-            setLoadingCustomers(false);
-            return () => {
-                mounted = false;
-            };
-        }
-
-        getKhachHangs()
+        setLoadingDashboardStats(true);
+        setDashboardError("");
+        fetch(`${API}/admin/dashboard/thong-ke?${params.toString()}`)
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data?.message || "Không thể tải thống kê tổng quan");
+                return data;
+            })
             .then((data) => {
-                if (!mounted) return;
-
-                setCustomerCount(data.length);
+                if (mounted) setDashboardStats(data);
             })
             .catch((err) => {
-                console.error(
-                    "Lỗi tải khách hàng Dashboard:",
-                    err
-                );
-
-                if (mounted) {
-                    setDashboardError(
-                        (old) =>
-                            old ||
-                            "Không thể tải dữ liệu khách hàng."
-                    );
-                }
+                console.error("Lỗi tải thống kê tổng quan:", err);
+                if (mounted) setDashboardError(err.message || "Không thể tải thống kê.");
             })
             .finally(() => {
-                if (mounted) {
-                    setLoadingCustomers(false);
-                }
+                if (mounted) setLoadingDashboardStats(false);
             });
 
-        return () => {
-            mounted = false;
-        };
-    }, []);
-
-    // Tải hóa đơn và chi tiết từng hóa đơn để thống kê sản phẩm bán chạy.
-    useEffect(() => {
-        let mounted = true;
-
-        const loadOrdersAndDetails = async () => {
-            try {
-                const data = await getHoaDons();
-                if (!mounted) return;
-                setHoaDons(data);
-
-                const revenueOrders = data.filter(isRevenueOrder);
-                const detailGroups = await Promise.all(revenueOrders.map(async (hoaDon) => {
-                    try {
-                        const response = await fetch(`${API}/hoa-don/${hoaDon.id}/chi-tiet`);
-                        if (!response.ok) return [];
-                        const items = await response.json().catch(() => []);
-                        return Array.isArray(items) ? items.map((item) => ({ hoaDon, item })) : [];
-                    } catch {
-                        return [];
-                    }
-                }));
-                if (mounted) setSalesDetails(detailGroups.flat());
-            } catch (err) {
-                console.error("Lỗi tải đơn hàng Dashboard:", err);
-                if (mounted) setDashboardError((old) => old || "Không thể tải dữ liệu đơn hàng.");
-            } finally {
-                if (mounted) setLoadingOrders(false);
-            }
-        };
-
-        loadOrdersAndDetails();
         return () => { mounted = false; };
-    }, []);
+    }, [dateFrom, dateTo, filterStatus, filterOrderType, filterPaymentMethod]);
 
-    const rangeStart = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
-    const rangeEnd = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null;
-    const isInSelectedRange = (hoaDon) => {
-        const date = getHoaDonDate(hoaDon);
-        if (!date) return false;
-        if (rangeStart && date < rangeStart) return false;
-        if (rangeEnd && date > rangeEnd) return false;
-        return true;
-    };
-    const filteredHoaDons = hoaDons.filter(isInSelectedRange);
-    const filteredRevenueOrders = filteredHoaDons.filter(isRevenueOrder);
+    const productCount = Number(dashboardStats?.productCount || 0);
+    const customerCount = Number(dashboardStats?.customerCount || 0);
 
-    const totalRevenue = filteredRevenueOrders
-        .reduce(
-            (sum, hoaDon) =>
-                sum +
-                Number(
-                    hoaDon?.tongThanhToan || 0
-                ),
-            0
-        );
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const chartEndDate = dateTo ? new Date(`${dateTo}T00:00:00`) : today;
-    const revenueByDay = Array.from(
-        { length: 7 },
-        (_, index) => {
-            const date = new Date(chartEndDate);
-            date.setDate(chartEndDate.getDate() - (6 - index));
-
-            const revenue = filteredRevenueOrders
-                .filter(
-                    (hoaDon) =>
-                        isRevenueOrder(hoaDon) &&
-                        isSameDay(
-                            getHoaDonDate(hoaDon),
-                            date
-                        )
-                )
-                .reduce(
-                    (sum, hoaDon) =>
-                        sum +
-                        Number(
-                            hoaDon?.tongThanhToan ||
-                            0
-                        ),
-                    0
-                );
-
-            return {
-                date,
-                revenue,
-                label: date.toLocaleDateString(
-                    "vi-VN",
-                    {
-                        weekday: "short",
-                    }
-                ),
-            };
-        }
+    const filteredHoaDons = dashboardStats?.recentOrders || [];
+    const totalRevenue = Number(dashboardStats?.totalRevenue || 0);
+    const statusCounts = dashboardStats?.statusCounts || {};
+    const revenueMap = new Map(
+        (dashboardStats?.revenueByDate || []).map((item) => [item.date, Number(item.revenue || 0)])
     );
-
-    const maxRevenue = Math.max(
-        ...revenueByDay.map(
-            (item) => item.revenue
-        ),
-        1
-    );
-
-    const statusCounts = {
-        pending: filteredHoaDons.filter(
-            (hoaDon) =>
-                hoaDon?.trangThai ===
-                "CHO_XAC_NHAN"
-        ).length,
-
-        processing: filteredHoaDons.filter(
-            (hoaDon) =>
-                hoaDon?.trangThai ===
-                "DA_XAC_NHAN" ||
-                hoaDon?.trangThai ===
-                "DANG_CHUAN_BI"
-        ).length,
-
-        shipping: filteredHoaDons.filter(
-            (hoaDon) =>
-                hoaDon?.trangThai ===
-                "DANG_GIAO"
-        ).length,
-
-        done: filteredHoaDons.filter(
-            (hoaDon) =>
-                hoaDon?.trangThai ===
-                "DA_GIAO"
-        ).length,
-    };
-
+    const chartEndDate = dateTo ? new Date(`${dateTo}T00:00:00`) : new Date();
+    const revenueByDay = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(chartEndDate);
+        date.setDate(chartEndDate.getDate() - (6 - index));
+        return {
+            date,
+            revenue: revenueMap.get(toDateInputValue(date)) || 0,
+            label: date.toLocaleDateString("vi-VN", { weekday: "short" })
+        };
+    });
+    const maxRevenue = Math.max(...revenueByDay.map((item) => item.revenue), 1);
     const recentOrders = filteredHoaDons.slice(0, 4);
-
-    const salesByProduct = salesDetails.reduce((map, entry) => {
-        if (!isInSelectedRange(entry.hoaDon) || !isRevenueOrder(entry.hoaDon)) return map;
-        const variant = entry.item?.sanPhamChiTiet;
-        const product = variant?.sanPham;
-        const productId = product?.id || variant?.sanPhamId;
-        if (!productId) return map;
-        const current = map[productId] || { sold: 0, revenue: 0 };
-        current.sold += Math.max(0, Number(entry.item?.soLuong) || 0);
-        current.revenue += Number(entry.item?.thanhTien || 0);
-        map[productId] = current;
-        return map;
-    }, {});
-
-    const productPerformance = productsForDashboard.map((product) => ({
+    const productPerformance = (dashboardStats?.products || []).map((product) => ({
         id: product.id,
-        code: product.maSanPham || `SP${product.id}`,
-        name: product.tenSanPham || "Sản phẩm",
-        stock: Number(inventoryByProductId[product.id] || 0),
-        sold: Number(salesByProduct[product.id]?.sold || 0),
-        revenue: Number(salesByProduct[product.id]?.revenue || 0),
+        code: product.code || `SP${product.id}`,
+        name: product.name || "Sản phẩm",
+        stock: Number(product.stock || 0),
+        sold: Number(product.sold || 0),
+        revenue: Number(product.revenue || 0)
     }));
     const bestSellingProducts = [...productPerformance]
         .filter((product) => product.sold > 0)
@@ -648,6 +437,12 @@ function DashboardContent({ onViewAll }) {
         .filter((product) => product.sold === 0 && product.stock > 0)
         .sort((a, b) => b.stock - a.stock)
         .slice(0, 5);
+    const lowStockProducts = productPerformance
+        .filter((product) => product.stock > 0 && product.stock <= 10)
+        .sort((a, b) => a.stock - b.stock)
+        .slice(0, 5);
+    const topCustomers = dashboardStats?.topCustomers || [];
+    const filteredOrderCount = Number(dashboardStats?.orderCount || 0);
 
     return (
         <div className="admin-dashboard-content">
@@ -688,6 +483,37 @@ function DashboardContent({ onViewAll }) {
                         setDateFrom(toDateInputValue(start));
                         setDateTo(toDateInputValue(now));
                     }}>7 ngày</button>
+                    <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} aria-label="Lọc trạng thái đơn hàng">
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="CHO_XAC_NHAN">Chờ xác nhận</option>
+                        <option value="DA_XAC_NHAN">Đã xác nhận</option>
+                        <option value="DANG_CHUAN_BI">Đang chuẩn bị</option>
+                        <option value="DANG_GIAO">Đang giao</option>
+                        <option value="DA_GIAO">Đã giao</option>
+                        <option value="DA_THANH_TOAN">Đã thanh toán</option>
+                        <option value="DA_HUY">Đã hủy</option>
+                    </select>
+                    <select value={filterOrderType} onChange={(event) => setFilterOrderType(event.target.value)} aria-label="Lọc loại đơn hàng">
+                        <option value="">Tất cả loại đơn</option>
+                        <option value="ONLINE">Online</option>
+                        <option value="TAI_QUAY">Tại quầy</option>
+                    </select>
+                    <select value={filterPaymentMethod} onChange={(event) => setFilterPaymentMethod(event.target.value)} aria-label="Lọc phương thức thanh toán">
+                        <option value="">Tất cả thanh toán</option>
+                        <option value="COD">COD</option>
+                        <option value="TIEN_MAT">Tiền mặt</option>
+                        <option value="CHUYEN_KHOAN">Chuyển khoản</option>
+                        <option value="VNPAY">VNPay</option>
+                        <option value="MOMO">MoMo</option>
+                    </select>
+                    <button type="button" onClick={() => {
+                        setFilterStatus("");
+                        setFilterOrderType("");
+                        setFilterPaymentMethod("");
+                        const now = new Date();
+                        setDateFrom(toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1)));
+                        setDateTo(toDateInputValue(now));
+                    }}>Đặt lại lọc</button>
                 </div>
             </div>
 
@@ -713,11 +539,7 @@ function DashboardContent({ onViewAll }) {
                     </div>
 
                     <div className="admin-stat-value">
-                        {loadingProducts
-                            ? "..."
-                            : productCount.toLocaleString(
-                                "vi-VN"
-                            )}
+                        {loadingDashboardStats ? "..." : productCount.toLocaleString("vi-VN")}
                     </div>
 
                     <div className="admin-stat-label">
@@ -734,11 +556,7 @@ function DashboardContent({ onViewAll }) {
                     </div>
 
                     <div className="admin-stat-value">
-                        {loadingOrders
-                            ? "..."
-                            : filteredHoaDons.length.toLocaleString(
-                                "vi-VN"
-                            )}
+                        {loadingDashboardStats ? "..." : filteredOrderCount.toLocaleString("vi-VN")}
                     </div>
 
                     <div className="admin-stat-label">
@@ -755,11 +573,7 @@ function DashboardContent({ onViewAll }) {
                     </div>
 
                     <div className="admin-stat-value">
-                        {loadingCustomers
-                            ? "..."
-                            : customerCount.toLocaleString(
-                                "vi-VN"
-                            )}
+                        {loadingDashboardStats ? "..." : customerCount.toLocaleString("vi-VN")}
                     </div>
 
                     <div className="admin-stat-label">
@@ -779,9 +593,7 @@ function DashboardContent({ onViewAll }) {
                     </div>
 
                     <div className="admin-stat-value">
-                        {loadingOrders
-                            ? "..."
-                            : formatTien(totalRevenue)}
+                        {loadingDashboardStats ? "..." : formatTien(totalRevenue)}
                     </div>
 
                     <div className="admin-stat-label">
@@ -802,11 +614,7 @@ function DashboardContent({ onViewAll }) {
                         </div>
 
                         <strong>
-                            {loadingOrders
-                                ? "Đang tải..."
-                                : formatTien(
-                                    totalRevenue
-                                )}
+                            {loadingDashboardStats ? "Đang tải..." : formatTien(totalRevenue)}
                         </strong>
                     </div>
 
@@ -899,9 +707,9 @@ function DashboardContent({ onViewAll }) {
                                 Chờ xác nhận
                             </span>
                             <strong>
-                                {loadingOrders
+                                {loadingDashboardStats
                                     ? "..."
-                                    : statusCounts.pending}
+                                    : statusCounts.CHO_XAC_NHAN || 0}
                             </strong>
                         </div>
 
@@ -911,9 +719,9 @@ function DashboardContent({ onViewAll }) {
                                 Đang xử lý
                             </span>
                             <strong>
-                                {loadingOrders
+                                {loadingDashboardStats
                                     ? "..."
-                                    : statusCounts.processing}
+                                    : ((statusCounts.DA_XAC_NHAN || 0) + (statusCounts.DANG_CHUAN_BI || 0))}
                             </strong>
                         </div>
 
@@ -923,9 +731,9 @@ function DashboardContent({ onViewAll }) {
                                 Đang giao
                             </span>
                             <strong>
-                                {loadingOrders
+                                {loadingDashboardStats
                                     ? "..."
-                                    : statusCounts.shipping}
+                                    : statusCounts.DANG_GIAO || 0}
                             </strong>
                         </div>
 
@@ -935,9 +743,9 @@ function DashboardContent({ onViewAll }) {
                                 Đã giao
                             </span>
                             <strong>
-                                {loadingOrders
+                                {loadingDashboardStats
                                     ? "..."
-                                    : statusCounts.done}
+                                    : ((statusCounts.DA_GIAO || 0) + (statusCounts.DA_THANH_TOAN || 0))}
                             </strong>
                         </div>
                     </div>
@@ -950,7 +758,7 @@ function DashboardContent({ onViewAll }) {
                         <h2>Đơn hàng gần đây</h2>
 
                         <p>
-                            4 đơn hàng mới nhất
+                            {filteredOrderCount.toLocaleString("vi-VN")} đơn theo bộ lọc · hiển thị 4 đơn gần nhất
                         </p>
                     </div>
 
@@ -964,7 +772,7 @@ function DashboardContent({ onViewAll }) {
                 </div>
 
                 <div className="admin-table-scroll">
-                    {loadingOrders ? (
+                    {loadingDashboardStats ? (
                         <div
                             style={{
                                 padding: "40px",
@@ -996,13 +804,10 @@ function DashboardContent({ onViewAll }) {
                                     Khách hàng
                                 </th>
 
-                                <th>
-                                    Tổng tiền
-                                </th>
-
-                                <th>
-                                    Trạng thái
-                                </th>
+                                <th>Loại đơn</th>
+                                <th>Thanh toán</th>
+                                <th>Tổng tiền</th>
+                                <th>Trạng thái</th>
                             </tr>
                             </thead>
 
@@ -1022,22 +827,14 @@ function DashboardContent({ onViewAll }) {
                                         </td>
 
                                         <td>
-                                            {hoaDon
-                                                    ?.khachHang
-                                                    ?.hoTen ||
-                                                hoaDon
-                                                    ?.diaChi
-                                                    ?.tenNguoiNhan ||
+                                            {hoaDon.tenKhachHang ||
+                                                hoaDon.tenNguoiNhan ||
                                                 "Khách lẻ"}
                                         </td>
 
-                                        <td>
-                                            <strong>
-                                                {formatTien(
-                                                    hoaDon.tongThanhToan
-                                                )}
-                                            </strong>
-                                        </td>
+                                        <td>{tenLoaiHoaDon(hoaDon.loaiHoaDon)}</td>
+                                        <td>{tenPhuongThuc(hoaDon.phuongThucThanhToan)}</td>
+                                        <td><strong>{formatTien(hoaDon.tongThanhToan)}</strong></td>
 
                                         <td>
                                             <span
@@ -1089,7 +886,7 @@ function DashboardContent({ onViewAll }) {
                             <p>Top sản phẩm theo số lượng đã bán trong khoảng thời gian chọn</p>
                         </div>
                     </div>
-                    {loadingProductStats || loadingOrders ? (
+                    {loadingDashboardStats ? (
                         <div className="admin-product-stat-empty">Đang tổng hợp dữ liệu...</div>
                     ) : bestSellingProducts.length === 0 ? (
                         <div className="admin-product-stat-empty">Chưa có sản phẩm phát sinh bán trong khoảng thời gian này.</div>
@@ -1116,7 +913,7 @@ function DashboardContent({ onViewAll }) {
                             <p>Các mẫu vẫn còn tồn kho nhưng chưa bán trong khoảng thời gian chọn</p>
                         </div>
                     </div>
-                    {loadingProductStats || loadingOrders ? (
+                    {loadingDashboardStats ? (
                         <div className="admin-product-stat-empty">Đang tổng hợp dữ liệu...</div>
                     ) : slowMovingProducts.length === 0 ? (
                         <div className="admin-product-stat-empty">Không có sản phẩm tồn kho chưa bán trong khoảng thời gian này.</div>
@@ -1129,6 +926,60 @@ function DashboardContent({ onViewAll }) {
                                         <small>{product.code}</small>
                                     </div>
                                     <strong className="admin-product-stock-value">Còn {product.stock} đôi</strong>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            </div>
+
+            <div className="admin-dashboard-products-grid admin-dashboard-insights-grid">
+                <section className="admin-card">
+                    <div className="admin-card-heading">
+                        <div>
+                            <h2>Khách hàng mua nhiều</h2>
+                            <p>Top khách hàng theo doanh thu trong khoảng thời gian và bộ lọc đã chọn</p>
+                        </div>
+                    </div>
+                    {loadingDashboardStats ? (
+                        <div className="admin-product-stat-empty">Đang tổng hợp dữ liệu...</div>
+                    ) : topCustomers.length === 0 ? (
+                        <div className="admin-product-stat-empty">Chưa có dữ liệu khách hàng trong khoảng đã chọn.</div>
+                    ) : (
+                        <div className="admin-product-stat-list">
+                            {topCustomers.map((customer, index) => (
+                                <div className="admin-product-stat-row" key={customer.id}>
+                                    <span className="admin-product-stat-rank">{index + 1}</span>
+                                    <div className="admin-product-stat-info">
+                                        <strong>{customer.name || `Khách hàng #${customer.id}`}</strong>
+                                        <small>{Number(customer.orderCount || 0).toLocaleString("vi-VN")} đơn hàng</small>
+                                    </div>
+                                    <strong className="admin-product-stat-value">{formatTien(customer.revenue)}</strong>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+                <section className="admin-card">
+                    <div className="admin-card-heading">
+                        <div>
+                            <h2>Sản phẩm sắp hết hàng</h2>
+                            <p>Các sản phẩm có tồn kho từ 1 đến 10 đôi</p>
+                        </div>
+                    </div>
+                    {loadingDashboardStats ? (
+                        <div className="admin-product-stat-empty">Đang kiểm tra tồn kho...</div>
+                    ) : lowStockProducts.length === 0 ? (
+                        <div className="admin-product-stat-empty">Không có sản phẩm nào sắp hết hàng.</div>
+                    ) : (
+                        <div className="admin-product-stat-list">
+                            {lowStockProducts.map((product) => (
+                                <div className="admin-product-stat-row" key={product.id}>
+                                    <div className="admin-product-stat-info">
+                                        <strong>{product.name}</strong>
+                                        <small>{product.code}</small>
+                                    </div>
+                                    <strong className="admin-product-stock-warning">Còn {product.stock} đôi</strong>
                                 </div>
                             ))}
                         </div>

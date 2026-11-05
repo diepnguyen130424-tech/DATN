@@ -2817,3 +2817,58 @@
     .admin-dashboard-content .admin-stats { grid-template-columns: 1fr !important; }
     .admin-dashboard-content .admin-dashboard-date-filter button { flex: 1; }
 }
+
+
+/* Dashboard analytics filters and insights */
+.admin-dashboard-date-filter select {
+    height: 36px;
+    min-width: 145px;
+    max-width: 190px;
+    padding: 0 10px;
+    border: 1px solid #dfe3e8;
+    border-radius: 8px;
+    background: #fff;
+    color: #303640;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.admin-dashboard-date-filter select:focus,
+.admin-dashboard-date-filter input:focus {
+    outline: none;
+    border-color: #e53935;
+    box-shadow: 0 0 0 3px rgba(229, 57, 53, .08);
+}
+.admin-dashboard-insights-grid {
+    margin-bottom: 24px;
+}
+.admin-product-stock-warning {
+    flex-shrink: 0;
+    color: #dc2626;
+    background: #fff1f2;
+    border: 1px solid #ffe0e3;
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12px;
+}
+.admin-dashboard-content .admin-table {
+    min-width: 760px;
+}
+.admin-dashboard-content .admin-table td,
+.admin-dashboard-content .admin-table th {
+    white-space: nowrap;
+}
+@media (max-width: 1100px) {
+    .admin-dashboard-date-filter {
+        justify-content: flex-start;
+    }
+    .admin-dashboard-date-filter select {
+        flex: 1 1 160px;
+        max-width: none;
+    }
+}
+@media (max-width: 560px) {
+    .admin-dashboard-date-filter select {
+        min-width: 100%;
+    }
+}

@@ -17,4 +17,14 @@ public interface SanPhamChiTietRepository extends JpaRepository<SanPhamChiTiet, 
     Optional<SanPhamChiTiet> findByMaSku(String maSku);
 
     boolean existsByMaSku(String maSku);
+
+    boolean existsByMaSkuAndIdNot(String maSku, Long id);
+
+    boolean existsBySanPham_IdAndKichCo_IdAndMauSac_Id(
+            Long sanPhamId, Long kichCoId, Long mauSacId
+    );
+
+    boolean existsBySanPham_IdAndKichCo_IdAndMauSac_IdAndIdNot(
+            Long sanPhamId, Long kichCoId, Long mauSacId, Long id
+    );
 }
