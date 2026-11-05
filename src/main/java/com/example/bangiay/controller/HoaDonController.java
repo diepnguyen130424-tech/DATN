@@ -193,13 +193,44 @@ public class HoaDonController {
     public ResponseEntity<HoaDon> capNhatTrangThai(
             @PathVariable Long id,
             @RequestParam String trangThai,
-            @RequestParam(required = false) String ghiChu
+            @RequestParam(required = false) String ghiChu,
+            @RequestParam(required = false) Long nhanVienId,
+            @RequestParam(required = false) String nguoiThucHien,
+            @RequestParam(required = false) String vaiTro
     ) {
         return ResponseEntity.ok(
                 hoaDonService.capNhatTrangThai(
                         id,
                         trangThai,
-                        ghiChu
+                        ghiChu,
+                        nhanVienId,
+                        nguoiThucHien,
+                        vaiTro
+                )
+        );
+    }
+
+    // Sửa tên / SĐT / địa chỉ nhận hàng — chỉ khi đơn chưa giao
+    @PutMapping("/{id}/thong-tin-giao-hang")
+    public ResponseEntity<HoaDon> capNhatThongTinGiaoHang(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body
+    ) {
+        Long nhanVienId = null;
+        try {
+            String raw = body.get("nhanVienId");
+            if (raw != null && !raw.isBlank()) nhanVienId = Long.valueOf(raw.trim());
+        } catch (NumberFormatException ignored) {
+        }
+        return ResponseEntity.ok(
+                hoaDonService.capNhatThongTinGiaoHang(
+                        id,
+                        body.get("tenNguoiNhan"),
+                        body.get("soDienThoai"),
+                        body.get("diaChi"),
+                        nhanVienId,
+                        body.get("nguoiThucHien"),
+                        body.get("vaiTro")
                 )
         );
     }

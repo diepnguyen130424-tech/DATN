@@ -34,6 +34,7 @@ public class HoaDonService {
     private final DiaChiRepository diaChiRepository;
     private final KhachHangRepository khachHangRepository;
     private final KhachHangTaiQuayRepository khachHangTaiQuayRepository;
+    private final NhanVienRepository nhanVienRepository;
     private final ShippingService shippingService;
 
 
@@ -730,6 +731,8 @@ public class HoaDonService {
         lichSu.setGhiChu(
                 "Khách hàng đặt hàng online"
         );
+        lichSu.setVaiTro("KHACH_HANG");
+        lichSu.setNguoiThucHien(request.getHoTen() != null ? request.getHoTen().trim() : null);
 
 
         lichSuHoaDonRepository.save(
@@ -830,18 +833,18 @@ public class HoaDonService {
     // Ưu tiên: khách đã đăng ký  →  hóa đơn tại quầy gần nhất
     // =========================================================
 
-    public java.util.Map<String, String> traCuuTenTheoSdt(String raw) {
+    public Map<String, String> traCuuTenTheoSdt(String raw) {
 
         String sdt;
 
         try {
             sdt = chuanHoaSoDienThoai(raw);
         } catch (RuntimeException e) {
-            return java.util.Map.of();
+            return Map.of();
         }
 
         if (sdt == null) {
-            return java.util.Map.of();
+            return Map.of();
         }
 
         KhachHang daDangKy = timKhachDaDangKy(sdt).orElse(null);
@@ -849,7 +852,7 @@ public class HoaDonService {
         if (daDangKy != null
                 && daDangKy.getHoTen() != null
                 && !daDangKy.getHoTen().trim().isEmpty()) {
-            return java.util.Map.of(
+            return Map.of(
                     "tenKhach", daDangKy.getHoTen().trim(),
                     "khachHangId", String.valueOf(daDangKy.getId()),
                     "maKhachHang", String.valueOf(daDangKy.getId()),
@@ -862,7 +865,7 @@ public class HoaDonService {
 
         if (khachQuay != null) {
 
-            java.util.Map<String, String> kq = new java.util.HashMap<>();
+            Map<String, String> kq = new java.util.HashMap<>();
             kq.put("maKhachHang", String.valueOf(khachQuay.getId()));
             kq.put("nguon", "KHACH_QUAY");
 
@@ -882,13 +885,13 @@ public class HoaDonService {
         String tuHoaDon = timTenTuHoaDonCu(sdt);
 
         if (tuHoaDon != null) {
-            return java.util.Map.of(
+            return Map.of(
                     "tenKhach", tuHoaDon,
                     "nguon", "HOA_DON"
             );
         }
 
-        return java.util.Map.of();
+        return Map.of();
     }
 
     private String timTenTheoSdt(String sdtChuan) {
@@ -1728,34 +1731,54 @@ public class HoaDonService {
     public HoaDon capNhatTrangThai(
             Long id,
             String trangThai,
-            String ghiChu
+            String ghiChu,
+            Long nhanVienId,
+            String nguoiThucHien,
+            String vaiTro
     ) {
 
         HoaDon hoaDon =
                 hoaDonRepository.findById(id)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
                                         "Không tìm thấy hóa đơn"
                                 )
                         );
 
         // ⭐ Lưu trạng thái cũ để quyết định trừ / hoàn kho
         String trangThaiCu = hoaDon.getTrangThai();
+        String cu = trangThaiCu == null ? "" : trangThaiCu.trim().toUpperCase();
+        String moi = trangThai == null ? "" : trangThai.trim().toUpperCase();
 
         // -----------------------------------------------------
-        // ⭐ TRỪ KHO khi Admin xác nhận đơn (CHO_XAC_NHAN → DA_XAC_NHAN)
-        //    Chỉ trừ duy nhất 1 lần khi chuyển sang DA_XAC_NHAN
-//        // -----------------------------------------------------
-//        if ("DA_XAC_NHAN".equalsIgnoreCase(trangThai)
-//                && !"DA_XAC_NHAN".equalsIgnoreCase(trangThaiCu)) {
-//            truKhoTheoHoaDon(hoaDon);
-//        }
+        // 🔒 Đơn đã hủy / đã thanh toán → không được đổi nữa
+        // -----------------------------------------------------
+        if ("DA_HUY".equals(cu) || "DA_THANH_TOAN".equals(cu)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "DA_HUY".equals(cu)
+                            ? "Đơn hàng đã bị hủy, không thể thay đổi"
+                            : "Đơn hàng đã hoàn tất, không thể thay đổi"
+            );
+        }
+
+        // -----------------------------------------------------
+        // 🔒 Đã xác nhận đơn xong → KHÔNG được hủy
+        //    Chỉ hủy được khi đơn còn ở CHO_XAC_NHAN
+        // -----------------------------------------------------
+        if ("DA_HUY".equals(moi) && !"CHO_XAC_NHAN".equals(cu)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Đơn hàng đã được xác nhận, không thể hủy"
+            );
+        }
 
         // -----------------------------------------------------
         // ⭐ HOÀN KHO khi hủy đơn, CHỈ khi trước đó đã trừ
-        //    (tức là đã ở DA_XAC_NHAN hoặc xa hơn)
+        //    (hiện chỉ còn hủy được ở CHO_XAC_NHAN)
         // -----------------------------------------------------
-        if ("DA_HUY".equalsIgnoreCase(trangThai)
+        if ("DA_HUY".equals(moi)
                 && daTruKhoRoi(trangThaiCu)) {
             hoanKhoTheoHoaDon(hoaDon);
         }
@@ -1784,37 +1807,157 @@ public class HoaDonService {
                         hoaDon
                 );
 
-
-        LichSuHoaDon lichSu =
-                new LichSuHoaDon();
-
-
-        lichSu.setHoaDon(
-                hoaDonDaLuu
+        ghiLichSu(
+                hoaDonDaLuu,
+                trangThai,
+                ghiChu,
+                nhanVienId,
+                nguoiThucHien,
+                vaiTro
         );
-
-
-        lichSu.setTrangThai(
-                trangThai
-        );
-
-
-        lichSu.setThoiGian(
-                LocalDateTime.now()
-        );
-
-
-        lichSu.setGhiChu(
-                ghiChu
-        );
-
-
-        lichSuHoaDonRepository.save(
-                lichSu
-        );
-
 
         return hoaDonDaLuu;
+    }
+
+
+    // =========================================================
+    // ⭐ GHI LỊCH SỬ HÓA ĐƠN (có người thao tác)
+    // =========================================================
+
+    private void ghiLichSu(
+            HoaDon hoaDon,
+            String trangThai,
+            String ghiChu,
+            Long nhanVienId,
+            String nguoiThucHien,
+            String vaiTro
+    ) {
+
+        LichSuHoaDon lichSu = new LichSuHoaDon();
+
+        lichSu.setHoaDon(hoaDon);
+        lichSu.setTrangThai(trangThai);
+        lichSu.setThoiGian(LocalDateTime.now());
+        lichSu.setGhiChu(ghiChu);
+
+        if (nhanVienId != null) {
+            nhanVienRepository.findById(nhanVienId)
+                    .ifPresent(lichSu::setNhanVien);
+        }
+
+        if (nguoiThucHien != null && !nguoiThucHien.isBlank()) {
+            lichSu.setNguoiThucHien(nguoiThucHien.trim());
+        } else if (lichSu.getNhanVien() != null) {
+            lichSu.setNguoiThucHien(lichSu.getNhanVien().getHoTen());
+        }
+
+        if (vaiTro != null && !vaiTro.isBlank()) {
+            lichSu.setVaiTro(vaiTro.trim().toUpperCase());
+        } else if (lichSu.getNhanVien() != null) {
+            lichSu.setVaiTro("NHAN_VIEN");
+        }
+
+        lichSuHoaDonRepository.save(lichSu);
+    }
+
+
+    // =========================================================
+    // ⭐ SỬA THÔNG TIN GIAO HÀNG (tên, SĐT, địa chỉ) — TRƯỚC KHI GIAO
+    // =========================================================
+
+    @Transactional
+    public HoaDon capNhatThongTinGiaoHang(
+            Long id,
+            String tenNguoiNhan,
+            String soDienThoai,
+            String diaChiMoi,
+            Long nhanVienId,
+            String nguoiThucHien,
+            String vaiTro
+    ) {
+
+        HoaDon hoaDon = hoaDonRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Không tìm thấy hóa đơn"));
+
+        String tt = hoaDon.getTrangThai() == null
+                ? ""
+                : hoaDon.getTrangThai().trim().toUpperCase();
+
+        // Chỉ sửa được khi chưa bàn giao cho đơn vị vận chuyển
+        if (!("CHO_XAC_NHAN".equals(tt)
+                || "DA_XAC_NHAN".equals(tt)
+                || "DANG_CHUAN_BI".equals(tt))) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Chỉ được sửa thông tin khi đơn chưa giao (đang giao / đã giao / đã hủy thì không sửa được)");
+        }
+
+        if (!"ONLINE".equalsIgnoreCase(hoaDon.getLoaiHoaDon())
+                || hoaDon.getDiaChi() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Chỉ sửa được thông tin giao hàng của đơn online");
+        }
+
+        String ten = tenNguoiNhan == null ? "" : tenNguoiNhan.trim();
+        String sdt = soDienThoai == null ? "" : soDienThoai.trim();
+        String dc = diaChiMoi == null ? "" : diaChiMoi.trim();
+
+        if (ten.isEmpty() || sdt.isEmpty() || dc.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Tên, số điện thoại và địa chỉ không được để trống");
+        }
+
+        String sdtChuan;
+        try {
+            sdtChuan = chuanHoaSoDienThoai(sdt);
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+
+        // DiaChi của đơn online là bản sao riêng cho từng đơn (tạo lúc đặt hàng)
+        // nên sửa trực tiếp không ảnh hưởng sổ địa chỉ của khách.
+        DiaChi dcCu = hoaDon.getDiaChi();
+
+        StringBuilder thayDoi = new StringBuilder();
+        if (!ten.equals(dcCu.getTenNguoiNhan())) {
+            thayDoi.append("Tên: \"").append(dcCu.getTenNguoiNhan())
+                    .append("\" → \"").append(ten).append("\"; ");
+        }
+        if (!sdtChuan.equals(dcCu.getSoDienThoai())) {
+            thayDoi.append("SĐT: ").append(dcCu.getSoDienThoai())
+                    .append(" → ").append(sdtChuan).append("; ");
+        }
+        if (!dc.equals(dcCu.getDiaChi())) {
+            thayDoi.append("Địa chỉ: \"").append(dcCu.getDiaChi())
+                    .append("\" → \"").append(dc).append("\"; ");
+        }
+
+        if (thayDoi.length() == 0) {
+            return hoaDon; // không có gì thay đổi
+        }
+
+        dcCu.setTenNguoiNhan(ten);
+        dcCu.setSoDienThoai(sdtChuan);
+        dcCu.setDiaChi(dc);
+        diaChiRepository.save(dcCu);
+
+        hoaDon.setNgayCapNhat(LocalDateTime.now());
+        HoaDon daLuu = hoaDonRepository.save(hoaDon);
+
+        ghiLichSu(
+                daLuu,
+                daLuu.getTrangThai(),
+                "Sửa thông tin giao hàng — " + thayDoi.toString().trim(),
+                nhanVienId,
+                nguoiThucHien,
+                vaiTro
+        );
+
+        return daLuu;
     }
 
 
@@ -1956,7 +2099,9 @@ public class HoaDonService {
             return hoaDon;
         }
 
-        return danhDauDaNhan(hoaDon, "Khách hàng đã xác nhận nhận hàng");
+        return danhDauDaNhan(hoaDon, "Khách hàng đã xác nhận nhận hàng",
+                "KHACH_HANG",
+                hoaDon.getKhachHang().getHoTen());
     }
 
     // Chạy tự động mỗi giờ: đơn DA_GIAO quá soNgay ngày mà khách chưa xác nhận
@@ -1970,13 +2115,16 @@ public class HoaDonService {
 
         for (HoaDon hoaDon : dsDon) {
             danhDauDaNhan(hoaDon,
-                    "Hệ thống tự động xác nhận đã nhận hàng sau " + soNgay + " ngày");
+                    "Hệ thống tự động xác nhận đã nhận hàng sau " + soNgay + " ngày",
+                    "HE_THONG",
+                    "Hệ thống");
         }
 
         return dsDon.size();
     }
 
-    private HoaDon danhDauDaNhan(HoaDon hoaDon, String ghiChu) {
+    private HoaDon danhDauDaNhan(HoaDon hoaDon, String ghiChu,
+                                 String vaiTro, String nguoiThucHien) {
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -1990,6 +2138,8 @@ public class HoaDonService {
         lichSu.setTrangThai("DA_GIAO");
         lichSu.setThoiGian(now);
         lichSu.setGhiChu(ghiChu);
+        lichSu.setVaiTro(vaiTro);
+        lichSu.setNguoiThucHien(nguoiThucHien);
         lichSuHoaDonRepository.save(lichSu);
 
         return daLuu;
@@ -2193,6 +2343,8 @@ public class HoaDonService {
                     "Thanh toán SePay thành công. "
                             + "Hệ thống tự động xác nhận đơn hàng."
             );
+            lichSu.setVaiTro("HE_THONG");
+            lichSu.setNguoiThucHien("Hệ thống (SePay)");
 
             lichSuHoaDonRepository.save(lichSu);
 

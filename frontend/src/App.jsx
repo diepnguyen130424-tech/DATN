@@ -688,7 +688,7 @@ function App() {
 
     if (page === "admin") {
         const v = String(taiKhoan?.vaiTro || "").toUpperCase();
-        if (v === "QUAN_TRI") return <AdminDashboard dangXuat={dangXuat} />;
+        if (v === "QUAN_TRI") return <AdminDashboard dangXuat={dangXuat} taiKhoan={taiKhoan} />;
         if (v === "NHAN_VIEN" || v === "NHÂN_VIÊN") return <EmployeeDashboard taiKhoan={taiKhoan} dangXuat={dangXuat} onBackToShop={() => setPage("home")} />;
         return <Login setPage={setPage} onLoginSuccess={xuLyDangNhapThanhCong} />;
     }

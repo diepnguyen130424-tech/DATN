@@ -5,6 +5,14 @@ import EmployeeCounterSale from "./EmployeeCounterSale";
 import EmployeeCustomers from "./EmployeeCustomers";
 import EmployeeChat from "./EmployeeChat";
 import Returns from "./Returns";
+import {
+    CompactPager,
+    DateRangeFilter,
+    LichSuHoaDonList,
+    ThongTinGiaoHang,
+    layThongTinKhach,
+    trongKhoangNgay,
+} from "./HoaDonShared";
 
 const API = "http://localhost:8080/api";
 const PAGINATION_PAGE_SIZE = 5;
@@ -132,10 +140,9 @@ function Pagination({page, totalPages, onPageChange}) {
 function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState("Tất cả");
+    const [khoang, setKhoang] = useState({from: "", to: ""});
     const [page, setPage] = useState(1);
-
     const onlineOrders = orders.filter((item) => item.loaiHoaDon === "ONLINE");
-
     const filters = [
         ["Tất cả", null],
         ["Chờ xác nhận", "CHO_XAC_NHAN"],
@@ -145,41 +152,39 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
         ["Đã giao", "DA_GIAO"],
         ["Đã hủy", "DA_HUY"],
     ];
-
     const filtered = onlineOrders.filter((item) => {
         const keyword = search.trim().toLowerCase();
-        const customer = item.khachHang?.hoTen || item.diaChi?.tenNguoiNhan || "";
+        const kh = layThongTinKhach(item);
         const matchSearch =
             !keyword ||
             String(item.maHoaDon || "").toLowerCase().includes(keyword) ||
-            customer.toLowerCase().includes(keyword);
-
+            kh.ten.toLowerCase().includes(keyword) ||
+            kh.sdt.toLowerCase().includes(keyword);
         const selected = filters.find((row) => row[0] === filter)?.[1];
-        return matchSearch && (!selected || item.trangThai === selected);
+        return (
+            matchSearch &&
+            (!selected || item.trangThai === selected) &&
+            trongKhoangNgay(item.ngayLap, khoang.from, khoang.to)
+        );
     });
-
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGINATION_PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const pageItems = filtered.slice(
         (safePage - 1) * PAGINATION_PAGE_SIZE,
         safePage * PAGINATION_PAGE_SIZE
     );
-
     useEffect(() => {
         setPage(1);
-    }, [search, filter]);
-
+    }, [search, filter, khoang.from, khoang.to]);
     useEffect(() => {
         setPage((current) => Math.min(current, totalPages));
     }, [totalPages]);
-
     return (
         <div className="employee-content">
             <PageHeading
                 title="Đơn online"
                 description="Theo dõi và xử lý các đơn hàng từ website."
             />
-
             <section className="employee-card">
                 <div className="employee-order-tabs">
                     {filters.map(([label, value]) => (
@@ -200,26 +205,24 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                         </button>
                     ))}
                 </div>
-
-                <div className="employee-search-row">
+                <div className="hd-toolbar">
                     <input
+                        className="hd-search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="⌕ Tìm mã đơn, tên khách hàng..."
+                        placeholder="⌕ Tìm mã đơn, tên, SĐT..."
                     />
-                    <button type="button" className="employee-refresh" onClick={() => window.location.reload()}>
+                    <DateRangeFilter from={khoang.from} to={khoang.to} onChange={setKhoang}/>
+                    <button type="button" className="hd-btn ghost" onClick={() => window.location.reload()}>
                         ↻ Làm mới
                     </button>
                 </div>
-
                 <div className="employee-table-wrapper">
-                    <table className="employee-table">
+                    <table className="employee-table hd-table">
                         <thead>
                         <tr>
-                            <th>ID KH</th>
                             <th>Mã đơn</th>
                             <th>Khách hàng</th>
-                            <th>SĐT</th>
                             <th>Tổng tiền</th>
                             <th>Thanh toán</th>
                             <th>Trạng thái</th>
@@ -229,30 +232,35 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                         </thead>
                         <tbody>
                         {filtered.length ? (
-                            pageItems.map((order) => (
+                            pageItems.map((order) => {
+                                const kh = layThongTinKhach(order);
+                                return (
                                 <tr key={order.id}>
-                                    <td>
-                                        <strong>
-                                            {order.khachHang?.id
-                                                ? `#${order.khachHang.id}`
-                                                : order.khachHangQuay?.id
-                                                    ? `#${order.khachHangQuay.id}`
-                                                    : "-"}
-                                        </strong>
+                                    <td className="hd-code">{order.maHoaDon}</td>
+                                    <td className="hd-cell-customer">
+                                        {kh.ten}{kh.id ? <span style={{color: "#98a2b3"}}> #{kh.id}</span> : null}
+                                        {kh.sdt && <small>{kh.sdt}</small>}
                                     </td>
-                                    <td><strong>{order.maHoaDon}</strong></td>
-                                    <td>{order.tenKhach || order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</td>
-                                    <td>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || order.soDienThoaiKhach || "-"}</td>
-                                    <td><strong>{formatMoney(order.tongThanhToan)}</strong></td>
-                                    <td>{order.thanhToan?.trangThai === "DA_THANH_TOAN" ? "Đã thanh toán" : "Chờ thanh toán"}</td>
+                                    <td className="hd-nowrap"><strong>{formatMoney(order.tongThanhToan)}</strong></td>
+                                    <td className="hd-nowrap">{order.thanhToan?.trangThai === "DA_THANH_TOAN" ? "Đã thanh toán" : "Chờ thanh toán"}</td>
                                     <td><StatusBadge value={order.trangThai}/></td>
-                                    <td>{formatDate(order.ngayLap)}</td>
+                                    <td className="hd-nowrap">{formatDate(order.ngayLap)}</td>
                                     <td className="employee-actions">
                                         <button type="button" onClick={() => onOpenDetail(order)}>Xem</button>
                                         {order.trangThai === "CHO_XAC_NHAN" && (
                                             <button type="button" className="primary"
                                                     onClick={() => onUpdateOrder(order, "DA_XAC_NHAN")}>
                                                 Xác nhận
+                                            </button>
+                                        )}
+                                        {order.trangThai === "CHO_XAC_NHAN" && (
+                                            <button type="button"
+                                                    onClick={() => {
+                                                        if (window.confirm("Hủy đơn này? Sau khi hủy sẽ không thể khôi phục.")) {
+                                                            onUpdateOrder(order, "DA_HUY");
+                                                        }
+                                                    }}>
+                                                Hủy
                                             </button>
                                         )}
                                         {order.trangThai === "DA_XAC_NHAN" && (
@@ -275,22 +283,16 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                                         )}
                                     </td>
                                 </tr>
-                            ))
+                                );
+                            })
                         ) : (
                             <tr>
-                                <td colSpan="9" className="employee-empty">Không có đơn online phù hợp.</td>
+                                <td colSpan="7" className="employee-empty">Không có đơn online phù hợp.</td>
                             </tr>
                         )}
                         </tbody>
                     </table>
-
-                    {totalPages > 1 && (
-                        <Pagination
-                            page={safePage}
-                            totalPages={totalPages}
-                            onPageChange={setPage}
-                        />
-                    )}
+                    <CompactPager page={safePage} totalPages={totalPages} onPageChange={setPage}/>
                 </div>
             </section>
         </div>
@@ -300,57 +302,24 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
 function HoaDonPage({orders, onOpenDetail}) {
     const [search, setSearch] = useState("");
     const [filterLoai, setFilterLoai] = useState("Tất cả");
+    const [filterTrangThai, setFilterTrangThai] = useState("");
+    const [khoang, setKhoang] = useState({from: "", to: ""});
     const [page, setPage] = useState(1);
-
-    const hoaDonsTheoLoai = orders.filter((item) => {
-        if (filterLoai === "Tại quầy") {
-            return item.loaiHoaDon === "TAI_QUAY";
-        }
-
-        if (filterLoai === "Online") {
-            return item.loaiHoaDon === "ONLINE";
-        }
-
-        return true;
-    });
-
-    const filtered = hoaDonsTheoLoai.filter((item) => {
+    const filtered = orders.filter((item) => {
+        if (filterLoai === "Tại quầy" && item.loaiHoaDon !== "TAI_QUAY") return false;
+        if (filterLoai === "Online" && item.loaiHoaDon !== "ONLINE") return false;
+        if (filterTrangThai && item.trangThai !== filterTrangThai) return false;
+        if (!trongKhoangNgay(item.ngayLap, khoang.from, khoang.to)) return false;
         const keyword = search.trim().toLowerCase();
-
-        const maHoaDon = String(
-            item?.maHoaDon || ""
-        ).toLowerCase();
-
-        const idKhachHang = String(
-            item?.khachHang?.id ||
-            item?.khachHangQuay?.id ||
-            ""
-        ).toLowerCase();
-
-        const hoTen = String(
-            item?.tenKhach ||
-            item?.khachHang?.hoTen ||
-            item?.diaChi?.tenNguoiNhan ||
-            item?.tenKhach ||
-            ""
-        ).toLowerCase();
-
-        const soDienThoai = String(
-            item?.khachHang?.soDienThoai ||
-            item?.diaChi?.soDienThoai ||
-            item?.soDienThoaiKhach ||
-            ""
-        ).toLowerCase();
-
+        if (!keyword) return true;
+        const kh = layThongTinKhach(item);
         return (
-            !keyword ||
-            maHoaDon.includes(keyword) ||
-            idKhachHang.includes(keyword) ||
-            hoTen.includes(keyword) ||
-            soDienThoai.includes(keyword)
+            String(item?.maHoaDon || "").toLowerCase().includes(keyword) ||
+            String(kh.id || "").includes(keyword) ||
+            kh.ten.toLowerCase().includes(keyword) ||
+            kh.sdt.toLowerCase().includes(keyword)
         );
     });
-
     const tongSo = orders.length;
     const soTaiQuay = orders.filter(
         (item) => item.loaiHoaDon === "TAI_QUAY"
@@ -358,25 +327,20 @@ function HoaDonPage({orders, onOpenDetail}) {
     const soOnline = orders.filter(
         (item) => item.loaiHoaDon === "ONLINE"
     ).length;
-
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGINATION_PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const pageItems = filtered.slice(
         (safePage - 1) * PAGINATION_PAGE_SIZE,
         safePage * PAGINATION_PAGE_SIZE
     );
-
     useEffect(() => {
         setPage(1);
-    }, [search, filterLoai]);
-
+    }, [search, filterLoai, filterTrangThai, khoang.from, khoang.to]);
     useEffect(() => {
         setPage((current) => Math.min(current, totalPages));
     }, [totalPages]);
-
     const getLoaiTabStyle = (label) => {
         const active = filterLoai === label;
-
         if (label === "Tất cả") {
             return {
                 background: active ? "#c95f4f" : "#fff7f4",
@@ -384,7 +348,6 @@ function HoaDonPage({orders, onOpenDetail}) {
                 border: "1px solid #e7b0a7",
             };
         }
-
         if (label === "Tại quầy") {
             return {
                 background: active ? "#f2a04a" : "#fff8ed",
@@ -392,21 +355,18 @@ function HoaDonPage({orders, onOpenDetail}) {
                 border: "1px solid #f1c98f",
             };
         }
-
         return {
             background: active ? "#5da56f" : "#f1f9f3",
             color: active ? "#fff" : "#2f7f46",
             border: "1px solid #cde6d2",
         };
     };
-
     return (
         <div className="employee-content">
             <PageHeading
                 title="Hóa đơn"
                 description="Tra cứu hóa đơn online và tại quầy."
             />
-
             <section className="employee-card">
                 <div className="employee-order-tabs">
                     {[
@@ -438,165 +398,124 @@ function HoaDonPage({orders, onOpenDetail}) {
                         </button>
                     ))}
                 </div>
-
-                <div className="employee-search-row">
+                <div className="hd-toolbar">
                     <input
+                        className="hd-search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="⌕ Tìm ID khách hàng, mã hóa đơn, tên khách hàng, SĐT..."
+                        placeholder="⌕ Tìm mã hóa đơn, tên, SĐT, ID khách..."
                     />
+                    <select value={filterTrangThai} onChange={(e) => setFilterTrangThai(e.target.value)}>
+                        <option value="">Tất cả trạng thái</option>
+                        {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                        ))}
+                    </select>
+                    <DateRangeFilter from={khoang.from} to={khoang.to} onChange={setKhoang}/>
                 </div>
-
+                <p className="hd-summary"><strong>{filtered.length}</strong> hóa đơn</p>
                 <div className="employee-table-wrapper">
-                    <table
-                        className="employee-table"
-                        style={{ minWidth: "1180px" }}
-                    >
+                    <table className="employee-table hd-table">
                         <thead>
                         <tr>
-                            <th>ID KH</th>
                             <th>Mã hóa đơn</th>
                             <th>Khách hàng</th>
-                            <th>SĐT</th>
                             <th>Loại</th>
                             <th>Tổng tiền</th>
                             <th>Trạng thái</th>
                             <th>Ngày lập</th>
-                            <th>Thao tác</th>
+                            <th></th>
                         </tr>
                         </thead>
-
                         <tbody>
                         {filtered.length > 0 ? (
-                            pageItems.map((item) => (
+                            pageItems.map((item) => {
+                                const kh = layThongTinKhach(item);
+                                return (
                                 <tr key={item.id}>
-                                    <td>
-                                        <strong>
-                                            {item?.khachHang?.id
-                                                ? `#${item.khachHang.id}`
-                                                : item?.khachHangQuay?.id
-                                                    ? `#${item.khachHangQuay.id}`
-                                                    : "-"}
-                                        </strong>
+                                    <td className="hd-code">
+                                        {item?.maHoaDon || `HD${item?.id || ""}`}
                                     </td>
-
-                                    <td>
-                                        <strong>
-                                            {item?.maHoaDon ||
-                                                `HD${item?.id || ""}`}
-                                        </strong>
+                                    <td className="hd-cell-customer">
+                                        {kh.ten}{kh.id ? <span style={{color: "#98a2b3"}}> #{kh.id}</span> : null}
+                                        {kh.sdt && <small>{kh.sdt}</small>}
                                     </td>
-
-                                    <td>
-                                        {item?.tenKhach ||
-                                            item?.khachHang?.hoTen ||
-                                            item?.diaChi?.tenNguoiNhan ||
-                                            "Khách lẻ"}
+                                    <td className="hd-nowrap">
+                                        <span className="employee-type">
+                                            {item?.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}
+                                        </span>
                                     </td>
-
-                                    <td>
-                                        {item?.khachHang?.soDienThoai ||
-                                            item?.diaChi?.soDienThoai ||
-                                            item?.soDienThoaiKhach ||
-                                            "-"}
+                                    <td className="hd-nowrap">
+                                        <strong>{formatMoney(item?.tongThanhToan || 0)}</strong>
                                     </td>
-
                                     <td>
-                                            <span className="employee-type">
-                                                {item?.loaiHoaDon === "TAI_QUAY"
-                                                    ? "Tại quầy"
-                                                    : "Online"}
-                                            </span>
+                                        <StatusBadge value={item?.trangThai}/>
                                     </td>
-
-                                    <td>
-                                        <strong>
-                                            {formatMoney(
-                                                item?.tongThanhToan || 0
-                                            )}
-                                        </strong>
-                                    </td>
-
-                                    <td>
-                                        <StatusBadge
-                                            value={item?.trangThai}
-                                        />
-                                    </td>
-
-                                    <td>
+                                    <td className="hd-nowrap">
                                         {formatDate(item?.ngayLap)}
                                     </td>
-
                                     <td>
                                         <button
                                             className="table-view"
                                             type="button"
-                                            onClick={() =>
-                                                onOpenDetail(item)
-                                            }
+                                            onClick={() => onOpenDetail(item)}
                                         >
                                             Chi tiết
                                         </button>
                                     </td>
                                 </tr>
-                            ))
+                                );
+                            })
                         ) : (
                             <tr>
-                                <td
-                                    colSpan="9"
-                                    className="employee-empty"
-                                >
+                                <td colSpan="7" className="employee-empty">
                                     Không có hóa đơn phù hợp.
                                 </td>
                             </tr>
                         )}
                         </tbody>
                     </table>
-
-                    {totalPages > 1 && (
-                        <Pagination
-                            page={safePage}
-                            totalPages={totalPages}
-                            onPageChange={setPage}
-                        />
-                    )}
+                    <CompactPager page={safePage} totalPages={totalPages} onPageChange={setPage}/>
                 </div>
             </section>
         </div>
     );
 }
 
-function OrderDetailModal({order, onClose}) {
+function OrderDetailModal({order, actor, onClose, onOrderChanged}) {
     const [detail, setDetail] = useState([]);
     const [payment, setPayment] = useState(null);
+    const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
-
+    const orderId = order?.id;
+    const loadHistory = async () => {
+        const data = await readJson(`${API}/hoa-don/${orderId}/lich-su`).catch(() => []);
+        setHistory(Array.isArray(data) ? data : []);
+    };
     useEffect(() => {
-        if (!order?.id) return;
-
+        if (!orderId) return;
         let mounted = true;
         setLoading(true);
-
         Promise.all([
-            readJson(`${API}/hoa-don/${order.id}/chi-tiet`).catch(() => []),
-            readJson(`${API}/hoa-don/${order.id}/thanh-toan`).catch(() => null),
+            readJson(`${API}/hoa-don/${orderId}/chi-tiet`).catch(() => []),
+            readJson(`${API}/hoa-don/${orderId}/thanh-toan`).catch(() => null),
+            readJson(`${API}/hoa-don/${orderId}/lich-su`).catch(() => []),
         ])
-            .then(([details, paymentData]) => {
+            .then(([details, paymentData, historyData]) => {
                 if (!mounted) return;
                 setDetail(Array.isArray(details) ? details : []);
                 setPayment(paymentData);
+                setHistory(Array.isArray(historyData) ? historyData : []);
             })
             .finally(() => {
                 if (mounted) setLoading(false);
             });
-
         return () => {
             mounted = false;
         };
-    }, [order]);
-
+    }, [orderId]);
     if (!order) return null;
-
+    const kh = layThongTinKhach(order);
     return (
         <div className="employee-modal-backdrop" onClick={onClose}>
             <div className="employee-modal" onClick={(e) => e.stopPropagation()}>
@@ -607,19 +526,26 @@ function OrderDetailModal({order, onClose}) {
                     </div>
                     <button type="button" onClick={onClose}>×</button>
                 </div>
-
                 <div className="order-detail-grid">
                     <div>
-                        <span>Khách hàng</span><strong>{order.tenKhach || order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ"}</strong>
+                        <span>Khách hàng</span><strong>{kh.ten}</strong>
                     </div>
                     <div>
-                        <span>Số điện thoại</span><strong>{order.khachHang?.soDienThoai || order.diaChi?.soDienThoai || order.soDienThoaiKhach || "-"}</strong>
+                        <span>Số điện thoại</span><strong>{kh.sdt || "-"}</strong>
                     </div>
                     <div><span>Loại đơn</span><strong>{order.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}</strong>
                     </div>
                     <div><span>Trạng thái</span><StatusBadge value={order.trangThai}/></div>
                 </div>
-
+                <ThongTinGiaoHang
+                    order={order}
+                    api={API}
+                    actor={actor}
+                    onSaved={(updated) => {
+                        onOrderChanged?.(updated);
+                        loadHistory();
+                    }}
+                />
                 <h3>Sản phẩm</h3>
                 {loading ? (
                     <div className="employee-empty">Đang tải chi tiết...</div>
@@ -642,11 +568,16 @@ function OrderDetailModal({order, onClose}) {
                         ))}
                     </div>
                 )}
-
                 <div className="order-detail-total">
                     <span>Thanh toán</span>
                     <strong>{formatMoney(payment?.soTien || order.tongThanhToan)}</strong>
                 </div>
+                <h3>Lịch sử đơn</h3>
+                <LichSuHoaDonList
+                    items={history}
+                    tenTrangThai={(value) => STATUS_LABEL[value] || value || "-"}
+                    formatNgay={formatDate}
+                />
             </div>
         </div>
     );
@@ -736,26 +667,44 @@ export default function EmployeeDashboard({
         };
     }, [activeMenu]);
 
+    // Người đang thao tác → ghi vào lịch sử đơn
+    const actor = useMemo(
+        () => ({
+            nhanVienId: currentEmployee?.id || null,
+            nguoiThucHien: currentEmployee?.hoTen || taiKhoan?.tenDangNhap || "Nhân viên",
+            vaiTro: "NHAN_VIEN",
+        }),
+        [currentEmployee, taiKhoan]
+    );
     const updateOrderStatus = async (order, status) => {
         try {
             const params = new URLSearchParams({
                 trangThai: status,
                 ghiChu: `Nhân viên cập nhật: ${STATUS_LABEL[status] || status}`,
+                vaiTro: actor.vaiTro,
+                nguoiThucHien: actor.nguoiThucHien,
             });
-
+            if (actor.nhanVienId) params.set("nhanVienId", String(actor.nhanVienId));
             const updated = await readJson(
                 `${API}/hoa-don/${order.id}/trang-thai?${params.toString()}`,
                 {method: "PUT"}
             );
-
             setOrders((old) =>
                 old.map((item) => (item.id === order.id ? updated : item))
+            );
+            setSelectedOrder((current) =>
+                current && current.id === order.id ? updated : current
             );
         } catch (err) {
             alert(err.message || "Không thể cập nhật đơn hàng.");
         }
     };
-
+    const onOrderChanged = (updated) => {
+        setOrders((old) =>
+            old.map((item) => (item.id === updated.id ? updated : item))
+        );
+        setSelectedOrder(updated);
+    };
     const goTo = (menu, preset = null) => {
         setProductPreset(preset);
         setActiveMenu(menu);
@@ -911,7 +860,9 @@ export default function EmployeeDashboard({
             {selectedOrder && (
                 <OrderDetailModal
                     order={selectedOrder}
+                    actor={actor}
                     onClose={() => setSelectedOrder(null)}
+                    onOrderChanged={onOrderChanged}
                 />
             )}
         </div>

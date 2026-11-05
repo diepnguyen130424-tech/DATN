@@ -10,6 +10,14 @@ import AdminKichCo from "./AdminKichCo";
 import AdminMauSac from "./AdminMauSac";
 import AdminSettings from "./AdminSettings";
 import Returns from "./Returns";
+import {
+    CompactPager,
+    DateRangeFilter,
+    LichSuHoaDonList,
+    ThongTinGiaoHang,
+    layThongTinKhach,
+    trongKhoangNgay,
+} from "./HoaDonShared";
 const API = "http://localhost:8080/api";
 const adminDataCache = {
     hoaDons: null,
@@ -82,6 +90,13 @@ async function getKhachHangs(force = false) {
     adminDataCache.khachHangsPromise = promise;
     return promise;
 }
+/* Đồng bộ cache khi 1 hóa đơn vừa được sửa (để trang Thanh toán không bị cũ) */
+function capNhatCacheHoaDon(hoaDon) {
+    if (!hoaDon || !adminDataCache.hoaDons) {
+        return;
+    }
+    adminDataCache.hoaDons = adminDataCache.hoaDons.map((item) => item.id === hoaDon.id ? hoaDon : item);
+}
 async function getThanhToanByHoaDonId(id, force = false) {
     if (!force && adminDataCache.thanhToans[id]) {
         return adminDataCache.thanhToans[id];
@@ -150,15 +165,14 @@ const TRANG_THAI_HOA_DON = [
 
 /* ⭐ BẢNG CHUYỂN TRẠNG THÁI — BẮT BUỘC tuần tự, không nhảy cóc */
 const TRANSITION_HOA_DON = {
-    CHO_XAC_NHAN:  ["DA_XAC_NHAN", "DA_HUY"],
-    DA_XAC_NHAN:   ["DANG_CHUAN_BI", "DA_HUY"],
-    DANG_CHUAN_BI: ["DANG_GIAO", "DA_HUY"],
-    DANG_GIAO:     ["DA_GIAO", "DA_HUY"],
+    CHO_XAC_NHAN:  ["DA_XAC_NHAN", "DA_HUY"],   // chỉ hủy được khi CHƯA xác nhận
+    DA_XAC_NHAN:   ["DANG_CHUAN_BI"],           // đã xác nhận → không được hủy nữa
+    DANG_CHUAN_BI: ["DANG_GIAO"],
+    DANG_GIAO:     ["DA_GIAO"],
     DA_GIAO:       ["DA_THANH_TOAN"],
     DA_THANH_TOAN: [],
     DA_HUY:        [],
 };
-
 /* ⭐ Lấy danh sách trạng thái được phép chuyển từ trạng thái hiện tại */
 function layTrangThaiChoPhep(trangThaiHienTai) {
     const key = String(trangThaiHienTai || "").trim().toUpperCase();
@@ -990,22 +1004,28 @@ function DashboardContent({ onViewAll }) {
     );
 }
 
-function HoaDonContent() {
+function HoaDonContent({ taiKhoan }) {
     const [hoaDons, setHoaDons] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("");
     const [filterLoai, setFilterLoai] = useState("");
+    const [khoang, setKhoang] = useState({ from: "", to: "" });
     const [selectedHoaDon, setSelectedHoaDon] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 5;
+    const itemsPerPage = 10;
     const [chiTiet, setChiTiet] = useState([]);
     const [thanhToan, setThanhToan] = useState(null);
     const [lichSu, setLichSu] = useState([]);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [detailError, setDetailError] = useState("");
     const [updatingStatus, setUpdatingStatus] = useState(false);
+    // Người đang thao tác → ghi vào lịch sử đơn
+    const actor = {
+        vaiTro: "ADMIN",
+        nguoiThucHien: taiKhoan?.tenDangNhap || "Admin",
+    };
     const taiHoaDon = async (force = false) => {
         try {
             // Nếu đã có cache thì hiện ngay, không hiện màn hình loading.
@@ -1035,6 +1055,13 @@ function HoaDonContent() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         taiHoaDon(true);
     }, []);
+    const taiLichSu = async (id) => {
+        const response = await fetch(`${API}/hoa-don/${id}/lich-su`);
+        if (response.ok) {
+            const data = await response.json();
+            setLichSu(Array.isArray(data) ? data : []);
+        }
+    };
     const xemChiTiet = async (hoaDon) => {
         try {
             setSelectedHoaDon(hoaDon);
@@ -1078,10 +1105,16 @@ function HoaDonContent() {
         if (!selectedHoaDon) {
             return;
         }
+        if (trangThai === "DA_HUY" &&
+            !window.confirm("Hủy đơn này? Sau khi hủy sẽ không thể khôi phục.")) {
+            return;
+        }
         try {
             setUpdatingStatus(true);
             const params = new URLSearchParams();
             params.append("trangThai", trangThai);
+            params.append("vaiTro", actor.vaiTro);
+            params.append("nguoiThucHien", actor.nguoiThucHien);
             const response = await fetch(`${API}/hoa-don/${selectedHoaDon.id}/trang-thai?${params.toString()}`, {
                 method: "PUT",
             });
@@ -1106,14 +1139,8 @@ function HoaDonContent() {
             data.id
                 ? data
                 : item));
-            const historyResponse = await fetch(`${API}/hoa-don/${data.id}/lich-su`);
-            if (historyResponse.ok) {
-                const historyData = await historyResponse.json();
-                setLichSu(Array.isArray(historyData)
-                    ? historyData
-                    : []);
-            }
-            alert("Đã cập nhật trạng thái hóa đơn");
+            capNhatCacheHoaDon(data);
+            await taiLichSu(data.id);
         }
         catch (err) {
             console.error(err);
@@ -1124,32 +1151,37 @@ function HoaDonContent() {
             setUpdatingStatus(false);
         }
     };
+    // Sau khi sửa thông tin giao hàng
+    const sauKhiSuaThongTin = async (data) => {
+        setSelectedHoaDon(data);
+        setHoaDons((old) => old.map((item) => item.id === data.id ? data : item));
+        capNhatCacheHoaDon(data);
+        await taiLichSu(data.id);
+    };
     const danhSachLoc = hoaDons.filter((hoaDon) => {
         const keyword = search
             .trim()
             .toLowerCase();
+        const kh = layThongTinKhach(hoaDon);
         const maHoaDon = String(hoaDon.maHoaDon ||
-            "").toLowerCase();
-        const tenKhachHang = String(hoaDon
-                .khachHang
-                ?.hoTen ||
-            hoaDon
-                .diaChi
-                ?.tenNguoiNhan ||
             "").toLowerCase();
         const matchSearch = !keyword ||
             maHoaDon.includes(keyword) ||
-            tenKhachHang.includes(keyword);
+            kh.ten.toLowerCase().includes(keyword) ||
+            kh.sdt.toLowerCase().includes(keyword) ||
+            String(kh.id || "").includes(keyword);
         const matchTrangThai = !filterTrangThai ||
             hoaDon.trangThai ===
             filterTrangThai;
         const matchLoai = !filterLoai ||
             hoaDon.loaiHoaDon ===
             filterLoai;
+        const matchNgay = trongKhoangNgay(getHoaDonDate(hoaDon), khoang.from, khoang.to);
         return (matchSearch &&
             matchTrangThai &&
-            matchLoai);
-    });
+            matchLoai &&
+            matchNgay);
+    }).sort((a, b) => new Date(getHoaDonDate(b) || 0) - new Date(getHoaDonDate(a) || 0));
 
     const totalPages = Math.max(
         1,
@@ -1164,7 +1196,7 @@ function HoaDonContent() {
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage(1);
-    }, [search, filterTrangThai, filterLoai]);
+    }, [search, filterTrangThai, filterLoai, khoang.from, khoang.to]);
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1173,6 +1205,8 @@ function HoaDonContent() {
         );
     }, [totalPages]);
 
+    const tongTienLoc = danhSachLoc.reduce((sum, item) => item.trangThai === "DA_HUY" ? sum : sum + Number(item.tongThanhToan || 0), 0);
+
     return (<div style={{
         padding: "4px",
     }}>
@@ -1180,132 +1214,69 @@ function HoaDonContent() {
         <div style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: "20px",
-            marginBottom: "24px",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "12px",
             flexWrap: "wrap",
         }}>
 
             <div>
-
                 <div className="admin-eyebrow">
                     FSHOP ADMIN
                 </div>
-
-                <h1 style={{
-                    margin: "5px 0 8px",
-                }}>
+                <h1 style={{ margin: "2px 0 0", fontSize: "24px" }}>
                     Hóa đơn
                 </h1>
-
-                <p style={{
-                    margin: 0,
-                    color: "#777",
-                }}>
-                    Quản lý đơn hàng và
-                    trạng thái xử lý.
-                </p>
-
             </div>
 
-            <button type="button" onClick={() => taiHoaDon(true)} disabled={loading} style={{
-                border: "1px solid #ddd",
-                background: "#fff",
-                padding: "10px 16px",
-                borderRadius: "8px",
-                cursor: loading ? "wait" : "pointer",
-                fontWeight: 600,
-                opacity: loading ? 0.7 : 1,
-            }}>
+            <button type="button" className="hd-btn ghost" onClick={() => taiHoaDon(true)} disabled={loading}>
                 {loading ? "Đang tải..." : "↻ Làm mới"}
             </button>
 
         </div>
 
-        <section className="admin-card" style={{
-            marginBottom: "20px",
-        }}>
+        <section className="admin-card" style={{ marginBottom: "12px", padding: "12px 14px" }}>
 
-            <div style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(250px,1fr) 220px 180px",
-                gap: "12px",
-            }}>
+            <div className="hd-toolbar">
 
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm mã hóa đơn hoặc tên khách hàng..." style={{
-                    width: "100%",
-                    boxSizing: "border-box",
-                    padding: "12px 14px",
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                }}/>
+                <input className="hd-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm mã hóa đơn, tên, SĐT, ID khách..." />
 
-                <select value={filterTrangThai} onChange={(e) => setFilterTrangThai(e.target.value)} style={{
-                    padding: "12px 14px",
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    background: "#fff",
-                }}>
-
-                    <option value="">
-                        Tất cả trạng thái
-                    </option>
-
+                <select value={filterTrangThai} onChange={(e) => setFilterTrangThai(e.target.value)}>
+                    <option value="">Tất cả trạng thái</option>
                     {TRANG_THAI_HOA_DON.map((item) => (<option key={item} value={item}>
                         {tenTrangThaiHoaDon(item)}
                     </option>))}
-
                 </select>
 
-                <select value={filterLoai} onChange={(e) => setFilterLoai(e.target.value)} style={{
-                    padding: "12px 14px",
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    background: "#fff",
-                }}>
-
-                    <option value="">
-                        Tất cả loại
-                    </option>
-
-                    <option value="ONLINE">
-                        Online
-                    </option>
-
-                    <option value="TAI_QUAY">
-                        Tại quầy
-                    </option>
-
+                <select value={filterLoai} onChange={(e) => setFilterLoai(e.target.value)}>
+                    <option value="">Tất cả loại</option>
+                    <option value="ONLINE">Online</option>
+                    <option value="TAI_QUAY">Tại quầy</option>
                 </select>
 
+            </div>
+
+            <div className="hd-toolbar" style={{ marginBottom: 0 }}>
+                <DateRangeFilter from={khoang.from} to={khoang.to} onChange={setKhoang} />
             </div>
 
         </section>
 
-        <section className="admin-card">
+        <section className="admin-card" style={{ padding: "12px 14px" }}>
 
-            <div className="admin-card-heading">
-
-                <div>
-                    <h2>
-                        Danh sách hóa đơn
-                    </h2>
-
-                    <p>
-                        {danhSachLoc.length} hóa đơn
-                    </p>
-                </div>
-
-            </div>
+            <p className="hd-summary">
+                <strong>{danhSachLoc.length}</strong> hóa đơn
+                {" · "}tổng giá trị (không tính đơn hủy): <strong>{formatTien(tongTienLoc)}</strong>
+            </p>
 
             {loading ? (<div style={{
-                padding: "50px",
+                padding: "40px",
                 textAlign: "center",
                 color: "#777",
             }}>
                 Đang tải hóa đơn...
             </div>) : error ? (<div style={{
-                padding: "30px",
+                padding: "24px",
                 textAlign: "center",
                 color: "#c62828",
             }}>
@@ -1316,13 +1287,13 @@ function HoaDonContent() {
                     {error}
                 </div>
 
-                <button type="button" onClick={taiHoaDon}>
+                <button type="button" className="hd-btn ghost" onClick={() => taiHoaDon(true)}>
                     Thử lại
                 </button>
 
             </div>) : danhSachLoc.length ===
             0 ? (<div style={{
-                padding: "50px",
+                padding: "40px",
                 textAlign: "center",
                 color: "#777",
             }}>
@@ -1331,260 +1302,72 @@ function HoaDonContent() {
                 overflowX: "auto",
             }}>
 
-                <table className="admin-table" style={{
-                    width: "100%",
-                    minWidth: "1080px",
-                    tableLayout: "fixed",
-                }}>
+                <table className="admin-table hd-table">
 
                     <thead>
 
                     <tr>
-
-                        <th style={{ width: "8%" }}>
-                            ID khách hàng
-                        </th>
-
-                        <th style={{ width: "16%" }}>
-                            Mã hóa đơn
-                        </th>
-
-                        <th style={{ width: "12%" }}>
-                            Khách hàng
-                        </th>
-
-                        <th style={{ width: "11%" }}>
-                            Số điện thoại
-                        </th>
-
-                        <th style={{ width: "12%" }}>
-                            Ngày lập
-                        </th>
-
-                        <th style={{ width: "7%" }}>
-                            Loại
-                        </th>
-
-                        <th style={{ width: "11%" }}>
-                            Tổng tiền
-                        </th>
-
-                        <th style={{ width: "12%" }}>
-                            Trạng thái
-                        </th>
-
-                        <th style={{ width: "11%" }}>
-                            Thao tác
-                        </th>
-
+                        <th>Mã hóa đơn</th>
+                        <th>Khách hàng</th>
+                        <th>Ngày lập</th>
+                        <th>Loại</th>
+                        <th>Tổng tiền</th>
+                        <th>Trạng thái</th>
+                        <th></th>
                     </tr>
 
                     </thead>
 
                     <tbody>
 
-                    {currentItems.map((hoaDon) => (<tr key={hoaDon.id}>
+                    {currentItems.map((hoaDon) => {
+                        const kh = layThongTinKhach(hoaDon);
+                        const tt = getTrangThaiDonHangStyle(hoaDon.trangThai);
+                        return (<tr key={hoaDon.id}>
 
-                        <td>
-                            #{hoaDon.khachHang?.id || "-"}
-                        </td>
-
-                        <td>
-                            <strong>
+                            <td className="hd-code">
                                 {hoaDon.maHoaDon}
-                            </strong>
-                        </td>
+                            </td>
 
-                        <td>
-                            {hoaDon
-                                    .khachHang
-                                    ?.hoTen ||
-                                hoaDon
-                                    .diaChi
-                                    ?.tenNguoiNhan ||
-                                "Khách lẻ"}
-                        </td>
+                            <td className="hd-cell-customer">
+                                {kh.ten}{kh.id ? <span style={{ color: "#98a2b3" }}> #{kh.id}</span> : null}
+                                {kh.sdt && <small>{kh.sdt}</small>}
+                            </td>
 
-                        <td>
-                            {hoaDon
-                                    .khachHang
-                                    ?.soDienThoai ||
-                                hoaDon
-                                    .diaChi
-                                    ?.soDienThoai ||
-                                "-"}
-                        </td>
+                            <td className="hd-nowrap">
+                                {formatNgay(hoaDon.ngayLap)}
+                            </td>
 
-                        <td>
-                            {formatNgay(hoaDon.ngayLap)}
-                        </td>
+                            <td className="hd-nowrap">
+                                {tenLoaiHoaDon(hoaDon.loaiHoaDon)}
+                            </td>
 
-                        <td>
-                            {tenLoaiHoaDon(hoaDon.loaiHoaDon)}
-                        </td>
+                            <td className="hd-nowrap">
+                                <strong>
+                                    {formatTien(hoaDon.tongThanhToan)}
+                                </strong>
+                            </td>
 
-                        <td>
-                            <strong>
-                                {formatTien(hoaDon.tongThanhToan)}
-                            </strong>
-                        </td>
+                            <td>
+                                <span className="hd-badge" style={tt}>
+                                    {tenTrangThaiHoaDon(hoaDon.trangThai)}
+                                </span>
+                            </td>
 
-                        <td>
-                                            <span style={{
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                padding: "6px 10px",
-                                                borderRadius: "999px",
-                                                background: hoaDon.trangThai === "DA_THANH_TOAN"
-                                                    ? "#e8f5e9"
-                                                    : hoaDon.trangThai === "CHO_XAC_NHAN"
-                                                        ? "#fff3e0"
-                                                        : "#f5f5f5",
-                                                color: hoaDon.trangThai === "DA_THANH_TOAN"
-                                                    ? "#2e7d32"
-                                                    : hoaDon.trangThai === "CHO_XAC_NHAN"
-                                                        ? "#ef6c00"
-                                                        : "#666",
-                                                fontSize: "12px",
-                                                fontWeight: 700,
-                                                whiteSpace: "nowrap",
-                                            }}>
-                                                {hoaDon.trangThai === "DA_THANH_TOAN" && "✓ "}
-                                                {tenTrangThaiHoaDon(hoaDon.trangThai)}
-                                            </span>
-                        </td>
-
-                        <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
-
-                            <button type="button" onClick={() => xemChiTiet(hoaDon)} style={{
-                                border: "1px solid #ddd",
-                                background: "#fff",
-                                color: "#222",
-                                padding: "7px 14px",
-                                minWidth: "72px",
-                                borderRadius: "8px",
-                                cursor: "pointer",
-                                fontSize: "14px",
-                                fontWeight: 600,
-                                whiteSpace: "nowrap",
-                            }}>
-                                Xem
-                            </button>
-
-                        </td>
-
-                    </tr>))}
-
-                    <tr>
-                        <td colSpan={9}>
-                            <div
-                                style={{
-                                    display: "flex",
-                                    justifyContent: "center",
-                                    alignItems: "center",
-                                    gap: "8px",
-                                    padding: "12px"
-                                }}
-                            >
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setCurrentPage((page) =>
-                                            Math.max(1, page - 1)
-                                        )
-                                    }
-                                    disabled={currentPage === 1}
-                                    style={{
-                                        width: "56px",
-                                        height: "56px",
-                                        border: "1px solid #ddd",
-                                        borderRadius: "10px",
-                                        background: "#fff",
-                                        fontSize: "22px",
-                                        color:
-                                            currentPage === 1
-                                                ? "#ccc"
-                                                : "#222",
-                                        cursor:
-                                            currentPage === 1
-                                                ? "default"
-                                                : "pointer"
-                                    }}
-                                >
-                                    ←
+                            <td style={{ textAlign: "right" }}>
+                                <button type="button" className="hd-btn ghost" onClick={() => xemChiTiet(hoaDon)}>
+                                    Xem
                                 </button>
+                            </td>
 
-                                {Array.from(
-                                    { length: totalPages },
-                                    (_, index) => index + 1
-                                ).map((page) => (
-                                    <button
-                                        key={page}
-                                        type="button"
-                                        onClick={() =>
-                                            setCurrentPage(page)
-                                        }
-                                        style={{
-                                            width: "46px",
-                                            height: "46px",
-                                            border: "none",
-                                            borderRadius: "10px",
-                                            background:
-                                                currentPage === page
-                                                    ? "#c94f3f"
-                                                    : "transparent",
-                                            color:
-                                                currentPage === page
-                                                    ? "#fff"
-                                                    : "#999",
-                                            fontWeight: 600,
-                                            cursor: "pointer"
-                                        }}
-                                    >
-                                        {page}
-                                    </button>
-                                ))}
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setCurrentPage((page) =>
-                                            Math.min(
-                                                totalPages,
-                                                page + 1
-                                            )
-                                        )
-                                    }
-                                    disabled={
-                                        currentPage === totalPages
-                                    }
-                                    style={{
-                                        width: "56px",
-                                        height: "56px",
-                                        border: "1px solid #ddd",
-                                        borderRadius: "10px",
-                                        background: "#fff",
-                                        fontSize: "22px",
-                                        color:
-                                            currentPage === totalPages
-                                                ? "#ccc"
-                                                : "#222",
-                                        cursor:
-                                            currentPage === totalPages
-                                                ? "default"
-                                                : "pointer"
-                                    }}
-                                >
-                                    →
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
+                        </tr>);
+                    })}
 
                     </tbody>
 
                 </table>
+
+                <CompactPager page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
 
             </div>)}
 
@@ -1604,46 +1387,35 @@ function HoaDonContent() {
         }}>
 
             <div onClick={(e) => e.stopPropagation()} style={{
-                width: "min(1150px, 100%)",
+                width: "min(900px, 100%)",
                 maxHeight: "92vh",
                 overflowY: "auto",
-                background: "linear-gradient(180deg, #ffffff 0%, #fffefe 100%)",
+                background: "#fff",
                 border: "1px solid rgba(255,255,255,.8)",
-                borderRadius: "22px",
-                padding: "28px 30px",
+                borderRadius: "16px",
+                padding: "18px 22px",
                 boxShadow: "0 28px 90px rgba(15, 23, 42, .28)",
                 position: "relative",
             }}>
 
                 <div style={{
                     display: "flex",
-                    alignItems: "flex-start",
+                    alignItems: "center",
                     justifyContent: "space-between",
-                    gap: "18px",
-                    marginBottom: "24px",
+                    gap: "14px",
+                    marginBottom: "14px",
                 }}>
 
                     <div>
-
-                        <div style={{
-                            color: "#8791a2",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            letterSpacing: ".08em",
-                        }}>
+                        <div style={{ color: "#8791a2", fontSize: "11px", fontWeight: 700, letterSpacing: ".08em" }}>
                             CHI TIẾT HÓA ĐƠN
                         </div>
-
-                        <h2 style={{
-                            margin: "8px 0 0",
-                            color: "#111827",
-                            fontSize: "27px",
-                            fontWeight: 800,
-                            letterSpacing: "-.025em",
-                        }}>
+                        <h2 style={{ margin: "2px 0 0", color: "#111827", fontSize: "20px", fontWeight: 800 }}>
                             {selectedHoaDon.maHoaDon}
+                            <span className="hd-badge" style={{ ...getTrangThaiDonHangStyle(selectedHoaDon.trangThai), marginLeft: 10, fontSize: 12, verticalAlign: "middle" }}>
+                                {tenTrangThaiHoaDon(selectedHoaDon.trangThai)}
+                            </span>
                         </h2>
-
                     </div>
 
                     <button
@@ -1651,123 +1423,142 @@ function HoaDonContent() {
                         aria-label="Đóng chi tiết hóa đơn"
                         title="Đóng"
                         onClick={() => setSelectedHoaDon(null)}
-                        style={{
-                            flex: "0 0 46px",
-                            width: "46px",
-                            height: "46px",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            border: "1px solid #ffe0e3",
-                            borderRadius: "50%",
-                            background: "linear-gradient(145deg, #fff5f6, #ffe8eb)",
-                            color: "#e11d48",
-                            fontSize: "28px",
-                            fontWeight: 400,
-                            lineHeight: 1,
-                            cursor: "pointer",
-                            boxShadow: "0 5px 15px rgba(225,29,72,.13)",
-                            transition: "transform .18s ease, box-shadow .18s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = "rotate(90deg) scale(1.05)";
-                            e.currentTarget.style.boxShadow = "0 8px 20px rgba(225,29,72,.2)";
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = "none";
-                            e.currentTarget.style.boxShadow = "0 5px 15px rgba(225,29,72,.13)";
-                        }}
+                        className="hd-btn ghost"
+                        style={{ width: 34, padding: 0, fontSize: 20, lineHeight: 1 }}
                     >
                         ×
                     </button>
 
                 </div>
 
-                {detailError && (<div style={{
-                    color: "#c62828",
-                    marginBottom: "15px",
-                }}>
+                {detailError && (<div className="hd-error" style={{ marginBottom: 12 }}>
                     {detailError}
                 </div>)}
 
-                <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-                    gap: "12px",
-                    marginBottom: "22px",
-                }}>
-
-                    <div>
-                        <small>
-                            Khách hàng
-                        </small>
-
-                        <strong style={{
-                            display: "block",
-                        }}>
-                            {selectedHoaDon
-                                    .khachHang
-                                    ?.hoTen ||
-                                selectedHoaDon
-                                    .diaChi
-                                    ?.tenNguoiNhan ||
-                                "Khách lẻ"}
-                        </strong>
-                    </div>
-
-                    <div>
-                        <small>
-                            Ngày lập
-                        </small>
-
-                        <strong style={{
-                            display: "block",
-                        }}>
-                            {formatNgay(selectedHoaDon.ngayLap)}
-                        </strong>
-                    </div>
-
-                    <div>
-                        <small>
-                            Loại
-                        </small>
-
-                        <strong style={{
-                            display: "block",
-                        }}>
-                            {tenLoaiHoaDon(selectedHoaDon.loaiHoaDon)}
-                        </strong>
-                    </div>
-
-                    <div>
-                        <small>
-                            Tổng tiền
-                        </small>
-
-                        <strong style={{
-                            display: "block",
-                            color: "#e53935",
-                        }}>
-                            {formatTien(selectedHoaDon.tongThanhToan)}
-                        </strong>
-                    </div>
-
+                <div className="hd-info" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))", marginBottom: 16 }}>
+                    <div><span>Khách hàng</span><strong>{layThongTinKhach(selectedHoaDon).ten}</strong></div>
+                    <div><span>Ngày lập</span><strong>{formatNgay(selectedHoaDon.ngayLap)}</strong></div>
+                    <div><span>Loại</span><strong>{tenLoaiHoaDon(selectedHoaDon.loaiHoaDon)}</strong></div>
+                    <div><span>Tổng tiền</span><strong style={{ color: "#e53935" }}>{formatTien(selectedHoaDon.tongThanhToan)}</strong></div>
                 </div>
 
-                {/* VOUCHER ĐÃ ÁP DỤNG */}
-                <section style={{
-                    marginBottom: "25px",
-                    padding: "18px",
-                    border: "1px solid #ffdadd",
-                    borderRadius: "14px",
-                    background: "linear-gradient(135deg, #fff7f8 0%, #fffafa 100%)",
-                    boxShadow: "0 5px 18px rgba(225, 29, 72, .035)",
-                }}>
-                    <h3 style={{ marginTop: 0, marginBottom: "16px", display: "flex", alignItems: "center", gap: "10px", color: "#1f2937", fontSize: "19px", fontWeight: 800 }}>
-                        <span style={{ display: "inline-flex", width: "30px", height: "30px", alignItems: "center", justifyContent: "center", borderRadius: "9px", background: "#ffe4e8", color: "#e11d48", fontSize: "16px" }}>◆</span>
-                        Voucher áp dụng cho đơn hàng
-                    </h3>
+                <ThongTinGiaoHang
+                    order={selectedHoaDon}
+                    api={API}
+                    actor={actor}
+                    onSaved={sauKhiSuaThongTin}
+                />
 
+                <section className="hd-section">
+                    <div className="hd-section-head"><h3>Xử lý hóa đơn</h3></div>
+                    {(() => {
+                        const ttHienTai = String(selectedHoaDon.trangThai || "").toUpperCase();
+                        const dsChoPhep = layTrangThaiChoPhep(ttHienTai);
+                        const ketThuc = laTrangThaiKetThuc(ttHienTai);
+                        // 🔒 Trạng thái kết thúc → không cho đổi
+                        if (ketThuc) {
+                            const laHuy = ttHienTai === "DA_HUY";
+                            return (
+                                <div style={{
+                                    padding: "10px 14px",
+                                    background: laHuy ? "#fdecea" : "#eaf7ed",
+                                    color: laHuy ? "#c0392b" : "#24833b",
+                                    borderRadius: 8,
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                    display: "inline-block",
+                                }}>
+                                    {laHuy
+                                        ? "❌ Hóa đơn đã bị hủy — không thể thay đổi"
+                                        : "✅ Hóa đơn đã hoàn tất — không thể thay đổi"}
+                                </div>
+                            );
+                        }
+                        const btnLabels = {
+                            DA_XAC_NHAN: "Xác nhận đơn hàng",
+                            DANG_CHUAN_BI: "Chuẩn bị hàng",
+                            DANG_GIAO: "Bắt đầu giao hàng",
+                            DA_GIAO: "Đã giao hàng",
+                            DA_THANH_TOAN: "Xác nhận thanh toán",
+                            DA_HUY: "Hủy đơn",
+                        };
+                        return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                    {dsChoPhep.map((trangThaiMoi) => (
+                                        <button
+                                            key={trangThaiMoi}
+                                            type="button"
+                                            className={`hd-btn ${trangThaiMoi === "DA_HUY" ? "danger" : "primary"}`}
+                                            onClick={() => capNhatTrangThai(trangThaiMoi)}
+                                            disabled={updatingStatus}
+                                        >
+                                            {updatingStatus ? "Đang xử lý..." : (btnLabels[trangThaiMoi] || tenTrangThaiHoaDon(trangThaiMoi))}
+                                        </button>
+                                    ))}
+                                </div>
+                                {ttHienTai !== "CHO_XAC_NHAN" && (
+                                    <div className="hd-hint">
+                                        🔒 Đơn đã được xác nhận nên không thể hủy.
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
+                </section>
+
+                <section className="hd-section">
+                    <div className="hd-section-head"><h3>Chi tiết sản phẩm</h3></div>
+                    {loadingDetail ? (<div className="hd-muted">
+                        Đang tải...
+                    </div>) : chiTiet.length ===
+                    0 ? (<div className="hd-muted">
+                        Không có sản phẩm.
+                    </div>) : (<div style={{
+                        overflowX: "auto",
+                    }}>
+                        <table className="admin-table hd-table">
+                            <thead>
+                            <tr>
+                                <th>Sản phẩm</th>
+                                <th>SKU</th>
+                                <th>SL</th>
+                                <th>Đơn giá</th>
+                                <th>Thành tiền</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {chiTiet.map((item) => {
+                                const spct = item.sanPhamChiTiet;
+                                return (<tr key={item.id}>
+                                    <td>{layTenSanPham(item)}</td>
+                                    <td>{spct?.maSku || "-"}</td>
+                                    <td>{item.soLuong}</td>
+                                    <td className="hd-nowrap">{formatTien(item.donGia)}</td>
+                                    <td className="hd-nowrap"><strong>{formatTien(item.thanhTien)}</strong></td>
+                                </tr>);
+                            })}
+                            </tbody>
+                        </table>
+                    </div>)}
+                </section>
+
+                <section className="hd-section">
+                    <div className="hd-section-head"><h3>Thanh toán</h3></div>
+                    {thanhToan ? (<div className="hd-info" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+                        <div><span>Phương thức</span><strong>{tenPhuongThuc(thanhToan.phuongThuc)}</strong></div>
+                        <div><span>Số tiền</span><strong>{formatTien(thanhToan.soTien)}</strong></div>
+                        <div><span>Trạng thái</span><strong>{tenTrangThaiThanhToan(thanhToan.trangThai)}</strong></div>
+                        <div><span>Ngày thanh toán</span><strong>{formatNgay(thanhToan.ngayThanhToan)}</strong></div>
+                    </div>) : (<div className="hd-muted">
+                        Chưa có thông tin thanh toán.
+                    </div>)}
+                </section>
+
+                <details className="hd-section">
+                    <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 15, color: "#1f2937", marginBottom: 8 }}>
+                        Voucher áp dụng cho đơn hàng
+                    </summary>
                     {(() => {
                         const voucher = selectedHoaDon.voucher;
                         const voucherShip = selectedHoaDon.voucherFreeship;
@@ -1827,279 +1618,15 @@ function HoaDonContent() {
                             </div>}
                         </div>;
                     })()}
+                
+                </details>
+
+                <section className="hd-section" style={{ marginBottom: 0 }}>
+                    <div className="hd-section-head"><h3>Lịch sử hóa đơn</h3></div>
+                    <LichSuHoaDonList items={lichSu} tenTrangThai={tenTrangThaiHoaDon} formatNgay={formatNgay} />
                 </section>
-
-                <section style={{ marginBottom: "25px" }}>
-                    <h3>Xử lý hóa đơn</h3>
-
-                    {(() => {
-                        const ttHienTai = String(selectedHoaDon.trangThai || "").toUpperCase();
-                        const dsChoPhep = layTrangThaiChoPhep(ttHienTai);
-                        const ketThuc = laTrangThaiKetThuc(ttHienTai);
-
-                        // 🔒 Trạng thái kết thúc → không cho đổi
-                        if (ketThuc) {
-                            const laHuy = ttHienTai === "DA_HUY";
-                            return (
-                                <div style={{
-                                    padding: "14px 18px",
-                                    background: laHuy ? "#fdecea" : "#eaf7ed",
-                                    color: laHuy ? "#c0392b" : "#24833b",
-                                    borderRadius: 8,
-                                    fontWeight: 700,
-                                    fontSize: 14,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    minWidth: 250,
-                                }}>
-                                    {laHuy
-                                        ? "❌ Hóa đơn đã bị hủy — không thể thay đổi"
-                                        : "✅ Hóa đơn đã hoàn tất — không thể thay đổi"}
-                                </div>
-                            );
-                        }
-
-                        const btnLabels = {
-                            DA_XAC_NHAN: "Xác nhận đơn hàng",
-                            DANG_CHUAN_BI: "Chuẩn bị hàng",
-                            DANG_GIAO: "Bắt đầu giao hàng",
-                            DA_GIAO: "Đã giao hàng",
-                            DA_THANH_TOAN: "Xác nhận thanh toán",
-                            DA_HUY: "Hủy đơn",
-                        };
-
-                        return (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                                <div style={{ fontSize: "14px", color: "#666" }}>
-                                    Trạng thái hiện tại:{" "}
-                                    <strong style={{ color: "#111", fontSize: "16px" }}>
-                                        {tenTrangThaiHoaDon(ttHienTai)}
-                                    </strong>
-                                </div>
-
-                                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                                    {dsChoPhep.map((trangThaiMoi) => (
-                                        <button
-                                            key={trangThaiMoi}
-                                            type="button"
-                                            onClick={() => capNhatTrangThai(trangThaiMoi)}
-                                            disabled={updatingStatus}
-                                            style={{
-                                                padding: "10px 20px",
-                                                borderRadius: "8px",
-                                                border: "none",
-                                                fontWeight: 600,
-                                                fontSize: "14px",
-                                                cursor: updatingStatus ? "not-allowed" : "pointer",
-                                                opacity: updatingStatus ? 0.7 : 1,
-                                                background: trangThaiMoi === "DA_HUY" ? "#ffebee" : "#1976d2",
-                                                color: trangThaiMoi === "DA_HUY" ? "#c62828" : "#fff",
-                                                transition: "all 0.2s ease",
-                                                boxShadow: "0 2px 5px rgba(0,0,0,0.1)"
-                                            }}
-                                        >
-                                            {updatingStatus ? "Đang xử lý..." : (btnLabels[trangThaiMoi] || tenTrangThaiHoaDon(trangThaiMoi))}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })()}
-                </section>
-
-                <section style={{
-                    marginBottom: "25px",
-                }}>
-
-                    <h3 style={{ margin: "0 0 14px", color: "#1f2937", fontSize: "19px", fontWeight: 800 }}>
-                        <span style={{ color: "#e11d48", marginRight: "9px" }}>🛒</span> Chi tiết sản phẩm
-                    </h3>
-
-                    {loadingDetail ? (<div>
-                        Đang tải...
-                    </div>) : chiTiet.length ===
-                    0 ? (<div>
-                        Không có sản phẩm.
-                    </div>) : (<div style={{
-                        overflowX: "auto",
-                    }}>
-
-                        <table className="admin-table" style={{
-                            width: "100%",
-                        }}>
-
-                            <thead>
-
-                            <tr>
-
-                                <th>
-                                    Sản phẩm
-                                </th>
-
-                                <th>
-                                    SKU
-                                </th>
-
-                                <th>
-                                    Số lượng
-                                </th>
-
-                                <th>
-                                    Đơn giá
-                                </th>
-
-                                <th>
-                                    Thành tiền
-                                </th>
-
-                            </tr>
-
-                            </thead>
-
-                            <tbody>
-
-                            {chiTiet.map((item) => {
-                                const spct = item.sanPhamChiTiet;
-                                return (<tr key={item.id}>
-
-                                    <td>
-                                        {layTenSanPham(item)}
-                                    </td>
-
-                                    <td>
-                                        {spct?.maSku ||
-                                            "-"}
-                                    </td>
-
-                                    <td>
-                                        {item.soLuong}
-                                    </td>
-
-                                    <td>
-                                        {formatTien(item.donGia)}
-                                    </td>
-
-                                    <td>
-                                        <strong>
-                                            {formatTien(item.thanhTien)}
-                                        </strong>
-                                    </td>
-
-                                </tr>);
-                            })}
-
-                            </tbody>
-
-                        </table>
-
-                    </div>)}
-
-                </section>
-
-                <section style={{
-                    marginBottom: "25px",
-                }}>
-
-                    <h3 style={{ margin: "0 0 14px", color: "#168a52", fontSize: "19px", fontWeight: 800 }}>
-                        <span style={{ marginRight: "9px" }}>▣</span> Thanh toán
-                    </h3>
-
-                    {thanhToan ? (<div style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(4,1fr)",
-                        gap: "12px",
-                    }}>
-
-                        <div>
-                            <small>
-                                Phương thức
-                            </small>
-
-                            <strong style={{
-                                display: "block",
-                            }}>
-                                {tenPhuongThuc(thanhToan.phuongThuc)}
-                            </strong>
-                        </div>
-
-                        <div>
-                            <small>
-                                Số tiền
-                            </small>
-
-                            <strong style={{
-                                display: "block",
-                            }}>
-                                {formatTien(thanhToan.soTien)}
-                            </strong>
-                        </div>
-
-                        <div>
-                            <small>
-                                Trạng thái
-                            </small>
-
-                            <strong style={{
-                                display: "block",
-                            }}>
-                                {tenTrangThaiThanhToan(thanhToan.trangThai)}
-                            </strong>
-                        </div>
-
-                        <div>
-                            <small>
-                                Ngày thanh toán
-                            </small>
-
-                            <strong style={{
-                                display: "block",
-                            }}>
-                                {formatNgay(thanhToan.ngayThanhToan)}
-                            </strong>
-                        </div>
-
-                    </div>) : (<div>
-                        Chưa có thông tin
-                        thanh toán.
-                    </div>)}
-
-                </section>
-
-                <section>
-
-                    <h3 style={{ margin: "0 0 14px", color: "#1675c5", fontSize: "19px", fontWeight: 800 }}>
-                        <span style={{ marginRight: "9px" }}>◷</span> Lịch sử hóa đơn
-                    </h3>
-
-                    {lichSu.length ===
-                    0 ? (<div>
-                        Chưa có lịch sử.
-                    </div>) : (lichSu.map((item) => (<div key={item.id} style={{
-                        padding: "10px",
-                        borderBottom: "1px solid #eee",
-                    }}>
-
-                        <strong>
-                            {tenTrangThaiHoaDon(item.trangThai)}
-                        </strong>
-
-                        <div>
-                            {formatNgay(item.thoiGian)}
-                        </div>
-
-                        {item.ghiChu && (<div>
-                            {item.ghiChu}
-                        </div>)}
-
-                    </div>)))}
-
-                </section>
-
             </div>
-
         </div>)}
-
     </div>);
 }
 function ThanhToanContent() {
@@ -4690,7 +4217,7 @@ function ComingSoon({ title, }) {
 
     </div>);
 }
-export default function AdminDashboard({ dangXuat, }) {
+export default function AdminDashboard({ dangXuat, taiKhoan, }) {
     const [activeMenu, setActiveMenu] = useState("dashboard");
     const activeLabel =
         activeMenu === "cai-dat"
@@ -4836,7 +4363,7 @@ export default function AdminDashboard({ dangXuat, }) {
 
                 {activeMenu ===
                 "dashboard" ? (<DashboardContent onViewAll={() => setActiveMenu("hoa-don")}/>) : activeMenu === "ban-hang" ? (<BanHangTaiQuayContent />) : activeMenu ===
-                "hoa-don" ? (<HoaDonContent />) : activeMenu === "doi-tra" ? (<Returns mode="admin" />) : activeMenu ===
+                "hoa-don" ? (<HoaDonContent taiKhoan={taiKhoan} />) : activeMenu === "doi-tra" ? (<Returns mode="admin" />) : activeMenu ===
                 "thanh-toan" ? (<ThanhToanContent />) : activeMenu === "san-pham" ? (<AdminProducts />) : activeMenu === "danh-muc" ? (<AdminDanhMuc />) : activeMenu === "thuong-hieu" ? (<AdminThuongHieu />) : activeMenu === "kich-co" ? (<AdminKichCo />) : activeMenu === "mau-sac" ? (<AdminMauSac />) : activeMenu === "kho" ? (<AdminKho />) : activeMenu === "voucher" ? (<AdminVoucher />) : activeMenu === "khuyen-mai" ? (<AdminKhuyenMai />) : activeMenu ===
                 "khach-hang" ? (<CustomerContent />) : activeMenu ===
                 "nhan-vien" ? (<EmployeeContent />) : activeMenu ===

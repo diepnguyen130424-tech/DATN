@@ -34,4 +34,12 @@ public class LichSuHoaDon {
 
     @Column(name = "ghi_chu", columnDefinition = "TEXT")
     private String ghiChu;
+
+    /** Tên người đã thao tác (nhân viên / admin / khách hàng / hệ thống) */
+    @Column(name = "nguoi_thuc_hien", length = 150)
+    private String nguoiThucHien;
+
+    /** Vai trò người thao tác: ADMIN, NHAN_VIEN, KHACH_HANG, HE_THONG */
+    @Column(name = "vai_tro", length = 30)
+    private String vaiTro;
 }
