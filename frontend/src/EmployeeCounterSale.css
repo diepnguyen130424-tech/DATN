@@ -722,3 +722,35 @@
 .pos-layout {
     grid-template-columns: minmax(0, 1fr) 390px; /* 2 cột: Sản phẩm & Giỏ hàng */
 }
+.pos-product-card.not-for-sale {
+    opacity: 0.75;
+    cursor: not-allowed;
+}
+
+.pos-product-card.not-for-sale .pos-product-image img {
+    filter: grayscale(65%);
+}
+
+.pos-product-status {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 2;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: #dc3545;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.pos-product-card.not-for-sale .pos-product-bottom {
+    background: #c9cdd4;
+    color: #fff;
+    border-radius: 10px;
+    justify-content: center;
+}
+
+.pos-product-card.not-for-sale .pos-product-bottom span {
+    display: none;
+}

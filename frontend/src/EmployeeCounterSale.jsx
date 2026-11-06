@@ -485,6 +485,17 @@ const isSellable = (v) =>
     Number(v?.soLuongTon || 0) > 0 &&
     ["HOAT_DONG", "ACTIVE"].includes(String(v?.trangThai || "").toUpperCase());
 
+const isProductInactive = (product) => {
+    const status = String(product?.trangThai || "").trim().toUpperCase();
+
+    return [
+        "NGUNG_HOAT_DONG",
+        "NGUNG_KINH_DOANH",
+        "NGUNG_BAN",
+        "INACTIVE",
+        "DISABLED"
+    ].includes(status);
+};
 function createOrder(id) {
     return {id, cart: [], method: "TIEN_MAT", tenKhach: "", soDienThoaiKhach: ""};
 }
@@ -532,6 +543,7 @@ async function fetchAllVariants(products) {
 
 const ProductCard = memo(function ProductCard({product, stats, onSelect}) {
     const {loaded, minPrice, stock} = stats;
+    const inactive = isProductInactive(product);
     const out = loaded && stock <= 0;
     const low = loaded && stock > 0 && stock <= 5;
     const price = minPrice > 0 ? minPrice : Number(product.giaBan || 0);
@@ -539,8 +551,9 @@ const ProductCard = memo(function ProductCard({product, stats, onSelect}) {
     return (
         <button
             type="button"
-            className={`pos-product-card ${out ? "sold-out" : ""}`}
-            onClick={() => onSelect(product)}
+            className={`pos-product-card ${out ? "sold-out" : ""} ${inactive ? "not-for-sale" : ""}`}
+            disabled={inactive}
+            onClick={() => !inactive && onSelect(product)}
         >
             <div className="pos-product-image">
                 <img
@@ -549,25 +562,47 @@ const ProductCard = memo(function ProductCard({product, stats, onSelect}) {
                     loading="lazy"
                     decoding="async"
                 />
-                <span className="pos-product-add">＋</span>
+
+                {inactive && (
+                    <span className="pos-product-status">
+                        Ngừng kinh doanh
+                    </span>
+                )}
+
+                {!inactive && (
+                    <span className="pos-product-add">＋</span>
+                )}
             </div>
+
             <div className="pos-product-brand">
                 {product.thuongHieu?.tenThuongHieu || "FShop"}
             </div>
+
             <strong>{product.tenSanPham}</strong>
             <span className="pos-product-code">{product.maSanPham || "-"}</span>
+
             <div className="pos-product-price">
                 {price > 0 ? formatMoney(price) : "Chưa có giá"}
             </div>
+
             <div className="pos-product-meta">
                 <span className={`pos-stock-dot ${out ? "out" : low ? "low" : ""}`}></span>
                 <span>
-                    {!loaded ? "Đang tải..." : out ? "Hết hàng" : low ? `Sắp hết (${stock})` : `Còn hàng (${stock})`}
+                    {!loaded
+                        ? "Đang tải..."
+                        : inactive
+                            ? "Ngừng kinh doanh"
+                            : out
+                                ? "Hết hàng"
+                                : low
+                                    ? `Sắp hết (${stock})`
+                                    : `Còn hàng (${stock})`}
                 </span>
             </div>
+
             <div className="pos-product-bottom">
-                <small>Thêm vào giỏ</small>
-                <span>＋</span>
+                <small>{inactive ? "Ngừng kinh doanh" : "Thêm vào giỏ"}</small>
+                {!inactive && <span>＋</span>}
             </div>
         </button>
     );
@@ -716,6 +751,15 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
 
     const addToCart = useCallback(
         (product, variant, qty = 1) => {
+            if (isProductInactive(product)) {
+                showToast("Sản phẩm đã ngừng kinh doanh, không thể thêm vào giỏ hàng.");
+                return false;
+            }
+
+            if (!isSellable(variant)) {
+                showToast("Biến thể đã hết hàng hoặc ngừng kinh doanh.");
+                return false;
+            }
             const stock = liveStock(variant);
             const existing = cart.find((i) => i.variant.id === variant.id);
             const current = existing ? existing.quantity : 0;
@@ -762,6 +806,11 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
 
     const selectProduct = useCallback(
         async (product) => {
+            if (isProductInactive(product)) {
+                showToast("Sản phẩm đã ngừng kinh doanh, không thể bán.");
+                return;
+            }
+
             let variants = variantMap[product.id];
 
             if (!variants) {
@@ -821,11 +870,14 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
 
         const hit = skuIndex.get(kw);
         if (hit) {
-            if (isSellable(hit.variant)) {
+            if (isProductInactive(hit.product)) {
+                showToast("Sản phẩm đã ngừng kinh doanh, không thể bán.");
+            } else if (isSellable(hit.variant)) {
                 addToCart(hit.product, hit.variant);
             } else {
                 showToast(`${hit.variant.maSku} đã hết hàng hoặc ngừng bán.`);
             }
+
             setSearch("");
             return;
         }
