@@ -2423,7 +2423,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [showVoucherList, setShowVoucherList] = useState(false);
     const [voucherList, setVoucherList] = useState([]);
     const [loadingVoucherList, setLoadingVoucherList] = useState(false);
-    const MAX_VOUCHER = 2;
+    const MAX_VOUCHER = 1;
     const coVoucherFreeship = vouchers.some(isVoucherFreeship);
     const diaChiDangChon = addresses.find((a) => String(a.id) === String(selectedAddressId));
     const phiShipDiaChi = Number(shipInfo?.phiShip ?? diaChiDangChon?.phiShip ?? phiShipMoi ?? PHI_SHIP_MAC_DINH);
@@ -2458,7 +2458,10 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const apDungVoucher = async () => {
         const code = maVoucher.trim().toUpperCase();
         if (!code) { setVoucherError("Vui lòng nhập mã"); return; }
-        if (vouchers.length >= MAX_VOUCHER) { setVoucherError(`Tối đa ${MAX_VOUCHER} mã`); return; }
+
+        // Vì MAX_VOUCHER = 1, nếu đã có voucher thì không cho nhập thêm
+        if (vouchers.length >= MAX_VOUCHER) { setVoucherError(`Chỉ được áp dụng ${MAX_VOUCHER} mã`); return; }
+
         if (vouchers.some((v) => String(v.maVoucher || "").toUpperCase() === code)) { setVoucherError("Mã đã dùng"); return; }
         setCheckingVoucher(true); setVoucherError("");
         try {
@@ -2479,7 +2482,9 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
             const d = await r.json();
             if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
             const found = voucherList.find((x) => String(x.maVoucher || "").toUpperCase() === code);
-            setVouchers((p) => [...p, {
+
+            // SỬA TẠI ĐÂY: Ghi đè mảng vouchers bằng mảng mới chỉ có 1 phần tử
+            setVouchers([{
                 ...d,
                 id: d.id ?? d.voucherId ?? found?.id,
                 maVoucher: d.maVoucher || code,
@@ -3188,29 +3193,15 @@ ${invoiceHtml.outerHTML}
                                 <input className="price-input" type="tel" value={soDienThoai} onChange={(e) => setSoDienThoai(e.target.value)} placeholder="Nhập số điện thoại" />
                             </div>
                             <div>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
-                                    🎫 Mã giảm giá
-                                    <span style={{ marginLeft: 8, color: "#777", fontWeight: 400 }}>
-                                        ({vouchers.length}/{MAX_VOUCHER})
-                                    </span>
-                                </label>
-                                <div className="voucher-input-row">
-                                    <input className="price-input" type="text" placeholder="Nhập mã (VD: SALE10)"
-                                           value={maVoucher} onChange={(e) => setMaVoucher(e.target.value.toUpperCase())}
-                                           disabled={vouchers.length >= MAX_VOUCHER} />
-                                    <button type="button" className="voucher-apply-btn" onClick={apDungVoucher}
-                                            disabled={checkingVoucher || vouchers.length >= MAX_VOUCHER}>
-                                        {checkingVoucher ? "..." : "Áp dụng"}
-                                    </button>
-                                </div>
+
                                 <div style={{ marginTop: 14 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 9 }}>
-                                        <strong style={{ fontSize: 13 }}>Voucher đang hoạt động</strong>
-                                        <span style={{ color: "#777", fontSize: 11 }}>Chọn mã rồi nhấn Áp dụng</span>
+                                        <strong style={{ fontSize: 13 }}>Voucher</strong>
+
                                     </div>
                                     {dangTaiVoucher ? (
                                         <p style={{ margin: 0, color: "#777", fontSize: 12 }}>Đang tải voucher...</p>
-                                    ) : danhSachVoucherActive.length === 0 ? (
+                                    ) : (danhSachVoucherActive.length === 0 && vouchers.length === 0) ? (
                                         <p style={{ margin: 0, color: "#777", fontSize: 12 }}>{loiTaiVoucher || "Hiện chưa có voucher khả dụng."}</p>
                                     ) : (
                                         <div style={{ display: "grid", gap: 8 }}>
@@ -3373,7 +3364,8 @@ ${invoiceHtml.outerHTML}
                                                                 });
                                                                 const d = await r.json();
                                                                 if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
-                                                                setVouchers((p) => [...p, {
+                                                                // Ghi đè mảng vouchers
+                                                                setVouchers([{
                                                                     ...d,
                                                                     id: d.id ?? d.voucherId ?? v.id,
                                                                     maVoucher: d.maVoucher || v.maVoucher,
@@ -3381,6 +3373,7 @@ ${invoiceHtml.outerHTML}
                                                                     loaiGiam: d.loaiGiam || v.loaiGiam,
                                                                     giaTriGiam: d.giaTriGiam ?? v.giaTriGiam,
                                                                 }]);
+                                                                setShowVoucherList(false);
                                                                 setShowVoucherList(false);
                                                             } catch (e) {
                                                                 setVoucherError(e.message || "Mã không hợp lệ");
@@ -3415,11 +3408,54 @@ ${invoiceHtml.outerHTML}
                                             const isFree = isVoucherFreeship(v);
                                             return (
                                                 <div key={`${v.id || v.maVoucher}-${i}`} className={`voucher-item ${isFree ? "is-freeship" : ""}`}>
-                                                    <span>
-                                                        ✓ <strong>{v.maVoucher}</strong>
-                                                        {isFree ? <> — <strong>Miễn phí vận chuyển</strong></> : <> — giảm <strong>{formatGia(v.tienGiam)}</strong></>}
-                                                    </span>
-                                                    <button type="button" className="voucher-remove-btn" onClick={() => xoaVoucher(i)}>Xóa</button>
+    <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
+        <span style={{ color: "#24833b", fontWeight: "bold" }}>✓</span>
+        <strong>{v.maVoucher}</strong>
+        {isFree ? (
+            <> — <strong>Miễn phí vận chuyển</strong></>
+        ) : (
+            <> — giảm <strong>{formatGia(v.tienGiam)}</strong></>
+        )}
+    </span>
+                                                    <button
+                                                        type="button"
+                                                        className="voucher-remove-btn"
+                                                        onClick={() => xoaVoucher(i)}
+                                                        style={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            gap: "4px",
+                                                            padding: "4px 10px",
+                                                            backgroundColor: "#fff1f0", // Nền đỏ rất nhạt
+                                                            color: "#cf1322",           // Chữ đỏ đô
+                                                            border: "1px solid #ffa39e",// Viền đỏ nhạt
+                                                            borderRadius: "16px",       // Bo tròn dạng viên thuốc (pill)
+                                                            fontSize: "12px",
+                                                            fontWeight: "600",
+                                                            cursor: "pointer",
+                                                            transition: "all 0.2s ease",
+                                                            lineHeight: "1",
+                                                            marginLeft: "10px"
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.backgroundColor = "#ffccc7";
+                                                            e.currentTarget.style.borderColor = "#ff7875";
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.backgroundColor = "#fff1f0";
+                                                            e.currentTarget.style.borderColor = "#ffa39e";
+                                                        }}
+                                                        title="Bỏ áp dụng voucher này"
+                                                    >
+                                                        {/* Icon thùng rác SVG nhỏ gọn */}
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                                                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                                                        </svg>
+                                                        Xóa
+                                                    </button>
                                                 </div>
                                             );
                                         })}
