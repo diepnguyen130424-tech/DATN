@@ -196,8 +196,18 @@ public class HoaDonController {
             @RequestParam(required = false) String ghiChu,
             @RequestParam(required = false) Long nhanVienId,
             @RequestParam(required = false) String nguoiThucHien,
-            @RequestParam(required = false) String vaiTro
+            @RequestParam(required = false) String vaiTro,
+            @RequestParam(required = false) Long taiKhoanId
     ) {
+        // Mọi lần đổi trạng thái đều phải biết ai thao tác (để truy vết khi giao hàng lỗi)
+        if (taiKhoanId == null
+                && nhanVienId == null
+                && (nguoiThucHien == null || nguoiThucHien.isBlank())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "Thiếu thông tin người thực hiện thao tác"
+            );
+        }
         return ResponseEntity.ok(
                 hoaDonService.capNhatTrangThai(
                         id,
@@ -205,7 +215,8 @@ public class HoaDonController {
                         ghiChu,
                         nhanVienId,
                         nguoiThucHien,
-                        vaiTro
+                        vaiTro,
+                        taiKhoanId
                 )
         );
     }
@@ -222,6 +233,12 @@ public class HoaDonController {
             if (raw != null && !raw.isBlank()) nhanVienId = Long.valueOf(raw.trim());
         } catch (NumberFormatException ignored) {
         }
+        Long taiKhoanId = null;
+        try {
+            String raw = body.get("taiKhoanId");
+            if (raw != null && !raw.isBlank()) taiKhoanId = Long.valueOf(raw.trim());
+        } catch (NumberFormatException ignored) {
+        }
         return ResponseEntity.ok(
                 hoaDonService.capNhatThongTinGiaoHang(
                         id,
@@ -230,7 +247,8 @@ public class HoaDonController {
                         body.get("diaChi"),
                         nhanVienId,
                         body.get("nguoiThucHien"),
-                        body.get("vaiTro")
+                        body.get("vaiTro"),
+                        taiKhoanId
                 )
         );
     }

@@ -42,4 +42,12 @@ public class LichSuHoaDon {
     /** Vai trò người thao tác: ADMIN, NHAN_VIEN, KHACH_HANG, HE_THONG */
     @Column(name = "vai_tro", length = 30)
     private String vaiTro;
+
+    /** ID tài khoản (tai_khoan.id) đã thao tác — dùng để truy vết chính xác */
+    @Column(name = "tai_khoan_id")
+    private Long taiKhoanId;
+
+    /** Tên đăng nhập của tài khoản thao tác (lưu snapshot, không đổi khi đổi tên sau này) */
+    @Column(name = "ten_dang_nhap", length = 100)
+    private String tenDangNhap;
 }

@@ -17,7 +17,7 @@ import {
     ThongTinGiaoHang,
     layThongTinKhach,
     trongKhoangNgay,
-} from "./HoaDonShared";
+} from "./HoaDonShared.jsx";
 const API = "http://localhost:8080/api";
 const adminDataCache = {
     hoaDons: null,
@@ -1025,6 +1025,7 @@ function HoaDonContent({ taiKhoan }) {
     const actor = {
         vaiTro: "ADMIN",
         nguoiThucHien: taiKhoan?.tenDangNhap || "Admin",
+        taiKhoanId: taiKhoan?.id || null,
     };
     const taiHoaDon = async (force = false) => {
         try {
@@ -1115,6 +1116,7 @@ function HoaDonContent({ taiKhoan }) {
             params.append("trangThai", trangThai);
             params.append("vaiTro", actor.vaiTro);
             params.append("nguoiThucHien", actor.nguoiThucHien);
+            if (actor.taiKhoanId) params.append("taiKhoanId", String(actor.taiKhoanId));
             const response = await fetch(`${API}/hoa-don/${selectedHoaDon.id}/trang-thai?${params.toString()}`, {
                 method: "PUT",
             });
@@ -1629,7 +1631,7 @@ function HoaDonContent({ taiKhoan }) {
         </div>)}
     </div>);
 }
-function ThanhToanContent() {
+function ThanhToanContent({ taiKhoan }) {
     const [hoaDons, setHoaDons] = useState([]);
     const [thanhToans, setThanhToans] = useState({});
     const [loading, setLoading] = useState(true);
@@ -1734,6 +1736,9 @@ function ThanhToanContent() {
             const params = new URLSearchParams();
             params.append("trangThai", "DA_THANH_TOAN");
             params.append("ghiChu", "Admin xác nhận đã thanh toán");
+            params.append("vaiTro", "ADMIN");
+            params.append("nguoiThucHien", taiKhoan?.tenDangNhap || "Admin");
+            if (taiKhoan?.id) params.append("taiKhoanId", String(taiKhoan.id));
             const invoiceResponse = await fetch(`${API}/hoa-don/${hoaDon.id}/trang-thai?${params.toString()}`, {
                 method: "PUT",
             });
@@ -4364,7 +4369,7 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
                 {activeMenu ===
                 "dashboard" ? (<DashboardContent onViewAll={() => setActiveMenu("hoa-don")}/>) : activeMenu === "ban-hang" ? (<BanHangTaiQuayContent />) : activeMenu ===
                 "hoa-don" ? (<HoaDonContent taiKhoan={taiKhoan} />) : activeMenu === "doi-tra" ? (<Returns mode="admin" />) : activeMenu ===
-                "thanh-toan" ? (<ThanhToanContent />) : activeMenu === "san-pham" ? (<AdminProducts />) : activeMenu === "danh-muc" ? (<AdminDanhMuc />) : activeMenu === "thuong-hieu" ? (<AdminThuongHieu />) : activeMenu === "kich-co" ? (<AdminKichCo />) : activeMenu === "mau-sac" ? (<AdminMauSac />) : activeMenu === "kho" ? (<AdminKho />) : activeMenu === "voucher" ? (<AdminVoucher />) : activeMenu === "khuyen-mai" ? (<AdminKhuyenMai />) : activeMenu ===
+                "thanh-toan" ? (<ThanhToanContent taiKhoan={taiKhoan} />) : activeMenu === "san-pham" ? (<AdminProducts />) : activeMenu === "danh-muc" ? (<AdminDanhMuc />) : activeMenu === "thuong-hieu" ? (<AdminThuongHieu />) : activeMenu === "kich-co" ? (<AdminKichCo />) : activeMenu === "mau-sac" ? (<AdminMauSac />) : activeMenu === "kho" ? (<AdminKho />) : activeMenu === "voucher" ? (<AdminVoucher />) : activeMenu === "khuyen-mai" ? (<AdminKhuyenMai />) : activeMenu ===
                 "khach-hang" ? (<CustomerContent />) : activeMenu ===
                 "nhan-vien" ? (<EmployeeContent />) : activeMenu ===
                 "cai-dat" ? (<AdminSettings />) : (<ComingSoon title={activeLabel}/>)}

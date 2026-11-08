@@ -165,7 +165,10 @@ export function tenNguoiThaoTac(item) {
     const vaiTro = String(item?.vaiTro || "").toUpperCase();
     const nhan = VAI_TRO_LABEL[vaiTro] || "";
     const ten = item?.nguoiThucHien || item?.nhanVien?.hoTen || "";
-    if (ten && nhan && vaiTro !== "HE_THONG") return `${ten} (${nhan})`;
+    const tenDangNhap = item?.tenDangNhap || "";
+    // Hiện thêm tên đăng nhập để biết chính xác tài khoản nào đã thao tác
+    const taiKhoan = tenDangNhap && tenDangNhap !== ten ? ` · @${tenDangNhap}` : "";
+    if (ten && nhan && vaiTro !== "HE_THONG") return `${ten} (${nhan})${taiKhoan}`;
     return ten || nhan || "Chưa ghi nhận người thao tác";
 }
 
@@ -253,6 +256,7 @@ export function ThongTinGiaoHang({ order, api, actor, onSaved }) {
                     soDienThoai: sdt,
                     diaChi,
                     nhanVienId: actor?.nhanVienId ? String(actor.nhanVienId) : "",
+                    taiKhoanId: actor?.taiKhoanId ? String(actor.taiKhoanId) : "",
                     nguoiThucHien: actor?.nguoiThucHien || "",
                     vaiTro: actor?.vaiTro || "",
                 }),

@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState} from "react";
 import "./EmployeeDashboard.css";
 import {EmployeeOverview, ProductsPage} from "./EmployeeOverviewProducts.jsx";
-import EmployeeCounterSale from "./EmployeeCounterSale";
+import EmployeeCounterSale from "./EmployeeCounterSale.jsx";
 import EmployeeCustomers from "./EmployeeCustomers";
 import EmployeeChat from "./EmployeeChat";
 import Returns from "./Returns";
@@ -12,7 +12,7 @@ import {
     ThongTinGiaoHang,
     layThongTinKhach,
     trongKhoangNgay,
-} from "./HoaDonShared";
+} from "./HoaDonShared.jsx";
 
 const API = "http://localhost:8080/api";
 const PAGINATION_PAGE_SIZE = 5;
@@ -671,6 +671,7 @@ export default function EmployeeDashboard({
     const actor = useMemo(
         () => ({
             nhanVienId: currentEmployee?.id || null,
+            taiKhoanId: taiKhoan?.id || null,
             nguoiThucHien: currentEmployee?.hoTen || taiKhoan?.tenDangNhap || "Nhân viên",
             vaiTro: "NHAN_VIEN",
         }),
@@ -685,6 +686,7 @@ export default function EmployeeDashboard({
                 nguoiThucHien: actor.nguoiThucHien,
             });
             if (actor.nhanVienId) params.set("nhanVienId", String(actor.nhanVienId));
+            if (actor.taiKhoanId) params.set("taiKhoanId", String(actor.taiKhoanId));
             const updated = await readJson(
                 `${API}/hoa-don/${order.id}/trang-thai?${params.toString()}`,
                 {method: "PUT"}
@@ -804,6 +806,7 @@ export default function EmployeeDashboard({
 
                             {activeMenu === "ban-hang" && (
                                 <EmployeeCounterSale
+                                    actor={actor}
                                     products={products}
                                     onRefresh={() => loadData(true)}
                                 />

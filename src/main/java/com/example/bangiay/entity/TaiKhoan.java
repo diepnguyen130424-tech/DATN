@@ -2,6 +2,7 @@ package com.example.bangiay.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;
 
@@ -19,6 +20,7 @@ public class TaiKhoan {
     @Column(name = "ten_dang_nhap", nullable = false, unique = true)
     private String tenDangNhap;
 
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(name = "mat_khau", nullable = false)
     private String matKhau;
 

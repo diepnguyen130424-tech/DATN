@@ -607,7 +607,7 @@ const ProductCard = memo(function ProductCard({product, stats, onSelect}) {
         </button>
     );
 });
-export default function EmployeeCounterSale({products = [], onRefresh}) {
+export default function EmployeeCounterSale({products = [], onRefresh, actor = null}) {
     const saved = useMemo(() => loadSavedOrders(), []);
 
     const [search, setSearch] = useState("");
@@ -936,6 +936,9 @@ export default function EmployeeCounterSale({products = [], onRefresh}) {
                 phuongThucThanhToan: paymentMethod,
                 tenKhach: tenKhach.trim() || null,
                 soDienThoaiKhach: soDienThoaiKhach.trim() || null,
+                // Người bán tại quầy → ghi vào hóa đơn & lịch sử
+                nhanVienId: actor?.nhanVienId || null,
+                taiKhoanId: actor?.taiKhoanId || null,
                 chiTiet: cart.map((item) => ({
                     sanPhamChiTietId: item.variant.id,
                     soLuong: item.quantity,

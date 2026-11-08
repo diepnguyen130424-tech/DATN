@@ -35,6 +35,7 @@ public class HoaDonService {
     private final KhachHangRepository khachHangRepository;
     private final KhachHangTaiQuayRepository khachHangTaiQuayRepository;
     private final NhanVienRepository nhanVienRepository;
+    private final TaiKhoanRepository taiKhoanRepository;
     private final ShippingService shippingService;
 
 
@@ -1049,6 +1050,16 @@ public class HoaDonService {
         );
 
 
+        // Nhân viên bán tại quầy (người lập hóa đơn)
+        NhanVien nhanVienBan = timNhanVienThaoTac(
+                request.getNhanVienId(),
+                request.getTaiKhoanId()
+        );
+        if (nhanVienBan != null) {
+            hoaDon.setNhanVien(nhanVienBan);
+        }
+
+
         hoaDon.setSoDienThoaiKhach(
                 soDienThoaiKhach
         );
@@ -1386,6 +1397,14 @@ public class HoaDonService {
 
         lichSu.setGhiChu(
                 "Tạo hóa đơn tại quầy"
+        );
+
+        ganNguoiThaoTac(
+                lichSu,
+                request.getNhanVienId(),
+                request.getTaiKhoanId(),
+                null,
+                null
         );
 
 
@@ -1734,7 +1753,8 @@ public class HoaDonService {
             String ghiChu,
             Long nhanVienId,
             String nguoiThucHien,
-            String vaiTro
+            String vaiTro,
+            Long taiKhoanId
     ) {
 
         HoaDon hoaDon =
@@ -1813,7 +1833,8 @@ public class HoaDonService {
                 ghiChu,
                 nhanVienId,
                 nguoiThucHien,
-                vaiTro
+                vaiTro,
+                taiKhoanId
         );
 
         return hoaDonDaLuu;
@@ -1830,7 +1851,8 @@ public class HoaDonService {
             String ghiChu,
             Long nhanVienId,
             String nguoiThucHien,
-            String vaiTro
+            String vaiTro,
+            Long taiKhoanId
     ) {
 
         LichSuHoaDon lichSu = new LichSuHoaDon();
@@ -1840,24 +1862,90 @@ public class HoaDonService {
         lichSu.setThoiGian(LocalDateTime.now());
         lichSu.setGhiChu(ghiChu);
 
-        if (nhanVienId != null) {
-            nhanVienRepository.findById(nhanVienId)
-                    .ifPresent(lichSu::setNhanVien);
-        }
-
-        if (nguoiThucHien != null && !nguoiThucHien.isBlank()) {
-            lichSu.setNguoiThucHien(nguoiThucHien.trim());
-        } else if (lichSu.getNhanVien() != null) {
-            lichSu.setNguoiThucHien(lichSu.getNhanVien().getHoTen());
-        }
-
-        if (vaiTro != null && !vaiTro.isBlank()) {
-            lichSu.setVaiTro(vaiTro.trim().toUpperCase());
-        } else if (lichSu.getNhanVien() != null) {
-            lichSu.setVaiTro("NHAN_VIEN");
-        }
+        ganNguoiThaoTac(lichSu, nhanVienId, taiKhoanId, nguoiThucHien, vaiTro);
 
         lichSuHoaDonRepository.save(lichSu);
+    }
+
+
+    /**
+     * Tìm nhân viên đang thao tác: ưu tiên nhanVienId, nếu không có thì
+     * suy ra từ tài khoản đăng nhập. Admin không có hồ sơ nhân viên → null.
+     */
+    private NhanVien timNhanVienThaoTac(Long nhanVienId, Long taiKhoanId) {
+        if (nhanVienId != null) {
+            NhanVien nv = nhanVienRepository.findById(nhanVienId).orElse(null);
+            if (nv != null) return nv;
+        }
+        if (taiKhoanId != null) {
+            return nhanVienRepository.findByTaiKhoan_Id(taiKhoanId).orElse(null);
+        }
+        return null;
+    }
+
+
+    /**
+     * Ghi người thao tác vào 1 dòng lịch sử.
+     * Thông tin lấy từ DB theo tài khoản (không tin tên do giao diện gửi lên);
+     * chỉ khi không tra được tài khoản mới dùng tên/vai trò giao diện gửi.
+     */
+    private void ganNguoiThaoTac(
+            LichSuHoaDon lichSu,
+            Long nhanVienId,
+            Long taiKhoanId,
+            String nguoiThucHien,
+            String vaiTro
+    ) {
+        NhanVien nv = timNhanVienThaoTac(nhanVienId, taiKhoanId);
+        TaiKhoan tk = null;
+
+        if (taiKhoanId != null) {
+            tk = taiKhoanRepository.findById(taiKhoanId).orElse(null);
+        }
+        if (tk == null && nv != null) {
+            tk = nv.getTaiKhoan();
+        }
+
+        if (nv != null) {
+            lichSu.setNhanVien(nv);
+        }
+
+        // Tên hiển thị
+        if (nv != null) {
+            lichSu.setNguoiThucHien(nv.getHoTen());
+        } else if (tk != null) {
+            lichSu.setNguoiThucHien(tk.getTenDangNhap());
+        } else if (nguoiThucHien != null && !nguoiThucHien.isBlank()) {
+            lichSu.setNguoiThucHien(nguoiThucHien.trim());
+        }
+
+        // Tài khoản
+        if (tk != null) {
+            lichSu.setTaiKhoanId(tk.getId());
+            lichSu.setTenDangNhap(tk.getTenDangNhap());
+        }
+
+        // Vai trò
+        String vt = null;
+        if (tk != null && tk.getVaiTro() != null) {
+            String goc = tk.getVaiTro().trim().toUpperCase();
+            if (goc.equals("QUAN_TRI") || goc.equals("ADMIN")) {
+                vt = "ADMIN";
+            } else if (goc.startsWith("NHAN_VIEN") || goc.startsWith("NHÂN_VIÊN")) {
+                vt = "NHAN_VIEN";
+            } else if (goc.equals("KHACH_HANG")) {
+                vt = "KHACH_HANG";
+            }
+        }
+        if (vt == null && vaiTro != null && !vaiTro.isBlank()) {
+            vt = vaiTro.trim().toUpperCase();
+        }
+        if (vt == null && nv != null) {
+            vt = "NHAN_VIEN";
+        }
+        if (vt != null) {
+            lichSu.setVaiTro(vt);
+        }
     }
 
 
@@ -1873,7 +1961,8 @@ public class HoaDonService {
             String diaChiMoi,
             Long nhanVienId,
             String nguoiThucHien,
-            String vaiTro
+            String vaiTro,
+            Long taiKhoanId
     ) {
 
         HoaDon hoaDon = hoaDonRepository.findById(id)
@@ -1954,7 +2043,8 @@ public class HoaDonService {
                 "Sửa thông tin giao hàng — " + thayDoi.toString().trim(),
                 nhanVienId,
                 nguoiThucHien,
-                vaiTro
+                vaiTro,
+                taiKhoanId
         );
 
         return daLuu;
