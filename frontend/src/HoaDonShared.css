@@ -202,3 +202,93 @@
 @media (max-width: 640px) {
     .hd-info, .hd-form { grid-template-columns: 1fr; }
 }
+
+/* =========================================================
+   Khung trang Hóa đơn (dùng chung Admin + Nhân viên)
+   ========================================================= */
+.hd-page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.hd-page-head h1 { margin: 2px 0 0; font-size: 24px; }
+.hd-eyebrow {
+    color: #e53935;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+}
+.hd-card {
+    background: #fff;
+    border: 1px solid #e5e8ec;
+    border-radius: 13px;
+    box-shadow: 0 3px 15px rgba(16, 24, 40, 0.035);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+.hd-empty { padding: 40px; text-align: center; color: #777; }
+
+/* Bảng kiểu admin (header hồng, chữ hoa nhỏ) */
+.hd-staff .hd-table th,
+.hd-modal .hd-table th {
+    background: #fff1f1;
+    color: #78818c;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+.hd-staff .hd-table td,
+.hd-modal .hd-table td {
+    border-bottom: 1px solid #eef0f2;
+    color: #4d5661;
+}
+.hd-staff .hd-table tbody tr:last-child td,
+.hd-modal .hd-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Modal chi tiết hóa đơn */
+.hd-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 18, 25, .58);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.hd-modal {
+    width: min(900px, 100%);
+    max-height: 92vh;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, .8);
+    border-radius: 16px;
+    padding: 18px 22px;
+    box-shadow: 0 28px 90px rgba(15, 23, 42, .28);
+    position: relative;
+}
+.hd-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.hd-modal-eyebrow {
+    color: #8791a2;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+}
+.hd-modal-head h2 { margin: 2px 0 0; color: #111827; font-size: 20px; font-weight: 800; }
+.hd-modal-close { width: 34px; padding: 0 !important; font-size: 20px; line-height: 1; }
+.hd-info-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: 640px) {
+    .hd-info-4 { grid-template-columns: 1fr; }
+}

@@ -235,54 +235,54 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                             pageItems.map((order) => {
                                 const kh = layThongTinKhach(order);
                                 return (
-                                <tr key={order.id}>
-                                    <td className="hd-code">{order.maHoaDon}</td>
-                                    <td className="hd-cell-customer">
-                                        {kh.ten}{kh.id ? <span style={{color: "#98a2b3"}}> #{kh.id}</span> : null}
-                                        {kh.sdt && <small>{kh.sdt}</small>}
-                                    </td>
-                                    <td className="hd-nowrap"><strong>{formatMoney(order.tongThanhToan)}</strong></td>
-                                    <td className="hd-nowrap">{order.thanhToan?.trangThai === "DA_THANH_TOAN" ? "Đã thanh toán" : "Chờ thanh toán"}</td>
-                                    <td><StatusBadge value={order.trangThai}/></td>
-                                    <td className="hd-nowrap">{formatDate(order.ngayLap)}</td>
-                                    <td className="employee-actions">
-                                        <button type="button" onClick={() => onOpenDetail(order)}>Xem</button>
-                                        {order.trangThai === "CHO_XAC_NHAN" && (
-                                            <button type="button" className="primary"
-                                                    onClick={() => onUpdateOrder(order, "DA_XAC_NHAN")}>
-                                                Xác nhận
-                                            </button>
-                                        )}
-                                        {order.trangThai === "CHO_XAC_NHAN" && (
-                                            <button type="button"
-                                                    onClick={() => {
-                                                        if (window.confirm("Hủy đơn này? Sau khi hủy sẽ không thể khôi phục.")) {
-                                                            onUpdateOrder(order, "DA_HUY");
-                                                        }
-                                                    }}>
-                                                Hủy
-                                            </button>
-                                        )}
-                                        {order.trangThai === "DA_XAC_NHAN" && (
-                                            <button type="button" className="primary"
-                                                    onClick={() => onUpdateOrder(order, "DANG_CHUAN_BI")}>
-                                                Chuẩn bị
-                                            </button>
-                                        )}
-                                        {order.trangThai === "DANG_CHUAN_BI" && (
-                                            <button type="button" className="primary"
-                                                    onClick={() => onUpdateOrder(order, "DANG_GIAO")}>
-                                                Giao hàng
-                                            </button>
-                                        )}
-                                        {order.trangThai === "DANG_GIAO" && (
-                                            <button type="button" className="primary"
-                                                    onClick={() => onUpdateOrder(order, "DA_GIAO")}>
-                                                Đã giao
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
+                                    <tr key={order.id}>
+                                        <td className="hd-code">{order.maHoaDon}</td>
+                                        <td className="hd-cell-customer">
+                                            {kh.ten}{kh.id ? <span style={{color: "#98a2b3"}}> #{kh.id}</span> : null}
+                                            {kh.sdt && <small>{kh.sdt}</small>}
+                                        </td>
+                                        <td className="hd-nowrap"><strong>{formatMoney(order.tongThanhToan)}</strong></td>
+                                        <td className="hd-nowrap">{order.thanhToan?.trangThai === "DA_THANH_TOAN" ? "Đã thanh toán" : "Chờ thanh toán"}</td>
+                                        <td><StatusBadge value={order.trangThai}/></td>
+                                        <td className="hd-nowrap">{formatDate(order.ngayLap)}</td>
+                                        <td className="employee-actions">
+                                            <button type="button" onClick={() => onOpenDetail(order)}>Xem</button>
+                                            {order.trangThai === "CHO_XAC_NHAN" && (
+                                                <button type="button" className="primary"
+                                                        onClick={() => onUpdateOrder(order, "DA_XAC_NHAN")}>
+                                                    Xác nhận
+                                                </button>
+                                            )}
+                                            {order.trangThai === "CHO_XAC_NHAN" && (
+                                                <button type="button"
+                                                        onClick={() => {
+                                                            if (window.confirm("Hủy đơn này? Sau khi hủy sẽ không thể khôi phục.")) {
+                                                                onUpdateOrder(order, "DA_HUY");
+                                                            }
+                                                        }}>
+                                                    Hủy
+                                                </button>
+                                            )}
+                                            {order.trangThai === "DA_XAC_NHAN" && (
+                                                <button type="button" className="primary"
+                                                        onClick={() => onUpdateOrder(order, "DANG_CHUAN_BI")}>
+                                                    Chuẩn bị
+                                                </button>
+                                            )}
+                                            {order.trangThai === "DANG_CHUAN_BI" && (
+                                                <button type="button" className="primary"
+                                                        onClick={() => onUpdateOrder(order, "DANG_GIAO")}>
+                                                    Giao hàng
+                                                </button>
+                                            )}
+                                            {order.trangThai === "DANG_GIAO" && (
+                                                <button type="button" className="primary"
+                                                        onClick={() => onUpdateOrder(order, "DA_GIAO")}>
+                                                    Đã giao
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
                                 );
                             })
                         ) : (
@@ -299,15 +299,56 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
     );
 }
 
-function HoaDonPage({orders, onOpenDetail}) {
+const HD_PAGE_SIZE = 10;
+
+const HD_BADGE_STYLE = {
+    CHO_XAC_NHAN: {background: "#fff3e0", color: "#ef6c00"},
+    DA_XAC_NHAN: {background: "#e8f5e9", color: "#2e7d32"},
+    DANG_CHUAN_BI: {background: "#ffebee", color: "#e53935"},
+    DANG_GIAO: {background: "#f3e5f5", color: "#7e57c2"},
+    DA_GIAO: {background: "#e8f5e9", color: "#2e9d5b"},
+    DA_THANH_TOAN: {background: "#e8f5e9", color: "#2e7d32"},
+    DA_HUY: {background: "#ffebee", color: "#c62828"},
+};
+
+const HD_LOAI_LABEL = {ONLINE: "Online", TAI_QUAY: "Tại quầy"};
+
+const HD_PHUONG_THUC_LABEL = {
+    COD: "Thanh toán khi nhận hàng",
+    TIEN_MAT: "Tiền mặt",
+    CHUYEN_KHOAN: "Chuyển khoản",
+    VNPAY: "VNPay",
+    MOMO: "MoMo",
+};
+
+const HD_TT_THANH_TOAN_LABEL = {
+    CHO_THANH_TOAN: "Chờ thanh toán",
+    DA_THANH_TOAN: "Đã thanh toán",
+    THAT_BAI: "Thanh toán thất bại",
+};
+
+function HdBadge({value, style}) {
+    return (
+        <span
+            className="hd-badge"
+            style={{
+                ...(HD_BADGE_STYLE[value] || {background: "#f5f5f5", color: "#666"}),
+                ...style,
+            }}
+        >
+            {STATUS_LABEL[value] || value || "-"}
+        </span>
+    );
+}
+
+function HoaDonPage({orders, onOpenDetail, onRefresh, refreshing}) {
     const [search, setSearch] = useState("");
-    const [filterLoai, setFilterLoai] = useState("Tất cả");
+    const [filterLoai, setFilterLoai] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("");
     const [khoang, setKhoang] = useState({from: "", to: ""});
     const [page, setPage] = useState(1);
     const filtered = orders.filter((item) => {
-        if (filterLoai === "Tại quầy" && item.loaiHoaDon !== "TAI_QUAY") return false;
-        if (filterLoai === "Online" && item.loaiHoaDon !== "ONLINE") return false;
+        if (filterLoai && item.loaiHoaDon !== filterLoai) return false;
         if (filterTrangThai && item.trangThai !== filterTrangThai) return false;
         if (!trongKhoangNgay(item.ngayLap, khoang.from, khoang.to)) return false;
         const keyword = search.trim().toLowerCase();
@@ -320,90 +361,40 @@ function HoaDonPage({orders, onOpenDetail}) {
             kh.sdt.toLowerCase().includes(keyword)
         );
     });
-    const tongSo = orders.length;
-    const soTaiQuay = orders.filter(
-        (item) => item.loaiHoaDon === "TAI_QUAY"
-    ).length;
-    const soOnline = orders.filter(
-        (item) => item.loaiHoaDon === "ONLINE"
-    ).length;
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGINATION_PAGE_SIZE));
-    const safePage = Math.min(page, totalPages);
-    const pageItems = filtered.slice(
-        (safePage - 1) * PAGINATION_PAGE_SIZE,
-        safePage * PAGINATION_PAGE_SIZE
+    const tongTien = filtered.reduce(
+        (sum, item) => (item.trangThai === "DA_HUY" ? sum : sum + Number(item.tongThanhToan || 0)),
+        0
     );
+    const totalPages = Math.max(1, Math.ceil(filtered.length / HD_PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const pageItems = filtered.slice((safePage - 1) * HD_PAGE_SIZE, safePage * HD_PAGE_SIZE);
     useEffect(() => {
         setPage(1);
     }, [search, filterLoai, filterTrangThai, khoang.from, khoang.to]);
     useEffect(() => {
         setPage((current) => Math.min(current, totalPages));
     }, [totalPages]);
-    const getLoaiTabStyle = (label) => {
-        const active = filterLoai === label;
-        if (label === "Tất cả") {
-            return {
-                background: active ? "#c95f4f" : "#fff7f4",
-                color: active ? "#fff" : "#c95f4f",
-                border: "1px solid #e7b0a7",
-            };
-        }
-        if (label === "Tại quầy") {
-            return {
-                background: active ? "#f2a04a" : "#fff8ed",
-                color: active ? "#fff" : "#b56a00",
-                border: "1px solid #f1c98f",
-            };
-        }
-        return {
-            background: active ? "#5da56f" : "#f1f9f3",
-            color: active ? "#fff" : "#2f7f46",
-            border: "1px solid #cde6d2",
-        };
-    };
     return (
-        <div className="employee-content">
-            <PageHeading
-                title="Hóa đơn"
-                description="Tra cứu hóa đơn online và tại quầy."
-            />
-            <section className="employee-card">
-                <div className="employee-order-tabs">
-                    {[
-                        ["Tất cả", tongSo],
-                        ["Tại quầy", soTaiQuay],
-                        ["Online", soOnline],
-                    ].map(([label, count]) => (
-                        <button
-                            key={label}
-                            type="button"
-                            className={`order-status-tab ${
-                                filterLoai === label ? "active" : ""
-                            }`}
-                            onClick={() => setFilterLoai(label)}
-                            style={{
-                                ...getLoaiTabStyle(label),
-                                fontWeight: filterLoai === label ? 700 : 600,
-                                transition: "all 0.2s ease",
-                            }}
-                        >
-                            {label}
-                            <span
-                                style={{
-                                    color: filterLoai === label ? "inherit" : "#888",
-                                }}
-                            >
-                                {count}
-                            </span>
-                        </button>
-                    ))}
+        <div className="employee-content hd-staff">
+            <div className="hd-page-head">
+                <div>
+                    <div className="hd-eyebrow">FSHOP NHÂN VIÊN</div>
+                    <h1>Hóa đơn</h1>
                 </div>
+                {onRefresh && (
+                    <button type="button" className="hd-btn ghost" onClick={onRefresh} disabled={refreshing}>
+                        {refreshing ? "Đang tải..." : "↻ Làm mới"}
+                    </button>
+                )}
+            </div>
+
+            <section className="hd-card hd-card-filter">
                 <div className="hd-toolbar">
                     <input
                         className="hd-search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="⌕ Tìm mã hóa đơn, tên, SĐT, ID khách..."
+                        placeholder="Tìm mã hóa đơn, tên, SĐT, ID khách..."
                     />
                     <select value={filterTrangThai} onChange={(e) => setFilterTrangThai(e.target.value)}>
                         <option value="">Tất cả trạng thái</option>
@@ -411,72 +402,74 @@ function HoaDonPage({orders, onOpenDetail}) {
                             <option key={value} value={value}>{label}</option>
                         ))}
                     </select>
+                    <select value={filterLoai} onChange={(e) => setFilterLoai(e.target.value)}>
+                        <option value="">Tất cả loại</option>
+                        <option value="ONLINE">Online</option>
+                        <option value="TAI_QUAY">Tại quầy</option>
+                    </select>
+                </div>
+                <div className="hd-toolbar" style={{marginBottom: 0}}>
                     <DateRangeFilter from={khoang.from} to={khoang.to} onChange={setKhoang}/>
                 </div>
-                <p className="hd-summary"><strong>{filtered.length}</strong> hóa đơn</p>
-                <div className="employee-table-wrapper">
-                    <table className="employee-table hd-table">
-                        <thead>
-                        <tr>
-                            <th>Mã hóa đơn</th>
-                            <th>Khách hàng</th>
-                            <th>Loại</th>
-                            <th>Tổng tiền</th>
-                            <th>Trạng thái</th>
-                            <th>Ngày lập</th>
-                            <th></th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {filtered.length > 0 ? (
-                            pageItems.map((item) => {
+            </section>
+
+            <section className="hd-card">
+                <p className="hd-summary">
+                    <strong>{filtered.length}</strong> hóa đơn
+                    {" · "}tổng giá trị (không tính đơn hủy): <strong>{formatMoney(tongTien)}</strong>
+                </p>
+                {filtered.length === 0 ? (
+                    <div className="hd-empty">Không có hóa đơn phù hợp.</div>
+                ) : (
+                    <div style={{overflowX: "auto"}}>
+                        <table className="hd-table">
+                            <thead>
+                            <tr>
+                                <th>Mã hóa đơn</th>
+                                <th>Khách hàng</th>
+                                <th>Ngày lập</th>
+                                <th>Loại</th>
+                                <th>Tổng tiền</th>
+                                <th>Trạng thái</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {pageItems.map((item) => {
                                 const kh = layThongTinKhach(item);
                                 return (
-                                <tr key={item.id}>
-                                    <td className="hd-code">
-                                        {item?.maHoaDon || `HD${item?.id || ""}`}
-                                    </td>
-                                    <td className="hd-cell-customer">
-                                        {kh.ten}{kh.id ? <span style={{color: "#98a2b3"}}> #{kh.id}</span> : null}
-                                        {kh.sdt && <small>{kh.sdt}</small>}
-                                    </td>
-                                    <td className="hd-nowrap">
-                                        <span className="employee-type">
-                                            {item?.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}
-                                        </span>
-                                    </td>
-                                    <td className="hd-nowrap">
-                                        <strong>{formatMoney(item?.tongThanhToan || 0)}</strong>
-                                    </td>
-                                    <td>
-                                        <StatusBadge value={item?.trangThai}/>
-                                    </td>
-                                    <td className="hd-nowrap">
-                                        {formatDate(item?.ngayLap)}
-                                    </td>
-                                    <td>
-                                        <button
-                                            className="table-view"
-                                            type="button"
-                                            onClick={() => onOpenDetail(item)}
-                                        >
-                                            Chi tiết
-                                        </button>
-                                    </td>
-                                </tr>
+                                    <tr key={item.id}>
+                                        <td className="hd-code">{item?.maHoaDon || `HD${item?.id || ""}`}</td>
+                                        <td className="hd-cell-customer">
+                                            {kh.ten}
+                                            {kh.id ? <span style={{color: "#98a2b3"}}> #{kh.id}</span> : null}
+                                            {kh.sdt && <small>{kh.sdt}</small>}
+                                        </td>
+                                        <td className="hd-nowrap">{formatDate(item?.ngayLap)}</td>
+                                        <td className="hd-nowrap">
+                                            {HD_LOAI_LABEL[item?.loaiHoaDon] || item?.loaiHoaDon || "-"}
+                                        </td>
+                                        <td className="hd-nowrap">
+                                            <strong>{formatMoney(item?.tongThanhToan || 0)}</strong>
+                                        </td>
+                                        <td><HdBadge value={item?.trangThai}/></td>
+                                        <td style={{textAlign: "right"}}>
+                                            <button
+                                                type="button"
+                                                className="hd-btn ghost"
+                                                onClick={() => onOpenDetail(item)}
+                                            >
+                                                Xem
+                                            </button>
+                                        </td>
+                                    </tr>
                                 );
-                            })
-                        ) : (
-                            <tr>
-                                <td colSpan="7" className="employee-empty">
-                                    Không có hóa đơn phù hợp.
-                                </td>
-                            </tr>
-                        )}
-                        </tbody>
-                    </table>
-                    <CompactPager page={safePage} totalPages={totalPages} onPageChange={setPage}/>
-                </div>
+                            })}
+                            </tbody>
+                        </table>
+                        <CompactPager page={safePage} totalPages={totalPages} onPageChange={setPage}/>
+                    </div>
+                )}
             </section>
         </div>
     );
@@ -517,26 +510,37 @@ function OrderDetailModal({order, actor, onClose, onOrderChanged}) {
     if (!order) return null;
     const kh = layThongTinKhach(order);
     return (
-        <div className="employee-modal-backdrop" onClick={onClose}>
-            <div className="employee-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="employee-modal-head">
+        <div className="hd-modal-backdrop" onClick={onClose}>
+            <div className="hd-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="hd-modal-head">
                     <div>
-                        <span className="employee-eyebrow">CHI TIẾT ĐƠN</span>
-                        <h2>{order.maHoaDon}</h2>
+                        <div className="hd-modal-eyebrow">CHI TIẾT HÓA ĐƠN</div>
+                        <h2>
+                            {order.maHoaDon}
+                            <HdBadge
+                                value={order.trangThai}
+                                style={{marginLeft: 10, fontSize: 12, verticalAlign: "middle"}}
+                            />
+                        </h2>
                     </div>
-                    <button type="button" onClick={onClose}>×</button>
+                    <button
+                        type="button"
+                        aria-label="Đóng chi tiết hóa đơn"
+                        title="Đóng"
+                        onClick={onClose}
+                        className="hd-btn ghost hd-modal-close"
+                    >
+                        ×
+                    </button>
                 </div>
-                <div className="order-detail-grid">
-                    <div>
-                        <span>Khách hàng</span><strong>{kh.ten}</strong>
-                    </div>
-                    <div>
-                        <span>Số điện thoại</span><strong>{kh.sdt || "-"}</strong>
-                    </div>
-                    <div><span>Loại đơn</span><strong>{order.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}</strong>
-                    </div>
-                    <div><span>Trạng thái</span><StatusBadge value={order.trangThai}/></div>
+
+                <div className="hd-info hd-info-4" style={{marginBottom: 16}}>
+                    <div><span>Khách hàng</span><strong>{kh.ten}</strong></div>
+                    <div><span>Ngày lập</span><strong>{formatDate(order.ngayLap)}</strong></div>
+                    <div><span>Loại</span><strong>{HD_LOAI_LABEL[order.loaiHoaDon] || order.loaiHoaDon || "-"}</strong></div>
+                    <div><span>Tổng tiền</span><strong style={{color: "#e53935"}}>{formatMoney(order.tongThanhToan)}</strong></div>
                 </div>
+
                 <ThongTinGiaoHang
                     order={order}
                     api={API}
@@ -546,38 +550,74 @@ function OrderDetailModal({order, actor, onClose, onOrderChanged}) {
                         loadHistory();
                     }}
                 />
-                <h3>Sản phẩm</h3>
-                {loading ? (
-                    <div className="employee-empty">Đang tải chi tiết...</div>
-                ) : (
-                    <div className="employee-detail-list">
-                        {detail.map((item) => (
-                            <div key={item.id} className="employee-detail-item">
-                                <div>
-                                    <strong>
-                                        {item.sanPhamChiTiet?.sanPham?.tenSanPham ||
-                                            item.sanPham?.tenSanPham ||
-                                            "Sản phẩm"}
-                                    </strong>
-                                    <small>
-                                        SKU: {item.sanPhamChiTiet?.maSku || "-"} · SL: {item.soLuong}
-                                    </small>
-                                </div>
-                                <strong>{formatMoney(item.thanhTien || Number(item.donGia || 0) * Number(item.soLuong || 0))}</strong>
-                            </div>
-                        ))}
-                    </div>
-                )}
-                <div className="order-detail-total">
-                    <span>Thanh toán</span>
-                    <strong>{formatMoney(payment?.soTien || order.tongThanhToan)}</strong>
-                </div>
-                <h3>Lịch sử đơn</h3>
-                <LichSuHoaDonList
-                    items={history}
-                    tenTrangThai={(value) => STATUS_LABEL[value] || value || "-"}
-                    formatNgay={formatDate}
-                />
+
+                <section className="hd-section">
+                    <div className="hd-section-head"><h3>Chi tiết sản phẩm</h3></div>
+                    {loading ? (
+                        <div className="hd-muted">Đang tải...</div>
+                    ) : detail.length === 0 ? (
+                        <div className="hd-muted">Không có sản phẩm.</div>
+                    ) : (
+                        <div style={{overflowX: "auto"}}>
+                            <table className="hd-table">
+                                <thead>
+                                <tr>
+                                    <th>Sản phẩm</th>
+                                    <th>SKU</th>
+                                    <th>SL</th>
+                                    <th>Đơn giá</th>
+                                    <th>Thành tiền</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {detail.map((item) => (
+                                    <tr key={item.id}>
+                                        <td>
+                                            {item.sanPhamChiTiet?.sanPham?.tenSanPham ||
+                                                item.sanPham?.tenSanPham ||
+                                                "Sản phẩm"}
+                                        </td>
+                                        <td>{item.sanPhamChiTiet?.maSku || "-"}</td>
+                                        <td>{item.soLuong}</td>
+                                        <td className="hd-nowrap">{formatMoney(item.donGia)}</td>
+                                        <td className="hd-nowrap">
+                                            <strong>
+                                                {formatMoney(
+                                                    item.thanhTien ||
+                                                    Number(item.donGia || 0) * Number(item.soLuong || 0)
+                                                )}
+                                            </strong>
+                                        </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
+
+                <section className="hd-section">
+                    <div className="hd-section-head"><h3>Thanh toán</h3></div>
+                    {payment ? (
+                        <div className="hd-info hd-info-4">
+                            <div><span>Phương thức</span><strong>{HD_PHUONG_THUC_LABEL[payment.phuongThuc] || payment.phuongThuc || "-"}</strong></div>
+                            <div><span>Số tiền</span><strong>{formatMoney(payment.soTien)}</strong></div>
+                            <div><span>Trạng thái</span><strong>{HD_TT_THANH_TOAN_LABEL[payment.trangThai] || payment.trangThai || "-"}</strong></div>
+                            <div><span>Ngày thanh toán</span><strong>{formatDate(payment.ngayThanhToan)}</strong></div>
+                        </div>
+                    ) : (
+                        <div className="hd-muted">Chưa có thông tin thanh toán.</div>
+                    )}
+                </section>
+
+                <section className="hd-section" style={{marginBottom: 0}}>
+                    <div className="hd-section-head"><h3>Lịch sử hóa đơn</h3></div>
+                    <LichSuHoaDonList
+                        items={history}
+                        tenTrangThai={(value) => STATUS_LABEL[value] || value || "-"}
+                        formatNgay={formatDate}
+                    />
+                </section>
             </div>
         </div>
     );
@@ -824,6 +864,8 @@ export default function EmployeeDashboard({
                                 <HoaDonPage
                                     orders={orders}
                                     onOpenDetail={setSelectedOrder}
+                                    onRefresh={() => loadData()}
+                                    refreshing={loading}
                                 />
                             )}
 
