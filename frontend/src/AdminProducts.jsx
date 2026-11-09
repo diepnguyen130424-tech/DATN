@@ -26,6 +26,8 @@ function AdminProducts() {
     const [colors, setColors] = useState([]);
     const [warehouses, setWarehouses] = useState([]);
     const [variantDrafts, setVariantDrafts] = useState([]);
+    const [quickPrice, setQuickPrice] = useState("");
+    const [quickQuantity, setQuickQuantity] = useState("");
 
     const [keyword, setKeyword] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("");
@@ -200,11 +202,15 @@ function AdminProducts() {
         setEditingId(null);
         setForm(emptyForm);
         setVariantDrafts([emptyVariantDraft()]);
+        setQuickPrice("");
+        setQuickQuantity("");
         setShowModal(true);
     };
 
     const openEdit = async (product) => {
         setEditingId(product.id);
+        setQuickPrice("");
+        setQuickQuantity("");
         setForm({
             maSanPham: product.maSanPham || "",
             tenSanPham: product.tenSanPham || "",
@@ -244,6 +250,33 @@ function AdminProducts() {
     };
 
     const addVariantDraft = () => setVariantDrafts((current) => [...current, emptyVariantDraft()]);
+
+    // Giá chung áp dụng cho tất cả; số lượng chung chỉ áp dụng cho biến thể mới.
+    // Tồn kho của biến thể đã tồn tại cần được điều chỉnh tại mục Kho hàng.
+    const applyCommonValues = () => {
+        const hasPrice = quickPrice !== "";
+        const hasQuantity = quickQuantity !== "";
+
+        if (!hasPrice && !hasQuantity) {
+            alert("Vui lòng nhập Giá chung hoặc Số lượng chung trước khi áp dụng.");
+            return;
+        }
+        if (hasPrice && (!Number.isFinite(Number(quickPrice)) || Number(quickPrice) <= 0)) {
+            alert("Giá chung phải là số lớn hơn 0.");
+            return;
+        }
+        if (hasQuantity && (!Number.isInteger(Number(quickQuantity)) || Number(quickQuantity) < 0)) {
+            alert("Số lượng chung phải là số nguyên lớn hơn hoặc bằng 0.");
+            return;
+        }
+
+        setVariantDrafts((current) => current.map((row) => ({
+            ...row,
+            ...(hasPrice ? { giaBan: quickPrice } : {}),
+            ...(hasQuantity && !row.id ? { soLuongTon: quickQuantity } : {}),
+        })));
+    };
+
     const removeVariantDraft = (index) => setVariantDrafts((current) => current.filter((_, i) => i !== index));
 
     const taoMaSku = (maSanPham, sizeId, colorId) => {
@@ -317,7 +350,7 @@ function AdminProducts() {
             return;
         }
         if (validDrafts.some((row) => !row.id && (!Number.isInteger(Number(row.soLuongTon || 0)) || Number(row.soLuongTon || 0) < 0))) {
-            alert("Số lượng ban đầu phải là số nguyên lớn hơn hoặc bằng 0.");
+            alert("Số lượng phải là số nguyên lớn hơn hoặc bằng 0.");
             return;
         }
         const newStockTotal = validDrafts.filter((row) => !row.id)
@@ -1088,9 +1121,43 @@ function AdminProducts() {
                                 <div className="product-variant-editor-heading">
                                     <div>
                                         <h3>Biến thể sản phẩm</h3>
-                                        <p>Chọn size, màu sắc, giá bán và số lượng ban đầu cho từng biến thể.</p>
+                                        <p>Chọn size, màu sắc; có thể nhập nhanh giá và số lượng chung cho các biến thể.</p>
                                     </div>
                                     <button type="button" className="variant-add-button" onClick={addVariantDraft}>+ Thêm biến thể</button>
+                                </div>
+
+                                <div className="variant-quick-entry">
+                                    <div className="variant-quick-entry-title">
+                                        <strong>Nhập nhanh cho biến thể</strong>
+                                        <span>Giá áp dụng cho tất cả; số lượng áp dụng cho biến thể mới.</span>
+                                    </div>
+                                    <div className="variant-quick-entry-fields">
+                                        <label>
+                                            Giá chung (VNĐ)
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={quickPrice}
+                                                onChange={(event) => setQuickPrice(event.target.value)}
+                                                placeholder="Nhập giá chung"
+                                            />
+                                        </label>
+                                        <label>
+                                            Số lượng chung
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                value={quickQuantity}
+                                                onChange={(event) => setQuickQuantity(event.target.value)}
+                                                placeholder="Nhập số lượng chung"
+                                            />
+                                        </label>
+                                        <button type="button" onClick={applyCommonValues}>
+                                            Áp dụng
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {variantDrafts.map((row, index) => (
@@ -1123,9 +1190,9 @@ function AdminProducts() {
                                                 <input type="number" min="1" step="1" value={row.giaBan} onChange={(event) => updateVariantDraft(index, "giaBan", event.target.value)} placeholder="Nhập giá bán tùy ý (VNĐ)" />
                                             </label>
                                             <label>
-                                                Số lượng ban đầu
+                                                Số lượng
                                                 <input type="number" min="0" step="1" value={row.soLuongTon} disabled={Boolean(row.id)} onChange={(event) => updateVariantDraft(index, "soLuongTon", event.target.value)} placeholder="0" />
-                                                {row.id ? <small>Muốn tăng/giảm tồn hiện tại, thao tác trong mục Kho hàng.</small> : <small>Số lượng sẽ được ghi nhận bằng phiếu nhập kho.</small>}
+                                                {row.id ? <small>Điều chỉnh tồn kho hiện tại trong mục Kho hàng.</small> : <small>Số lượng sẽ được ghi nhận vào kho khi lưu.</small>}
                                             </label>
                                         </div>
                                         <div className="variant-draft-footer">

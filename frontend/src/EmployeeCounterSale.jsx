@@ -87,7 +87,195 @@ function methodLabel(method) {
 function InvoiceModal({invoice, onClose}) {
     if (!invoice) return null;
 
-    const handlePrint = () => window.print();
+    // In riêng hóa đơn bằng iframe để không bị CSS in của AdminDashboard.css
+    // (khổ giấy POS 80mm và visibility:hidden !important) làm trắng trang.
+    const handlePrint = () => {
+        const source = document.getElementById("invoice-print-area");
+        if (!source) {
+            window.alert("Không tìm thấy nội dung hóa đơn để in.");
+            return;
+        }
+
+        const iframe = document.createElement("iframe");
+        iframe.setAttribute("title", "In hóa đơn nhân viên");
+        iframe.style.position = "fixed";
+        iframe.style.right = "0";
+        iframe.style.bottom = "0";
+        iframe.style.width = "0";
+        iframe.style.height = "0";
+        iframe.style.border = "0";
+        iframe.style.visibility = "hidden";
+        document.body.appendChild(iframe);
+
+        const printDocument = iframe.contentDocument;
+        const printWindow = iframe.contentWindow;
+        if (!printDocument || !printWindow) {
+            iframe.remove();
+            window.alert("Trình duyệt không hỗ trợ cửa sổ in hóa đơn.");
+            return;
+        }
+
+        // Sao chép HTML và toàn bộ style đang hiển thị của từng phần tử,
+        // không đưa các CSS @media print toàn cục của trang chính vào iframe.
+        const copyWithComputedStyles = (node) => {
+            // Giữ nguyên cả text node (tên sản phẩm, giá tiền, tiêu đề...).
+            if (node.nodeType === Node.TEXT_NODE) return node.cloneNode(true);
+            if (node.nodeType !== Node.ELEMENT_NODE) return node.cloneNode(false);
+
+            const clone = node.cloneNode(false);
+            const computed = window.getComputedStyle(node);
+            for (let i = 0; i < computed.length; i += 1) {
+                const property = computed[i];
+                clone.style.setProperty(
+                    property,
+                    computed.getPropertyValue(property),
+                    computed.getPropertyPriority(property)
+                );
+            }
+            Array.from(node.childNodes).forEach((child) => {
+                clone.appendChild(copyWithComputedStyles(child));
+            });
+            return clone;
+        };
+
+        const invoiceClone = copyWithComputedStyles(source);
+        // Ép hóa đơn về đúng khổ cuộn 75mm của máy in tem/nhiệt.
+        // Bản sao computed style từ màn hình modal có chiều rộng lớn (720px),
+        // nên cần ghi đè để không bị cắt mất cột bên phải.
+        invoiceClone.style.setProperty("width", "100%", "important");
+        invoiceClone.style.setProperty("max-width", "100%", "important");
+        invoiceClone.style.setProperty("min-width", "0", "important");
+        invoiceClone.style.setProperty("box-sizing", "border-box", "important");
+        invoiceClone.style.setProperty("padding", "2mm", "important");
+        printDocument.open();
+        printDocument.write(`<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hóa đơn bán hàng</title>
+<style>
+    /* Khổ giấy cuộn 75mm: chừa lề 2mm mỗi bên, không dùng khổ A4 */
+    @page { size: 75mm 200mm; margin: 2mm; }
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        background: #fff;
+        overflow: visible !important;
+    }
+    body {
+        color: #111;
+        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+        font-size: 10px;
+    }
+    #invoice-print-area {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        padding: 2mm !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+        overflow: visible !important;
+    }
+    /* Header xếp dọc, tránh tràn chiều ngang trên giấy cuộn */
+    .invoice-header {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 8px !important;
+    }
+    .invoice-logo { gap: 7px !important; }
+    .invoice-logo-mark {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 18px !important;
+    }
+    .invoice-logo h1 { font-size: 16px !important; }
+    .invoice-logo p { font-size: 9px !important; overflow-wrap: anywhere; }
+    .invoice-title { width: 100% !important; text-align: left !important; }
+    .invoice-title h2 { font-size: 13px !important; }
+    .invoice-title span { font-size: 10px !important; }
+    .invoice-meta {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 5px !important;
+        padding: 7px 0 !important;
+        margin-bottom: 8px !important;
+    }
+    .invoice-meta > div {
+        display: flex !important;
+        justify-content: space-between !important;
+        gap: 5px !important;
+        font-size: 9px !important;
+        min-width: 0 !important;
+    }
+    .invoice-meta strong { overflow-wrap: anywhere; }
+    .invoice-table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        margin-bottom: 8px !important;
+    }
+    .invoice-table th,
+    .invoice-table td {
+        padding: 5px 2px !important;
+        font-size: 8px !important;
+        overflow-wrap: anywhere !important;
+        word-break: normal !important;
+    }
+    .invoice-table th { letter-spacing: 0 !important; }
+    .invoice-table th:nth-child(1),
+    .invoice-table td:nth-child(1) { width: 7% !important; }
+    .invoice-table th:nth-child(2),
+    .invoice-table td:nth-child(2) { width: 39% !important; }
+    .invoice-table th:nth-child(3),
+    .invoice-table td:nth-child(3) { width: 9% !important; text-align: center !important; }
+    .invoice-table th:nth-child(4),
+    .invoice-table td:nth-child(4) { width: 21% !important; }
+    .invoice-table th:nth-child(5),
+    .invoice-table td:nth-child(5) { width: 24% !important; }
+    .invoice-table td small { font-size: 7px !important; }
+    .invoice-total {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 0 10px auto !important;
+    }
+    .invoice-total > div { font-size: 9px !important; padding: 4px 0 !important; }
+    .invoice-total-final span { font-size: 9px !important; }
+    .invoice-total-final strong { font-size: 12px !important; }
+    .invoice-footer { padding-top: 8px !important; }
+    .invoice-footer p { font-size: 8px !important; overflow-wrap: anywhere; }
+    .invoice-footer strong { font-size: 10px !important; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+</style>
+</head>
+<body></body>
+</html>`);
+        printDocument.body.appendChild(invoiceClone);
+        printDocument.close();
+
+        const cleanup = () => {
+            if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        };
+        printWindow.addEventListener("afterprint", cleanup, { once: true });
+
+        // Đợi iframe dựng xong nội dung rồi mới mở hộp thoại in.
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                printWindow.focus();
+                printWindow.print();
+                // Một số trình duyệt không phát afterprint khi hộp thoại bị hủy.
+                window.setTimeout(cleanup, 60000);
+            });
+        });
+    };
     const subtotal = invoice.chiTiet.reduce((s, i) => s + Number(i.thanhTien || 0), 0);
 
     return (
