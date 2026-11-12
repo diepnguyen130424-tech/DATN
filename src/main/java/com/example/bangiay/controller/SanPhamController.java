@@ -4,10 +4,12 @@ import com.example.bangiay.entity.SanPham;
 import com.example.bangiay.entity.SanPhamChiTiet;
 import com.example.bangiay.service.SanPhamService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/san-pham")
@@ -49,12 +51,14 @@ public class SanPhamController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(
-            @PathVariable Long id
-    ) {
-        sanPhamService.delete(id);
-
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> delete(@PathVariable Long id) {
+        try {
+            sanPhamService.delete(id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalStateException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", ex.getMessage()));
+        }
     }
 
     @GetMapping("/{sanPhamId}/chi-tiet")

@@ -1,10 +1,18 @@
 import {useEffect, useMemo, useState} from "react";
 import "./EmployeeDashboard.css";
-import {EmployeeOverview, ProductsPage} from "./EmployeeOverviewProducts.jsx";
 import EmployeeCounterSale from "./EmployeeCounterSale.jsx";
-import EmployeeCustomers from "./EmployeeCustomers";
 import EmployeeChat from "./EmployeeChat";
 import Returns from "./Returns";
+import AdminProducts from "./AdminProducts";
+import AdminKho from "./AdminKho";
+import AdminVoucher from "./AdminVoucher";
+import AdminKhuyenMai from "./AdminKhuyenMai";
+import AdminDanhMuc from "./AdminDanhMuc";
+import AdminThuongHieu from "./AdminThuongHieu";
+import AdminKichCo from "./AdminKichCo";
+import AdminMauSac from "./AdminMauSac";
+import AdminSettings from "./AdminSettings";
+import { DashboardContent, ThanhToanContent, CustomerContent, EmployeeContent } from "./AdminDashboard";
 import {
     CompactPager,
     DateRangeFilter,
@@ -20,12 +28,21 @@ const PAGINATION_PAGE_SIZE = 5;
 const MENU = [
     {id: "dashboard", icon: "▦", label: "Tổng quan"},
     {id: "ban-hang", icon: "🛒", label: "Bán hàng tại quầy"},
+    {id: "san-pham", icon: "□", label: "Sản phẩm"},
+    {id: "kho", icon: "▣", label: "Kho hàng"},
+    {id: "danh-muc", icon: "▤", label: "Danh mục"},
+    {id: "thuong-hieu", icon: "◇", label: "Thương hiệu"},
+    {id: "kich-co", icon: "↔", label: "Kích cỡ"},
+    {id: "mau-sac", icon: "●", label: "Màu sắc"},
+    {id: "voucher", icon: "◇", label: "Voucher"},
+    {id: "khuyen-mai", icon: "✦", label: "Khuyến mãi"},
     {id: "don-online", icon: "▤", label: "Đơn online"},
     {id: "hoa-don", icon: "▧", label: "Hóa đơn"},
-    {id: "tra-hang", icon: "↩", label: "Trả hàng tại quầy"},
+    {id: "tra-hang", icon: "↩", label: "Đổi trả hàng"},
+    {id: "thanh-toan", icon: "▤", label: "Thanh toán"},
     {id: "khach-hang", icon: "◎", label: "Khách hàng"},
     {id: "phan-hoi", icon: "✉", label: "Phản hồi khách hàng"},
-    {id: "san-pham", icon: "□", label: "Sản phẩm"},
+    {id: "nhan-vien", icon: "♙", label: "Quản lý nhân viên"},
 ];
 
 const STATUS_LABEL = {
@@ -752,8 +769,9 @@ export default function EmployeeDashboard({
         setActiveMenu(menu);
     };
 
-    const activeLabel =
-        MENU.find((item) => item.id === activeMenu)?.label || "Tổng quan";
+    const activeLabel = activeMenu === "cai-dat"
+        ? "Cài đặt"
+        : MENU.find((item) => item.id === activeMenu)?.label || "Tổng quan";
 
     return (
         <div className="employee-layout">
@@ -833,14 +851,9 @@ export default function EmployeeDashboard({
                     ) : (
                         <>
                             {activeMenu === "dashboard" && (
-                                <EmployeeOverview
-                                    orders={orders}
-                                    products={products}
-                                    variants={variants}
-                                    onMenu={goTo}
-                                    onOpenDetail={setSelectedOrder}
-                                    onUpdateOrder={updateOrderStatus}
-                                    onRefresh={() => loadData(true)}
+                                <DashboardContent
+                                    eyebrow="FSHOP NHÂN VIÊN"
+                                    onViewAll={() => goTo("hoa-don")}
                                 />
                             )}
 
@@ -877,9 +890,7 @@ export default function EmployeeDashboard({
                                 />
                             )}
 
-                            {activeMenu === "khach-hang" && (
-                                <EmployeeCustomers customers={customers}/>
-                            )}
+                            {activeMenu === "khach-hang" && <CustomerContent />}
 
                             {activeMenu === "phan-hoi" && (
                                 <EmployeeChat
@@ -888,15 +899,17 @@ export default function EmployeeDashboard({
                                 />
                             )}
 
-                            {activeMenu === "san-pham" && (
-                                <ProductsPage
-                                    key={productPreset || "all"}
-                                    products={products}
-                                    variants={variants}
-                                    preset={productPreset}
-                                    onMenu={goTo}
-                                />
-                            )}
+                            {activeMenu === "san-pham" && <AdminProducts />}
+                            {activeMenu === "kho" && <AdminKho />}
+                            {activeMenu === "danh-muc" && <AdminDanhMuc />}
+                            {activeMenu === "thuong-hieu" && <AdminThuongHieu />}
+                            {activeMenu === "kich-co" && <AdminKichCo />}
+                            {activeMenu === "mau-sac" && <AdminMauSac />}
+                            {activeMenu === "voucher" && <AdminVoucher />}
+                            {activeMenu === "khuyen-mai" && <AdminKhuyenMai />}
+                            {activeMenu === "thanh-toan" && <ThanhToanContent taiKhoan={taiKhoan} />}
+                            {activeMenu === "nhan-vien" && <EmployeeContent />}
+                            {activeMenu === "cai-dat" && <AdminSettings /> }
                         </>
                     )}
                 </div>

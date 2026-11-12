@@ -1252,3 +1252,24 @@
         }
     }
 }
+
+/* Menu nhân viên mở rộng tương đương Admin: giữ sidebar cố định và cho phép cuộn danh mục. */
+.employee-sidebar {
+    overflow: hidden;
+}
+.employee-nav {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: #555 transparent;
+}
+.employee-sidebar-footer {
+    flex-shrink: 0;
+}
+.employee-sidebar-footer button.active {
+    background: #e05b49;
+    color: #fff;
+    font-weight: 700;
+}

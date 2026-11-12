@@ -121,6 +121,10 @@ function AdminProducts() {
     const filteredProducts = useMemo(() => {
         return products
             .filter((product) => {
+                // Sản phẩm đã xóa chỉ được ẩn khỏi danh sách quản lý,
+                // không xóa bản ghi để giữ nguyên lịch sử hóa đơn/kho.
+                if (product.trangThai === "DA_XOA") return false;
+
                 const text = keyword.trim().toLowerCase();
 
                 const matchKeyword =
@@ -467,7 +471,7 @@ function AdminProducts() {
 
     const handleDelete = async (id) => {
         const confirmDelete = window.confirm(
-            "Bạn có chắc muốn xóa sản phẩm này?"
+            "Bạn có chắc chắn muốn xóa sản phẩm này không?"
         );
 
         if (!confirmDelete) return;
@@ -481,12 +485,20 @@ function AdminProducts() {
             );
 
             if (!response.ok) {
-                throw new Error("Xóa sản phẩm thất bại");
+                let message = "Xóa sản phẩm thất bại.";
+                try {
+                    const result = await response.json();
+                    message = result.message || result.error || message;
+                } catch (_) {
+                    // Giữ thông báo mặc định nếu server không trả JSON.
+                }
+                throw new Error(message);
             }
 
             await loadData();
+            alert("Đã xóa sản phẩm khỏi danh sách. Lịch sử hóa đơn và kho vẫn được giữ nguyên.");
         } catch (err) {
-            alert(err.message || "Có lỗi xảy ra");
+            alert(err.message || "Có lỗi xảy ra khi xóa sản phẩm.");
         }
     };
 

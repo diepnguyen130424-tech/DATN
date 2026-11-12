@@ -56,11 +56,33 @@ public class SanPhamService {
         return sanPhamRepository.save(sanPham);
     }
 
+    /**
+     * Xóa mềm sản phẩm:
+     * - Không xóa bản ghi sản phẩm khỏi database.
+     * - Không xóa các biến thể để giữ liên kết với hóa đơn và lịch sử kho.
+     * - Chuyển trạng thái sản phẩm thành DA_XOA và biến thể thành INACTIVE.
+     */
     @Transactional
     public void delete(Long id) {
         SanPham sanPham = getById(id);
-        sanPham.setTrangThai("NGUNG_HOAT_DONG");
+
+        // Đánh dấu sản phẩm đã xóa, không xóa vật lý khỏi database.
+        sanPham.setTrangThai("DA_XOA");
         sanPhamRepository.save(sanPham);
+
+        // Ẩn các biến thể nhưng vẫn giữ bản ghi để bảo toàn dữ liệu lịch sử.
+        List<SanPhamChiTiet> variants =
+                sanPhamChiTietRepository.findBySanPham_Id(id);
+
+        LocalDateTime now = LocalDateTime.now();
+        for (SanPhamChiTiet variant : variants) {
+            variant.setTrangThai("INACTIVE");
+            variant.setNgayCapNhat(now);
+        }
+
+        if (!variants.isEmpty()) {
+            sanPhamChiTietRepository.saveAll(variants);
+        }
     }
 
     public List<SanPhamChiTiet> getAllChiTiet() {
@@ -131,7 +153,8 @@ public class SanPhamService {
                 ? sanPhamChiTietRepository.existsByMaSku(maSku)
                 : sanPhamChiTietRepository.existsByMaSkuAndIdNot(maSku, current.getId());
         if (trungSku) {
-            throw new IllegalArgumentException("Mã SKU đã tồn tại: " + maSku + ". Vui lòng kiểm tra lại mã sản phẩm, size và màu sắc.");
+            throw new IllegalArgumentException("Mã SKU đã tồn tại: " + maSku
+                    + ". Vui lòng kiểm tra lại mã sản phẩm, size và màu sắc.");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -141,6 +164,7 @@ public class SanPhamService {
         entity.setMauSac(mauSac);
         entity.setMaSku(maSku);
         entity.setGiaBan(giaBan);
+
         // Tồn kho chỉ thay đổi qua phiếu nhập/xuất trong module Kho hàng.
         if (current == null) {
             entity.setSoLuongTon(0);
@@ -149,6 +173,7 @@ public class SanPhamService {
             entity.setSoLuongTon(current.getSoLuongTon() == null ? 0 : current.getSoLuongTon());
             entity.setNgayTao(current.getNgayTao());
         }
+
         entity.setTrangThai(request.getTrangThai() == null || request.getTrangThai().isBlank()
                 ? (current == null ? "HOAT_DONG" : current.getTrangThai())
                 : request.getTrangThai());
@@ -158,16 +183,23 @@ public class SanPhamService {
     }
 
     private String taoMaSku(SanPham sanPham, KichCo kichCo, MauSac mauSac) {
-        return clean(sanPham.getMaSanPham()) + "-" + clean(kichCo.getTenKichCo()) + "-" + clean(mauSac.getTenMau());
+        return clean(sanPham.getMaSanPham()) + "-"
+                + clean(kichCo.getTenKichCo()) + "-"
+                + clean(mauSac.getTenMau());
     }
 
     private String clean(String value) {
-        String normalized = Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD)
+        String normalized = Normalizer.normalize(
+                        value == null ? "" : value,
+                        Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "")
-                .replace('đ', 'd').replace('Đ', 'D');
+                .replace('đ', 'd')
+                .replace('Đ', 'D');
+
         String result = normalized.replaceAll("[^a-zA-Z0-9]+", "-")
                 .replaceAll("^-|-$", "")
                 .toUpperCase(Locale.ROOT);
+
         return result.isBlank() ? "NA" : result;
     }
 
@@ -175,6 +207,7 @@ public class SanPhamService {
     public void deleteChiTiet(Long id) {
         SanPhamChiTiet spct = sanPhamChiTietRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm chi tiết"));
+
         spct.setTrangThai("INACTIVE");
         spct.setNgayCapNhat(LocalDateTime.now());
         sanPhamChiTietRepository.save(spct);

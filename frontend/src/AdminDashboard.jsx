@@ -369,7 +369,7 @@ function toDateInputValue(date) {
     return `${year}-${month}-${day}`;
 }
 
-function DashboardContent({ onViewAll }) {
+function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
     const [dashboardError, setDashboardError] = useState("");
     const [dateFrom, setDateFrom] = useState(() => {
         const now = new Date();
@@ -463,7 +463,7 @@ function DashboardContent({ onViewAll }) {
             <div className="admin-page-heading">
                 <div>
                     <div className="admin-eyebrow">
-                        FSHOP ADMIN
+                        {eyebrow}
                     </div>
 
                     <h1>Tổng quan</h1>
@@ -517,8 +517,6 @@ function DashboardContent({ onViewAll }) {
                         <option value="COD">COD</option>
                         <option value="TIEN_MAT">Tiền mặt</option>
                         <option value="CHUYEN_KHOAN">Chuyển khoản</option>
-                        <option value="VNPAY">VNPay</option>
-                        <option value="MOMO">MoMo</option>
                     </select>
                     <button type="button" onClick={() => {
                         setFilterStatus("");
@@ -707,10 +705,6 @@ function DashboardContent({ onViewAll }) {
                                 Trạng thái đơn hàng
                             </h2>
 
-                            <p>
-                                Số lượng thực tế từ
-                                database
-                            </p>
                         </div>
                     </div>
 
@@ -923,8 +917,8 @@ function DashboardContent({ onViewAll }) {
                 <section className="admin-card">
                     <div className="admin-card-heading">
                         <div>
-                            <h2>Sản phẩm chưa phát sinh bán</h2>
-                            <p>Các mẫu vẫn còn tồn kho nhưng chưa bán trong khoảng thời gian chọn</p>
+                            <h2>Sản phẩm bán chậm</h2>
+                            <p>Các mẫu vẫn còn tồn kho</p>
                         </div>
                     </div>
                     {loadingDashboardStats ? (
@@ -1620,7 +1614,7 @@ function HoaDonContent({ taiKhoan }) {
                             </div>}
                         </div>;
                     })()}
-                
+
                 </details>
 
                 <section className="hd-section" style={{ marginBottom: 0 }}>
@@ -4380,3 +4374,5 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
 
     </div>);
 }
+
+export { DashboardContent, ThanhToanContent, CustomerContent, EmployeeContent };
