@@ -3798,7 +3798,7 @@ function printAdminPosInvoice() {
     document.body.appendChild(iframe);
 }
 
-function BanHangTaiQuayContent() {
+export function BanHangTaiQuayContent() {
     // Tài khoản nhận tiền cố định của FShop; VietQR tự điền số tiền và nội dung theo đơn.
     const BANK_ID = "MB";
     const BANK_ACCOUNT_NO = "0867596002";

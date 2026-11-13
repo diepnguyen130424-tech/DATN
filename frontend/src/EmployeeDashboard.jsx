@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState} from "react";
 import "./EmployeeDashboard.css";
-import EmployeeCounterSale from "./EmployeeCounterSale.jsx";
 import EmployeeChat from "./EmployeeChat";
+import { BanHangTaiQuayContent } from "./AdminDashboard";
 import Returns from "./Returns";
 import AdminProducts from "./AdminProducts";
 import AdminKho from "./AdminKho";
@@ -24,7 +24,6 @@ import {
 
 const API = "http://localhost:8080/api";
 const PAGINATION_PAGE_SIZE = 5;
-
 const MENU = [
     {id: "dashboard", icon: "▦", label: "Tổng quan"},
     {id: "ban-hang", icon: "🛒", label: "Bán hàng tại quầy"},
@@ -32,17 +31,17 @@ const MENU = [
     {id: "kho", icon: "▣", label: "Kho hàng"},
     {id: "danh-muc", icon: "▤", label: "Danh mục"},
     {id: "thuong-hieu", icon: "◇", label: "Thương hiệu"},
-    {id: "kich-co", icon: "↔", label: "Kích cỡ"},
-    {id: "mau-sac", icon: "●", label: "Màu sắc"},
-    {id: "voucher", icon: "◇", label: "Voucher"},
-    {id: "khuyen-mai", icon: "✦", label: "Khuyến mãi"},
-    {id: "don-online", icon: "▤", label: "Đơn online"},
+    // {id: "kich-co", icon: "↔", label: "Kích cỡ"},
+    // {id: "mau-sac", icon: "●", label: "Màu sắc"},
+    // {id: "voucher", icon: "◇", label: "Voucher"},
+    // {id: "khuyen-mai", icon: "✦", label: "Khuyến mãi"},
+    // {id: "don-online", icon: "▤", label: "Đơn online"},
     {id: "hoa-don", icon: "▧", label: "Hóa đơn"},
     {id: "tra-hang", icon: "↩", label: "Đổi trả hàng"},
     {id: "thanh-toan", icon: "▤", label: "Thanh toán"},
     {id: "khach-hang", icon: "◎", label: "Khách hàng"},
     {id: "phan-hoi", icon: "✉", label: "Phản hồi khách hàng"},
-    {id: "nhan-vien", icon: "♙", label: "Quản lý nhân viên"},
+    // {id: "nhan-vien", icon: "♙", label: "Quản lý nhân viên"},
 ];
 
 const STATUS_LABEL = {
@@ -858,11 +857,7 @@ export default function EmployeeDashboard({
                             )}
 
                             {activeMenu === "ban-hang" && (
-                                <EmployeeCounterSale
-                                    actor={actor}
-                                    products={products}
-                                    onRefresh={() => loadData(true)}
-                                />
+                                <BanHangTaiQuayContent />
                             )}
 
                             {activeMenu === "don-online" && (
