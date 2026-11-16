@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_voucher_cache";
 const CACHE_TTL = 60 * 1000;
+const SAP_HET_HAN_NGAY = 3; // cảnh báo "sắp hết hạn" trước N ngày
 
 function formatSoTienInput(value) {
     if (!value) return "";
@@ -45,32 +46,76 @@ function formatDate(str) {
     }
 }
 
+function isKichHoat(v) {
+    return v.trangThai !== "NGUNG_HOAT_DONG";
+}
+
+/**
+ * Tính trạng thái hiển thị:
+ *  - NGUNG_SU_DUNG : admin tắt kích hoạt → khách nhận thông báo, không dùng được
+ *  - SAP_DIEN_RA   : chưa tới ngày bắt đầu
+ *  - SAP_HET_HAN   : còn ≤ SAP_HET_HAN_NGAY ngày → khách nhận thông báo
+ *  - DA_KET_THUC   : đã qua ngày kết thúc
+ *  - DANG_DIEN_RA  : đang trong thời gian hiệu lực
+ */
 function getComputedStatus(v) {
-    if (v.trangThai === "NGUNG_HOAT_DONG") return "NGUNG_HOAT_DONG";
+    if (v.trangThai === "NGUNG_HOAT_DONG") return "NGUNG_SU_DUNG";
+
     const now = new Date().getTime();
+
     if (v.ngayBatDau) {
         const start = new Date(v.ngayBatDau).getTime();
-        if (now < start) return "CHUAN_BI";
+        if (!Number.isNaN(start) && now < start) return "SAP_DIEN_RA";
     }
+
     if (v.ngayKetThuc) {
         const end = new Date(v.ngayKetThuc).getTime();
-        if (now > end) return "NGUNG_HOAT_DONG";
+        if (!Number.isNaN(end)) {
+            if (now > end) return "DA_KET_THUC";
+            const diff = end - now;
+            const threshold = SAP_HET_HAN_NGAY * 24 * 60 * 60 * 1000;
+            if (diff <= threshold) return "SAP_HET_HAN";
+        }
     }
-    return "HOAT_DONG";
+
+    return "DANG_DIEN_RA";
 }
 
 function getTrangThaiClass(trangThai) {
-    if (trangThai === "HOAT_DONG") return "active";
-    if (trangThai === "NGUNG_HOAT_DONG") return "inactive";
-    if (trangThai === "CHUAN_BI") return "pending";
+    if (trangThai === "DANG_DIEN_RA") return "active";
+    if (trangThai === "SAP_DIEN_RA") return "pending";
+    if (trangThai === "SAP_HET_HAN") return "warning";
+    if (trangThai === "DA_KET_THUC") return "inactive";
+    if (trangThai === "NGUNG_SU_DUNG") return "inactive";
     return "";
 }
 
 function getTrangThaiLabel(trangThai) {
-    if (trangThai === "HOAT_DONG") return "Hoạt động";
-    if (trangThai === "NGUNG_HOAT_DONG") return "Hết hạn";
-    if (trangThai === "CHUAN_BI") return "Chuẩn bị hoạt động";
+    if (trangThai === "DANG_DIEN_RA") return "Đang diễn ra";
+    if (trangThai === "SAP_DIEN_RA") return "Sắp diễn ra";
+    if (trangThai === "SAP_HET_HAN") return "Sắp hết hạn";
+    if (trangThai === "DA_KET_THUC") return "Đã kết thúc";
+    if (trangThai === "NGUNG_SU_DUNG") return "Ngưng sử dụng";
     return trangThai;
+}
+
+function getTrangThaiBadgeStyle(trangThai) {
+    const styles = {
+        DANG_DIEN_RA: { background: "#eaf7ed", color: "#24833b" },
+        SAP_DIEN_RA: { background: "#fff3cd", color: "#856404" },
+        SAP_HET_HAN: { background: "#ffe8d1", color: "#c05600" },
+        DA_KET_THUC: { background: "#f0f0f0", color: "#666666" },
+        NGUNG_SU_DUNG: { background: "#fdecea", color: "#c0392b" },
+    };
+    return {
+        padding: "4px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+        display: "inline-block",
+        ...(styles[trangThai] || {}),
+    };
 }
 
 function readCache() {
@@ -110,7 +155,7 @@ export default function AdminVoucher() {
     const [filterStartDate, setFilterStartDate] = useState("");
     const [filterEndDate, setFilterEndDate] = useState("");
 
-    const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
+    const [sortConfig, setSortConfig] = useState({ key: "id", direction: "desc" });
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
@@ -202,7 +247,7 @@ export default function AdminVoucher() {
             soLuongDaDung: v.soLuongDaDung ?? 0,
             ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
             ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
-            trangThai: v.trangThai || "HOAT_DONG",
+            trangThai: v.trangThai === "NGUNG_HOAT_DONG" ? "NGUNG_HOAT_DONG" : "HOAT_DONG",
         });
         setFormError("");
         setShowModal(true);
@@ -259,7 +304,9 @@ export default function AdminVoucher() {
                 giaTriGiam: laFreeship ? 0 : Number(form.giaTriGiam),
                 giamToiDa: laFreeship
                     ? null
-                    : (form.giamToiDa ? Number(form.giamToiDa) : null),
+                    : form.giamToiDa
+                        ? Number(form.giamToiDa)
+                        : null,
                 donToiThieu: form.donToiThieu ? Number(form.donToiThieu) : null,
                 soLuong: Number(form.soLuong),
                 soLuongDaDung: Number(form.soLuongDaDung) || 0,
@@ -334,10 +381,69 @@ export default function AdminVoucher() {
         }
     };
 
+    /**
+     * Bật / tắt kích hoạt voucher.
+     * Khi tắt → khách nhận thông báo và không sử dụng được voucher.
+     */
+    const handleToggleActive = async (v) => {
+        const active = isKichHoat(v);
+        const confirmMsg = active
+            ? `Ngưng sử dụng voucher "${v.maVoucher}"?\n\nKhách hàng sẽ nhận được thông báo và KHÔNG thể sử dụng voucher này nữa.`
+            : `Kích hoạt lại voucher "${v.maVoucher}"?\n\nKhách hàng sẽ nhận được thông báo và có thể sử dụng voucher (nếu còn trong thời gian hiệu lực).`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        const newTrangThai = active ? "NGUNG_HOAT_DONG" : "HOAT_DONG";
+        const oldList = danhSach;
+        const newList = danhSach.map((item) =>
+            item.id === v.id ? { ...item, trangThai: newTrangThai } : item
+        );
+
+        setDanhSach(newList);
+        writeCache(newList);
+
+        try {
+            const body = {
+                maVoucher: v.maVoucher,
+                tenVoucher: v.tenVoucher,
+                loaiGiam: v.loaiGiam,
+                giaTriGiam: v.giaTriGiam,
+                giamToiDa: v.giamToiDa,
+                donToiThieu: v.donToiThieu,
+                soLuong: v.soLuong,
+                soLuongDaDung: v.soLuongDaDung,
+                ngayBatDau: v.ngayBatDau,
+                ngayKetThuc: v.ngayKetThuc,
+                trangThai: newTrangThai,
+            };
+
+            const res = await fetch(`${API}/ma-giam-gia/${v.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+
+            if (!res.ok) throw new Error("Cập nhật trạng thái thất bại");
+
+            const saved = await res.json();
+            setDanhSach((prev) => {
+                const updated = prev.map((item) =>
+                    item.id === saved.id ? { ...item, ...saved } : item
+                );
+                writeCache(updated);
+                return updated;
+            });
+        } catch (err) {
+            setDanhSach(oldList);
+            writeCache(oldList);
+            alert(err.message);
+        }
+    };
+
     const requestSort = (key) => {
-        let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
+        let direction = "asc";
+        if (sortConfig.key === key && sortConfig.direction === "asc") {
+            direction = "desc";
         }
         setSortConfig({ key, direction });
     };
@@ -356,13 +462,13 @@ export default function AdminVoucher() {
 
             let matchTime = true;
             if (v.ngayBatDau) {
-                const vDate = new Date(v.ngayBatDau).setHours(0,0,0,0);
+                const vDate = new Date(v.ngayBatDau).setHours(0, 0, 0, 0);
                 if (filterStartDate) {
-                    const fStart = new Date(filterStartDate).setHours(0,0,0,0);
+                    const fStart = new Date(filterStartDate).setHours(0, 0, 0, 0);
                     if (vDate < fStart) matchTime = false;
                 }
                 if (filterEndDate) {
-                    const fEnd = new Date(filterEndDate).setHours(23,59,59,999);
+                    const fEnd = new Date(filterEndDate).setHours(23, 59, 59, 999);
                     if (vDate > fEnd) matchTime = false;
                 }
             } else if (filterStartDate || filterEndDate) {
@@ -372,32 +478,27 @@ export default function AdminVoucher() {
             return matchKw && matchTT && matchTime;
         })
         .sort((a, b) => {
-            if (sortConfig.key === 'id') {
-                return sortConfig.direction === 'asc' ? a.id - b.id : b.id - a.id;
+            if (sortConfig.key === "id") {
+                return sortConfig.direction === "asc" ? a.id - b.id : b.id - a.id;
             }
-            if (sortConfig.key === 'maVoucher') {
+            if (sortConfig.key === "maVoucher") {
                 const valA = a.maVoucher || "";
                 const valB = b.maVoucher || "";
-                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+                if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+                if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
                 return 0;
             }
             return 0;
         });
 
-    const totalPages = Math.max(
-        1,
-        Math.ceil(filtered.length / itemsPerPage)
-    );
+    const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
 
     useEffect(() => {
         setCurrentPage(1);
     }, [search, filterTrangThai, filterStartDate, filterEndDate, sortConfig]);
 
     useEffect(() => {
-        setCurrentPage((page) =>
-            Math.min(page, totalPages)
-        );
+        setCurrentPage((page) => Math.min(page, totalPages));
     }, [totalPages]);
 
     const currentItems = filtered.slice(
@@ -408,9 +509,16 @@ export default function AdminVoucher() {
     const showSkeleton = loading && danhSach.length === 0;
 
     const SortIcon = ({ columnKey }) => {
-        if (sortConfig.key !== columnKey) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
-        return <span style={{ marginLeft: 4 }}>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>;
+        if (sortConfig.key !== columnKey)
+            return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
+        return (
+            <span style={{ marginLeft: 4 }}>
+                {sortConfig.direction === "asc" ? "↑" : "↓"}
+            </span>
+        );
     };
+
+    const TOTAL_COLS = 14;
 
     return (
         <div className="admin-voucher">
@@ -425,38 +533,63 @@ export default function AdminVoucher() {
                 </button>
             </div>
 
-            <div className="admin-filters" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div
+                className="admin-filters"
+                style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
+            >
                 <input
                     placeholder="Tìm theo mã hoặc tên voucher..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    style={{ flex: 1, minWidth: '200px' }}
+                    style={{ flex: 1, minWidth: "200px" }}
                 />
                 <select
                     value={filterTrangThai}
                     onChange={(e) => setFilterTrangThai(e.target.value)}
                 >
                     <option value="TAT_CA">Tất cả trạng thái</option>
-                    <option value="HOAT_DONG">Hoạt động</option>
-                    <option value="CHUAN_BI">Chuẩn bị hoạt động</option>
-                    <option value="NGUNG_HOAT_DONG">Hết hạn</option>
+                    <option value="SAP_DIEN_RA">Sắp diễn ra</option>
+                    <option value="DANG_DIEN_RA">Đang diễn ra</option>
+                    <option value="SAP_HET_HAN">Sắp hết hạn</option>
+                    <option value="DA_KET_THUC">Đã kết thúc</option>
+                    <option value="NGUNG_SU_DUNG">Ngưng sử dụng</option>
                 </select>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '0 10px', border: '1px solid #ddd', borderRadius: '4px' }}>
-                    <span style={{ fontSize: '13px', color: '#666' }}>Từ ngày:</span>
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        background: "#fff",
+                        padding: "0 10px",
+                        border: "1px solid #ddd",
+                        borderRadius: "4px",
+                    }}
+                >
+                    <span style={{ fontSize: "13px", color: "#666" }}>Từ ngày:</span>
                     <input
                         type="date"
                         value={filterStartDate}
                         onChange={(e) => setFilterStartDate(e.target.value)}
-                        style={{ border: 'none', outline: 'none', padding: '8px 0', fontSize: '14px' }}
+                        style={{
+                            border: "none",
+                            outline: "none",
+                            padding: "8px 0",
+                            fontSize: "14px",
+                        }}
                     />
-                    <span style={{ color: '#ccc' }}>|</span>
-                    <span style={{ fontSize: '13px', color: '#666' }}>Đến:</span>
+                    <span style={{ color: "#ccc" }}>|</span>
+                    <span style={{ fontSize: "13px", color: "#666" }}>Đến:</span>
                     <input
                         type="date"
                         value={filterEndDate}
                         onChange={(e) => setFilterEndDate(e.target.value)}
-                        style={{ border: 'none', outline: 'none', padding: '8px 0', fontSize: '14px' }}
+                        style={{
+                            border: "none",
+                            outline: "none",
+                            padding: "8px 0",
+                            fontSize: "14px",
+                        }}
                     />
                 </div>
             </div>
@@ -473,19 +606,19 @@ export default function AdminVoucher() {
                             <th>Giá trị</th>
                             <th>Giảm tối đa</th>
                             <th>Đơn tối thiểu</th>
-                            {/* ⭐ Cập nhật Skeleton cho 2 cột mới */}
                             <th>Số lượng</th>
                             <th>Đã dùng</th>
                             <th>Bắt đầu</th>
                             <th>Hết hạn</th>
                             <th>Trạng thái</th>
                             <th>Thao tác</th>
+                            <th>Kích hoạt</th>
                         </tr>
                         </thead>
                         <tbody>
                         {[1, 2, 3, 4, 5].map((i) => (
                             <tr key={i} className="skeleton-row">
-                                {Array.from({ length: 12 }).map((_, j) => (
+                                {Array.from({ length: TOTAL_COLS }).map((_, j) => (
                                     <td key={j}>
                                         <div className="skeleton-bar" />
                                     </td>
@@ -493,7 +626,6 @@ export default function AdminVoucher() {
                             </tr>
                         ))}
                         </tbody>
-
                     </table>
                 </div>
             )}
@@ -516,16 +648,16 @@ export default function AdminVoucher() {
                         <thead>
                         <tr>
                             <th
-                                onClick={() => requestSort('id')}
-                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                onClick={() => requestSort("id")}
+                                style={{ cursor: "pointer", userSelect: "none" }}
                                 title="Click để sắp xếp theo ID"
                             >
                                 ID <SortIcon columnKey="id" />
                             </th>
 
                             <th
-                                onClick={() => requestSort('maVoucher')}
-                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                onClick={() => requestSort("maVoucher")}
+                                style={{ cursor: "pointer", userSelect: "none" }}
                                 title="Click để sắp xếp theo Mã"
                             >
                                 Mã <SortIcon columnKey="maVoucher" />
@@ -536,19 +668,19 @@ export default function AdminVoucher() {
                             <th>Giá trị</th>
                             <th>Giảm tối đa</th>
                             <th>Đơn tối thiểu</th>
-                            {/* ⭐ TÁCH RIÊNG 2 CỘT */}
                             <th>Số lượng</th>
                             <th>Đã dùng</th>
-
                             <th>Bắt đầu</th>
                             <th>Hết hạn</th>
                             <th>Trạng thái</th>
                             <th>Thao tác</th>
+                            <th>Kích hoạt</th>
                         </tr>
                         </thead>
                         <tbody>
                         {currentItems.map((v) => {
                             const computedStatus = getComputedStatus(v);
+                            const active = isKichHoat(v);
 
                             return (
                                 <tr key={v.id}>
@@ -574,8 +706,8 @@ export default function AdminVoucher() {
                                                     whiteSpace: "nowrap",
                                                 }}
                                             >
-                                            🚚 FREESHIP
-                                        </span>
+                                                    🚚 FREESHIP
+                                                </span>
                                         )}
                                     </td>
 
@@ -585,19 +717,21 @@ export default function AdminVoucher() {
                                         {v.loaiGiam === "FREESHIP" && "—"}
                                     </td>
                                     <td>
-                                        {v.giamToiDa
-                                            ? formatGia(v.giamToiDa)
-                                            : "—"}
+                                        {v.giamToiDa ? formatGia(v.giamToiDa) : "—"}
                                     </td>
 
                                     <td>{formatGia(v.donToiThieu)}</td>
 
-                                    {/* ⭐ TÁCH RIÊNG DỮ LIỆU */}
                                     <td>
                                         <strong>{v.soLuong ?? 0}</strong>
                                     </td>
                                     <td>
-                                        <strong style={{ color: v.soLuongDaDung > 0 ? '#d94b3f' : 'inherit' }}>
+                                        <strong
+                                            style={{
+                                                color:
+                                                    v.soLuongDaDung > 0 ? "#d94b3f" : "inherit",
+                                            }}
+                                        >
                                             {v.soLuongDaDung ?? 0}
                                         </strong>
                                     </td>
@@ -605,21 +739,16 @@ export default function AdminVoucher() {
                                     <td>{formatDate(v.ngayBatDau)}</td>
                                     <td>{formatDate(v.ngayKetThuc)}</td>
                                     <td>
-                                        <span
-                                            className={`order-status ${getTrangThaiClass(
-                                                computedStatus
-                                            )}`}
-                                            style={computedStatus === "CHUAN_BI" ? {
-                                                background: '#fff3cd',
-                                                color: '#856404',
-                                                padding: '4px 8px',
-                                                borderRadius: '4px',
-                                                fontSize: '12px',
-                                                fontWeight: '600'
-                                            } : {}}
-                                        >
-                                            {getTrangThaiLabel(computedStatus)}
-                                        </span>
+                                            <span
+                                                className={`order-status ${getTrangThaiClass(
+                                                    computedStatus
+                                                )}`}
+                                                style={getTrangThaiBadgeStyle(computedStatus)}
+                                            >
+                                                {computedStatus === "SAP_HET_HAN" && "⏰ "}
+                                                {computedStatus === "NGUNG_SU_DUNG" && "⛔ "}
+                                                {getTrangThaiLabel(computedStatus)}
+                                            </span>
                                     </td>
                                     <td style={{ whiteSpace: "nowrap" }}>
                                         <button
@@ -637,11 +766,38 @@ export default function AdminVoucher() {
                                             Xóa
                                         </button>
                                     </td>
+                                    <td>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleActive(v)}
+                                            title={
+                                                active
+                                                    ? "Click để ngưng sử dụng voucher (khách sẽ nhận thông báo)"
+                                                    : "Click để kích hoạt lại voucher (khách sẽ nhận thông báo)"
+                                            }
+                                            style={{
+                                                padding: "6px 12px",
+                                                border: "none",
+                                                borderRadius: 999,
+                                                background: active
+                                                    ? "#eaf7ed"
+                                                    : "#fdecea",
+                                                color: active ? "#24833b" : "#c0392b",
+                                                fontWeight: 700,
+                                                fontSize: 12,
+                                                cursor: "pointer",
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {active ? "✓ Hoạt động" : "⛔ Không hoạt động"}
+                                        </button>
+                                    </td>
                                 </tr>
-                            )})}
+                            );
+                        })}
                         {filtered.length === 0 && (
                             <tr>
-                                <td colSpan={13} className="admin-empty">
+                                <td colSpan={TOTAL_COLS} className="admin-empty">
                                     Không có voucher nào phù hợp
                                 </td>
                             </tr>
@@ -649,10 +805,10 @@ export default function AdminVoucher() {
 
                         <tr>
                             <td
-                                colSpan={13}
+                                colSpan={TOTAL_COLS}
                                 style={{
                                     textAlign: "center",
-                                    padding: "12px"
+                                    padding: "12px",
                                 }}
                             >
                                 {filtered.length > 0 && (
@@ -661,7 +817,7 @@ export default function AdminVoucher() {
                                             display: "flex",
                                             justifyContent: "center",
                                             alignItems: "center",
-                                            gap: "8px"
+                                            gap: "8px",
                                         }}
                                     >
                                         <button
@@ -679,8 +835,14 @@ export default function AdminVoucher() {
                                                 borderRadius: 10,
                                                 background: "#fff",
                                                 fontSize: 22,
-                                                color: currentPage === 1 ? "#ccc" : "#222",
-                                                cursor: currentPage === 1 ? "default" : "pointer"
+                                                color:
+                                                    currentPage === 1
+                                                        ? "#ccc"
+                                                        : "#222",
+                                                cursor:
+                                                    currentPage === 1
+                                                        ? "default"
+                                                        : "pointer",
                                             }}
                                         >
                                             ←
@@ -697,16 +859,24 @@ export default function AdminVoucher() {
                                                 style={{
                                                     width: 56,
                                                     height: 56,
-                                                    border: currentPage === page
-                                                        ? "1px solid #d94b3f"
-                                                        : "1px solid #ddd",
+                                                    border:
+                                                        currentPage === page
+                                                            ? "1px solid #d94b3f"
+                                                            : "1px solid #ddd",
                                                     borderRadius: 10,
-                                                    background: currentPage === page
-                                                        ? "#d94b3f"
-                                                        : "#fff",
-                                                    color: currentPage === page ? "#fff" : "#222",
-                                                    fontWeight: currentPage === page ? 700 : 500,
-                                                    cursor: "pointer"
+                                                    background:
+                                                        currentPage === page
+                                                            ? "#d94b3f"
+                                                            : "#fff",
+                                                    color:
+                                                        currentPage === page
+                                                            ? "#fff"
+                                                            : "#222",
+                                                    fontWeight:
+                                                        currentPage === page
+                                                            ? 700
+                                                            : 500,
+                                                    cursor: "pointer",
                                                 }}
                                             >
                                                 {page}
@@ -728,8 +898,14 @@ export default function AdminVoucher() {
                                                 borderRadius: 10,
                                                 background: "#fff",
                                                 fontSize: 22,
-                                                color: currentPage === totalPages ? "#ccc" : "#222",
-                                                cursor: currentPage === totalPages ? "default" : "pointer"
+                                                color:
+                                                    currentPage === totalPages
+                                                        ? "#ccc"
+                                                        : "#222",
+                                                cursor:
+                                                    currentPage === totalPages
+                                                        ? "default"
+                                                        : "pointer",
                                             }}
                                         >
                                             →
@@ -800,7 +976,7 @@ export default function AdminVoucher() {
                                     <input
                                         className="price-input"
                                         type="text"
-                                        value={editing.id || "tự động sinh "}
+                                        value={editing.id || "tự động sinh"}
                                         disabled
                                         style={{
                                             background: "#f5f5f5",
@@ -844,14 +1020,22 @@ export default function AdminVoucher() {
                                         setForm((old) => ({
                                             ...old,
                                             loaiGiam: loai,
-                                            giaTriGiam: loai === "FREESHIP" ? "" : old.giaTriGiam,
-                                            giamToiDa: loai === "FREESHIP" ? "" : old.giamToiDa,
+                                            giaTriGiam:
+                                                loai === "FREESHIP"
+                                                    ? ""
+                                                    : old.giaTriGiam,
+                                            giamToiDa:
+                                                loai === "FREESHIP"
+                                                    ? ""
+                                                    : old.giamToiDa,
                                         }));
                                     }}
                                 >
                                     <option value="PHAN_TRAM">Phần trăm (%)</option>
                                     <option value="SO_TIEN">Số tiền (đ)</option>
-                                    <option value="FREESHIP">🚚 Miễn phí vận chuyển (FREESHIP)</option>
+                                    <option value="FREESHIP">
+                                        🚚 Miễn phí vận chuyển (FREESHIP)
+                                    </option>
                                 </select>
                             </Field>
 
@@ -864,7 +1048,10 @@ export default function AdminVoucher() {
                                                 type="text"
                                                 value={formatSoTienInput(form.giaTriGiam)}
                                                 onChange={(e) =>
-                                                    handleChange("giaTriGiam", parseSoTienInput(e.target.value))
+                                                    handleChange(
+                                                        "giaTriGiam",
+                                                        parseSoTienInput(e.target.value)
+                                                    )
                                                 }
                                                 placeholder="VD: 10.000"
                                             />
@@ -888,7 +1075,10 @@ export default function AdminVoucher() {
                                             type="text"
                                             value={formatSoTienInput(form.giamToiDa)}
                                             onChange={(e) =>
-                                                handleChange("giamToiDa", parseSoTienInput(e.target.value))
+                                                handleChange(
+                                                    "giamToiDa",
+                                                    parseSoTienInput(e.target.value)
+                                                )
                                             }
                                             placeholder="VD: 200.000"
                                         />
@@ -908,8 +1098,8 @@ export default function AdminVoucher() {
                                         border: "1px solid #c3e6cb",
                                     }}
                                 >
-                                    🚚 Voucher này sẽ <strong>miễn phí vận chuyển</strong> cho khách hàng.
-                                    Không giảm tiền hàng.
+                                    🚚 Voucher này sẽ <strong>miễn phí vận chuyển</strong>{" "}
+                                    cho khách hàng. Không giảm tiền hàng.
                                 </div>
                             )}
 
@@ -919,7 +1109,10 @@ export default function AdminVoucher() {
                                     type="text"
                                     value={formatSoTienInput(form.donToiThieu)}
                                     onChange={(e) =>
-                                        handleChange("donToiThieu", parseSoTienInput(e.target.value))
+                                        handleChange(
+                                            "donToiThieu",
+                                            parseSoTienInput(e.target.value)
+                                        )
                                     }
                                     placeholder="VD: 500.000"
                                 />
@@ -958,7 +1151,7 @@ export default function AdminVoucher() {
                                 />
                             </Field>
 
-                            <Field label="Trạng thái">
+                            <Field label="Kích hoạt">
                                 <select
                                     className="price-input"
                                     value={form.trangThai}
@@ -966,10 +1159,9 @@ export default function AdminVoucher() {
                                         handleChange("trangThai", e.target.value)
                                     }
                                 >
-                                    <option value="HOAT_DONG">Hoạt động</option>
-                                    <option value="CHUAN_BI">Chuẩn bị hoạt động</option>
+                                    <option value="HOAT_DONG">✓ Hoạt động</option>
                                     <option value="NGUNG_HOAT_DONG">
-                                        Hết hạn
+                                        ⛔ Không hoạt động (khách không dùng được)
                                     </option>
                                 </select>
                             </Field>
