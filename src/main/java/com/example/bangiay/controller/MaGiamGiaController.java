@@ -25,29 +25,17 @@ public class MaGiamGiaController {
     private final ThongBaoService thongBaoService;
 
 
-    // =========================================================
-    // LẤY TẤT CẢ
-    // =========================================================
-
     @GetMapping
     public ResponseEntity<List<MaGiamGia>> getAll() {
         return ResponseEntity.ok(maGiamGiaService.getAll());
     }
 
 
-    // =========================================================
-    // LẤY VOUCHER ĐANG HOẠT ĐỘNG (cho khách)
-    // =========================================================
-
     @GetMapping("/dang-hoat-dong")
     public ResponseEntity<List<MaGiamGia>> getDangHoatDong() {
         return ResponseEntity.ok(maGiamGiaService.getDangHoatDong());
     }
 
-
-    // =========================================================
-    // LẤY VOUCHER SẮP HẾT HẠN (cho khách)
-    // =========================================================
 
     @GetMapping("/sap-het-han")
     public ResponseEntity<List<MaGiamGia>> getSapHetHan(
@@ -57,19 +45,11 @@ public class MaGiamGiaController {
     }
 
 
-    // =========================================================
-    // LẤY THEO ID
-    // =========================================================
-
     @GetMapping("/{id}")
     public ResponseEntity<MaGiamGia> getById(@PathVariable Long id) {
         return ResponseEntity.ok(maGiamGiaService.getById(id));
     }
 
-
-    // =========================================================
-    // LẤY THEO MÃ
-    // =========================================================
 
     @GetMapping("/ma/{maVoucher}")
     public ResponseEntity<MaGiamGia> getByMaVoucher(
@@ -80,13 +60,8 @@ public class MaGiamGiaController {
     }
 
 
-    // =========================================================
-    // THÊM VOUCHER
-    // =========================================================
-
     @PostMapping
     public ResponseEntity<?> create(@RequestBody MaGiamGia maGiamGia) {
-
         try {
             return ResponseEntity.ok(maGiamGiaService.save(maGiamGia));
         } catch (Exception e) {
@@ -97,16 +72,11 @@ public class MaGiamGiaController {
     }
 
 
-    // =========================================================
-    // SỬA VOUCHER
-    // =========================================================
-
     @PutMapping("/{id}")
     public ResponseEntity<?> update(
             @PathVariable Long id,
             @RequestBody MaGiamGia maGiamGia
     ) {
-
         try {
             MaGiamGia existing = maGiamGiaService.getById(id);
             maGiamGia.setId(existing.getId());
@@ -121,12 +91,38 @@ public class MaGiamGiaController {
 
 
     // =========================================================
-    // XÓA VOUCHER
+    // BẬT / TẮT KÍCH HOẠT VOUCHER (nút Active)
+    // PATCH /api/ma-giam-gia/{id}/kich-hoat
+    // Body: { "kichHoat": true } hoặc { "kichHoat": false }
     // =========================================================
+    @PatchMapping("/{id}/kich-hoat")
+    public ResponseEntity<?> kichHoat(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body
+    ) {
+        try {
+            if (body == null || body.get("kichHoat") == null) {
+                throw new RuntimeException(
+                        "Thiếu trường 'kichHoat' (true/false)");
+            }
+
+            boolean kichHoat = Boolean.parseBoolean(
+                    body.get("kichHoat").toString());
+
+            MaGiamGia saved = maGiamGiaService.setKichHoat(id, kichHoat);
+
+            return ResponseEntity.ok(saved);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", layMessageLoi(e)));
+        }
+    }
+
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
-
         try {
             maGiamGiaService.delete(id);
             return ResponseEntity.noContent().build();
@@ -138,15 +134,10 @@ public class MaGiamGiaController {
     }
 
 
-    // =========================================================
-    // KIỂM TRA VOUCHER
-    // =========================================================
-
     @PostMapping("/kiem-tra")
     public ResponseEntity<?> kiemTra(
             @RequestBody Map<String, Object> body
     ) {
-
         try {
             if (body == null) {
                 throw new RuntimeException(
@@ -182,14 +173,8 @@ public class MaGiamGiaController {
     }
 
 
-    // =========================================================
-    // TĂNG LƯỢT SỬ DỤNG
-    // Đổi route từ /sao-chep/{ma} (copy-paste nhầm) → /tang-luot-dung/{ma}
-    // =========================================================
-
     @PostMapping("/tang-luot-dung/{ma}")
     public ResponseEntity<?> tangLuotDung(@PathVariable String ma) {
-
         try {
             maGiamGiaService.tangSoLuongDaDung(ma);
             return ResponseEntity.ok(
@@ -202,13 +187,8 @@ public class MaGiamGiaController {
     }
 
 
-    // =========================================================
-    // (ADMIN) TRIGGER QUÉT VOUCHER SẮP HẾT HẠN THỦ CÔNG
-    // =========================================================
-
     @PostMapping("/quet-sap-het-han")
     public ResponseEntity<?> quetSapHetHan() {
-
         try {
             int dem = thongBaoService.quetVoucherSapHetHanThuCong();
             return ResponseEntity.ok(Map.of(
@@ -223,7 +203,6 @@ public class MaGiamGiaController {
 
 
     private String layMessageLoi(Exception e) {
-
         Throwable current = e;
 
         while (current != null) {

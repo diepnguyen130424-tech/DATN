@@ -1,7 +1,6 @@
 package com.example.bangiay.service;
 
 import com.example.bangiay.entity.MaGiamGia;
-import com.example.bangiay.repository.HoaDonRepository;
 import com.example.bangiay.repository.MaGiamGiaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,14 +20,12 @@ import java.util.Objects;
 public class MaGiamGiaService {
 
     private final MaGiamGiaRepository maGiamGiaRepository;
-    private final HoaDonRepository hoaDonRepository;
     private final ThongBaoService thongBaoService;
 
 
     // =========================================================
     // LẤY TẤT CẢ VOUCHER
     // =========================================================
-
     public List<MaGiamGia> getAll() {
         return maGiamGiaRepository.findAll();
     }
@@ -37,7 +34,6 @@ public class MaGiamGiaService {
     // =========================================================
     // LẤY VOUCHER THEO ID
     // =========================================================
-
     public MaGiamGia getById(Long id) {
         return maGiamGiaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException(
@@ -48,7 +44,6 @@ public class MaGiamGiaService {
     // =========================================================
     // LẤY VOUCHER THEO MÃ
     // =========================================================
-
     public MaGiamGia getByMaVoucher(String maVoucher) {
 
         if (maVoucher == null || maVoucher.trim().isEmpty()) {
@@ -66,7 +61,6 @@ public class MaGiamGiaService {
     // =========================================================
     // THÊM / SỬA VOUCHER
     // =========================================================
-
     @Transactional
     public MaGiamGia save(MaGiamGia maGiamGia) {
 
@@ -74,9 +68,7 @@ public class MaGiamGiaService {
             throw new RuntimeException("Dữ liệu voucher không được để trống");
         }
 
-        // -----------------------------------------------------
         // MÃ VOUCHER
-        // -----------------------------------------------------
         if (maGiamGia.getMaVoucher() == null
                 || maGiamGia.getMaVoucher().trim().isEmpty()) {
             throw new RuntimeException("Mã voucher không được để trống");
@@ -85,9 +77,7 @@ public class MaGiamGiaService {
         String maVoucher = maGiamGia.getMaVoucher().trim().toUpperCase();
         maGiamGia.setMaVoucher(maVoucher);
 
-        // -----------------------------------------------------
         // TÊN VOUCHER
-        // -----------------------------------------------------
         if (maGiamGia.getTenVoucher() == null
                 || maGiamGia.getTenVoucher().trim().isEmpty()) {
             throw new RuntimeException("Tên voucher không được để trống");
@@ -95,9 +85,7 @@ public class MaGiamGiaService {
 
         maGiamGia.setTenVoucher(maGiamGia.getTenVoucher().trim());
 
-        // -----------------------------------------------------
         // KIỂM TRA MÃ TRÙNG
-        // -----------------------------------------------------
         maGiamGiaRepository.findByMaVoucher(maVoucher)
                 .ifPresent(voucherTonTai -> {
 
@@ -114,9 +102,7 @@ public class MaGiamGiaService {
                     }
                 });
 
-        // -----------------------------------------------------
         // LOẠI GIẢM
-        // -----------------------------------------------------
         if (maGiamGia.getLoaiGiam() == null
                 || maGiamGia.getLoaiGiam().trim().isEmpty()) {
             throw new RuntimeException("Loại giảm không được để trống");
@@ -124,9 +110,7 @@ public class MaGiamGiaService {
 
         maGiamGia.setLoaiGiam(maGiamGia.getLoaiGiam().trim().toUpperCase());
 
-        // -----------------------------------------------------
         // GIÁ TRỊ GIẢM
-        // -----------------------------------------------------
         if (maGiamGia.getGiaTriGiam() == null) {
             throw new RuntimeException("Giá trị giảm không được để trống");
         }
@@ -135,9 +119,7 @@ public class MaGiamGiaService {
             throw new RuntimeException("Giá trị giảm không được nhỏ hơn 0");
         }
 
-        // -----------------------------------------------------
         // PHẦN TRĂM
-        // -----------------------------------------------------
         if ("PHAN_TRAM".equalsIgnoreCase(maGiamGia.getLoaiGiam())) {
             if (maGiamGia.getGiaTriGiam()
                     .compareTo(BigDecimal.valueOf(100)) > 0) {
@@ -146,34 +128,26 @@ public class MaGiamGiaService {
             }
         }
 
-        // -----------------------------------------------------
         // GIẢM TỐI ĐA
-        // -----------------------------------------------------
         if (maGiamGia.getGiamToiDa() != null
                 && maGiamGia.getGiamToiDa()
                 .compareTo(BigDecimal.ZERO) < 0) {
             throw new RuntimeException("Giảm tối đa không được nhỏ hơn 0");
         }
 
-        // -----------------------------------------------------
         // ĐƠN TỐI THIỂU
-        // -----------------------------------------------------
         if (maGiamGia.getDonToiThieu() != null
                 && maGiamGia.getDonToiThieu()
                 .compareTo(BigDecimal.ZERO) < 0) {
             throw new RuntimeException("Đơn tối thiểu không được nhỏ hơn 0");
         }
 
-        // -----------------------------------------------------
         // SỐ LƯỢNG
-        // -----------------------------------------------------
         if (maGiamGia.getSoLuong() == null || maGiamGia.getSoLuong() <= 0) {
             throw new RuntimeException("Số lượng voucher phải lớn hơn 0");
         }
 
-        // -----------------------------------------------------
         // SỐ LƯỢNG ĐÃ DÙNG
-        // -----------------------------------------------------
         if (maGiamGia.getSoLuongDaDung() == null) {
             maGiamGia.setSoLuongDaDung(0);
         }
@@ -187,9 +161,7 @@ public class MaGiamGiaService {
                     "Số lượng đã dùng không được lớn hơn số lượng voucher");
         }
 
-        // -----------------------------------------------------
         // NGÀY
-        // -----------------------------------------------------
         if (maGiamGia.getNgayBatDau() != null
                 && maGiamGia.getNgayKetThuc() != null
                 && maGiamGia.getNgayKetThuc()
@@ -198,9 +170,7 @@ public class MaGiamGiaService {
                     "Ngày kết thúc phải sau ngày bắt đầu");
         }
 
-        // -----------------------------------------------------
         // TRẠNG THÁI
-        // -----------------------------------------------------
         if (maGiamGia.getTrangThai() == null
                 || maGiamGia.getTrangThai().trim().isEmpty()) {
             maGiamGia.setTrangThai("HOAT_DONG");
@@ -209,9 +179,7 @@ public class MaGiamGiaService {
                     maGiamGia.getTrangThai().trim().toUpperCase());
         }
 
-        // -----------------------------------------------------
         // LƯU TRẠNG THÁI CŨ (để phát hiện chuyển trạng thái)
-        // -----------------------------------------------------
         String trangThaiCu = null;
         if (maGiamGia.getId() != null) {
             trangThaiCu = maGiamGiaRepository.findById(maGiamGia.getId())
@@ -219,14 +187,10 @@ public class MaGiamGiaService {
                     .orElse(null);
         }
 
-        // -----------------------------------------------------
         // LƯU DATABASE
-        // -----------------------------------------------------
         MaGiamGia saved = maGiamGiaRepository.saveAndFlush(maGiamGia);
 
-        // -----------------------------------------------------
         // PHÁT THÔNG BÁO NẾU TRẠNG THÁI ĐỔI
-        // -----------------------------------------------------
         String trangThaiMoi = saved.getTrangThai();
 
         if (trangThaiCu != null
@@ -245,9 +209,48 @@ public class MaGiamGiaService {
 
 
     // =========================================================
+    // BẬT / TẮT KÍCH HOẠT (nút Active trên FE)
+    // Chỉ đổi trangThai, không validate các field khác
+    // =========================================================
+    @Transactional
+    public MaGiamGia setKichHoat(Long id, boolean kichHoat) {
+
+        if (id == null) {
+            throw new RuntimeException("ID voucher không hợp lệ");
+        }
+
+        MaGiamGia voucher = maGiamGiaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException(
+                        "Không tìm thấy voucher"));
+
+        String trangThaiMoi = kichHoat
+                ? "HOAT_DONG"
+                : "NGUNG_HOAT_DONG";
+
+        String trangThaiCu = voucher.getTrangThai();
+
+        // Không đổi gì → trả luôn
+        if (trangThaiMoi.equalsIgnoreCase(trangThaiCu)) {
+            return voucher;
+        }
+
+        voucher.setTrangThai(trangThaiMoi);
+        MaGiamGia saved = maGiamGiaRepository.saveAndFlush(voucher);
+
+        // Phát thông báo cho khách
+        if ("NGUNG_HOAT_DONG".equalsIgnoreCase(trangThaiMoi)) {
+            thongBaoService.thongBaoNgungSuDung(saved);
+        } else if ("HOAT_DONG".equalsIgnoreCase(trangThaiMoi)) {
+            thongBaoService.thongBaoKichHoatLai(saved);
+        }
+
+        return saved;
+    }
+
+
+    // =========================================================
     // XÓA
     // =========================================================
-
     @Transactional
     public void delete(Long id) {
 
@@ -266,7 +269,6 @@ public class MaGiamGiaService {
     // =========================================================
     // KIỂM TRA MÃ ĐÃ TỒN TẠI
     // =========================================================
-
     public boolean existsByMaVoucher(String maVoucher) {
 
         if (maVoucher == null || maVoucher.trim().isEmpty()) {
@@ -281,41 +283,30 @@ public class MaGiamGiaService {
     // =========================================================
     // DANH SÁCH VOUCHER ĐANG HOẠT ĐỘNG (cho khách)
     // =========================================================
-
     public List<MaGiamGia> getDangHoatDong() {
 
         LocalDateTime now = LocalDateTime.now();
 
         return maGiamGiaRepository.findAll()
                 .stream()
-
-                // Trạng thái admin bật
                 .filter(v -> "HOAT_DONG".equalsIgnoreCase(v.getTrangThai()))
-
-                // Ngày bắt đầu
                 .filter(v -> v.getNgayBatDau() == null
                         || !now.isBefore(v.getNgayBatDau()))
-
-                // Ngày kết thúc
                 .filter(v -> v.getNgayKetThuc() == null
                         || !now.isAfter(v.getNgayKetThuc()))
-
-                // Số lượng
                 .filter(v -> {
                     if (v.getSoLuong() == null) return true;
                     int daDung = v.getSoLuongDaDung() != null
                             ? v.getSoLuongDaDung() : 0;
                     return daDung < v.getSoLuong();
                 })
-
                 .toList();
     }
 
 
     // =========================================================
-    // DANH SÁCH VOUCHER SẮP HẾT HẠN (cho khách xem nhanh)
+    // DANH SÁCH VOUCHER SẮP HẾT HẠN
     // =========================================================
-
     public List<MaGiamGia> getSapHetHan(int soNgay) {
 
         LocalDateTime now = LocalDateTime.now();
@@ -332,45 +323,29 @@ public class MaGiamGiaService {
 
 
     // =========================================================
-    // KIỂM TRA VOUCHER
+    // KIỂM TRA VOUCHER (khi khách áp mã)
     // =========================================================
-
     public Map<String, Object> kiemTraVoucher(
             String ma,
             BigDecimal tongTien,
             Long khachHangId
     ) {
 
-        // -----------------------------------------------------
-        // KIỂM TRA MÃ
-        // -----------------------------------------------------
         if (ma == null || ma.trim().isEmpty()) {
             throw new RuntimeException("Vui lòng nhập mã giảm giá");
         }
 
-        // -----------------------------------------------------
-        // KIỂM TRA TỔNG TIỀN
-        // -----------------------------------------------------
-        if (tongTien == null) {
-            throw new RuntimeException("Tổng tiền không hợp lệ");
-        }
-
-        if (tongTien.compareTo(BigDecimal.ZERO) < 0) {
+        if (tongTien == null || tongTien.compareTo(BigDecimal.ZERO) < 0) {
             throw new RuntimeException("Tổng tiền không hợp lệ");
         }
 
         String maChuan = ma.trim().toUpperCase();
 
-        // -----------------------------------------------------
-        // TÌM VOUCHER
-        // -----------------------------------------------------
         MaGiamGia voucher = maGiamGiaRepository.findByMaVoucher(maChuan)
                 .orElseThrow(() -> new RuntimeException(
                         "Mã giảm giá không tồn tại"));
 
-        // -----------------------------------------------------
-        // KIỂM TRA TRẠNG THÁI (admin bật/tắt)
-        // -----------------------------------------------------
+        // ADMIN ĐÃ TẮT → KHÁCH KHÔNG DÙNG ĐƯỢC
         if (!"HOAT_DONG".equalsIgnoreCase(voucher.getTrangThai())) {
             throw new RuntimeException(
                     "Mã giảm giá đã bị ngưng sử dụng. Vui lòng chọn mã khác.");
@@ -378,26 +353,17 @@ public class MaGiamGiaService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // -----------------------------------------------------
-        // KIỂM TRA NGÀY BẮT ĐẦU
-        // -----------------------------------------------------
         if (voucher.getNgayBatDau() != null
                 && now.isBefore(voucher.getNgayBatDau())) {
             throw new RuntimeException(
                     "Mã giảm giá chưa đến thời gian sử dụng");
         }
 
-        // -----------------------------------------------------
-        // KIỂM TRA NGÀY KẾT THÚC
-        // -----------------------------------------------------
         if (voucher.getNgayKetThuc() != null
                 && now.isAfter(voucher.getNgayKetThuc())) {
             throw new RuntimeException("Mã giảm giá đã hết hạn");
         }
 
-        // -----------------------------------------------------
-        // KIỂM TRA SỐ LƯỢNG
-        // -----------------------------------------------------
         if (voucher.getSoLuong() != null) {
             int daDung = voucher.getSoLuongDaDung() != null
                     ? voucher.getSoLuongDaDung() : 0;
@@ -408,9 +374,6 @@ public class MaGiamGiaService {
             }
         }
 
-        // -----------------------------------------------------
-        // KIỂM TRA ĐƠN TỐI THIỂU
-        // -----------------------------------------------------
         if (voucher.getDonToiThieu() != null
                 && tongTien.compareTo(voucher.getDonToiThieu()) < 0) {
             throw new RuntimeException(
@@ -419,9 +382,6 @@ public class MaGiamGiaService {
                             + " để dùng mã này");
         }
 
-        // -----------------------------------------------------
-        // XÁC ĐỊNH LOẠI VOUCHER
-        // -----------------------------------------------------
         boolean laFreeship = "FREESHIP".equalsIgnoreCase(
                 voucher.getLoaiGiam());
 
@@ -449,9 +409,6 @@ public class MaGiamGiaService {
 
         BigDecimal tongTienSauGiam = tongTien.subtract(tienGiam);
 
-        // -----------------------------------------------------
-        // KẾT QUẢ
-        // -----------------------------------------------------
         Map<String, Object> result = new HashMap<>();
 
         result.put("id", voucher.getId());
@@ -487,7 +444,6 @@ public class MaGiamGiaService {
     // =========================================================
     // FORMAT TIỀN
     // =========================================================
-
     private String formatTien(BigDecimal tien) {
         return String.format("%,.0fđ", tien.doubleValue())
                 .replace(",", ".");
@@ -497,7 +453,6 @@ public class MaGiamGiaService {
     // =========================================================
     // TĂNG SỐ LƯỢNG ĐÃ DÙNG
     // =========================================================
-
     @Transactional
     public void tangSoLuongDaDung(String ma) {
 
@@ -522,14 +477,4 @@ public class MaGiamGiaService {
         voucher.setSoLuongDaDung(daDung + 1);
         maGiamGiaRepository.saveAndFlush(voucher);
     }
-
-
-    // =========================================================
-    // ĐÃ BỎ AUTO-UPDATE TRẠNG THÁI
-    // Lý do: trạng thái DB giờ = ý định của admin (bật/tắt).
-    // Việc tính "hết hạn / sắp hết hạn / đã kết thúc" do FE
-    // suy ra từ ngày + trangThai → hiển thị đúng 5 trạng thái:
-    //   Sắp diễn ra / Đang diễn ra / Sắp hết hạn /
-    //   Đã kết thúc / Ngưng sử dụng
-    // =========================================================
 }

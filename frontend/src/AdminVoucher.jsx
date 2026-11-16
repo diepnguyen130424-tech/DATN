@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_voucher_cache";
 const CACHE_TTL = 60 * 1000;
-const SAP_HET_HAN_NGAY = 3; // cảnh báo "sắp hết hạn" trước N ngày
+const SAP_HET_HAN_NGAY = 3;
 
 function formatSoTienInput(value) {
     if (!value) return "";
@@ -51,12 +51,12 @@ function isKichHoat(v) {
 }
 
 /**
- * Tính trạng thái hiển thị:
- *  - NGUNG_SU_DUNG : admin tắt kích hoạt → khách nhận thông báo, không dùng được
+ * Trạng thái hiển thị:
  *  - SAP_DIEN_RA   : chưa tới ngày bắt đầu
+ *  - DANG_DIEN_RA  : đang trong thời gian hiệu lực
  *  - SAP_HET_HAN   : còn ≤ SAP_HET_HAN_NGAY ngày → khách nhận thông báo
  *  - DA_KET_THUC   : đã qua ngày kết thúc
- *  - DANG_DIEN_RA  : đang trong thời gian hiệu lực
+ *  - NGUNG_SU_DUNG : admin tắt kích hoạt → khách nhận thông báo, không dùng được
  */
 function getComputedStatus(v) {
     if (v.trangThai === "NGUNG_HOAT_DONG") return "NGUNG_SU_DUNG";
@@ -149,6 +149,7 @@ export default function AdminVoucher() {
     const [form, setForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState("");
+    const [toggling, setToggling] = useState(null);
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
@@ -247,7 +248,9 @@ export default function AdminVoucher() {
             soLuongDaDung: v.soLuongDaDung ?? 0,
             ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
             ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
-            trangThai: v.trangThai === "NGUNG_HOAT_DONG" ? "NGUNG_HOAT_DONG" : "HOAT_DONG",
+            trangThai: v.trangThai === "NGUNG_HOAT_DONG"
+                ? "NGUNG_HOAT_DONG"
+                : "HOAT_DONG",
         });
         setFormError("");
         setShowModal(true);
@@ -382,11 +385,12 @@ export default function AdminVoucher() {
     };
 
     /**
-     * Bật / tắt kích hoạt voucher.
+     * Bật / tắt kích hoạt voucher qua endpoint PATCH riêng.
      * Khi tắt → khách nhận thông báo và không sử dụng được voucher.
      */
     const handleToggleActive = async (v) => {
         const active = isKichHoat(v);
+
         const confirmMsg = active
             ? `Ngưng sử dụng voucher "${v.maVoucher}"?\n\nKhách hàng sẽ nhận được thông báo và KHÔNG thể sử dụng voucher này nữa.`
             : `Kích hoạt lại voucher "${v.maVoucher}"?\n\nKhách hàng sẽ nhận được thông báo và có thể sử dụng voucher (nếu còn trong thời gian hiệu lực).`;
@@ -394,6 +398,7 @@ export default function AdminVoucher() {
         if (!window.confirm(confirmMsg)) return;
 
         const newTrangThai = active ? "NGUNG_HOAT_DONG" : "HOAT_DONG";
+
         const oldList = danhSach;
         const newList = danhSach.map((item) =>
             item.id === v.id ? { ...item, trangThai: newTrangThai } : item
@@ -401,31 +406,29 @@ export default function AdminVoucher() {
 
         setDanhSach(newList);
         writeCache(newList);
+        setToggling(v.id);
 
         try {
-            const body = {
-                maVoucher: v.maVoucher,
-                tenVoucher: v.tenVoucher,
-                loaiGiam: v.loaiGiam,
-                giaTriGiam: v.giaTriGiam,
-                giamToiDa: v.giamToiDa,
-                donToiThieu: v.donToiThieu,
-                soLuong: v.soLuong,
-                soLuongDaDung: v.soLuongDaDung,
-                ngayBatDau: v.ngayBatDau,
-                ngayKetThuc: v.ngayKetThuc,
-                trangThai: newTrangThai,
-            };
-
-            const res = await fetch(`${API}/ma-giam-gia/${v.id}`, {
-                method: "PUT",
+            const res = await fetch(`${API}/ma-giam-gia/${v.id}/kich-hoat`, {
+                method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
+                body: JSON.stringify({ kichHoat: !active }),
             });
 
-            if (!res.ok) throw new Error("Cập nhật trạng thái thất bại");
+            if (!res.ok) {
+                const text = await res.text();
+                let msg = "Cập nhật trạng thái thất bại";
+                try {
+                    const j = JSON.parse(text);
+                    msg = j.message || msg;
+                } catch {
+                    msg = text || msg;
+                }
+                throw new Error(msg);
+            }
 
             const saved = await res.json();
+
             setDanhSach((prev) => {
                 const updated = prev.map((item) =>
                     item.id === saved.id ? { ...item, ...saved } : item
@@ -437,6 +440,8 @@ export default function AdminVoucher() {
             setDanhSach(oldList);
             writeCache(oldList);
             alert(err.message);
+        } finally {
+            if (isMountedRef.current) setToggling(null);
         }
     };
 
@@ -681,6 +686,7 @@ export default function AdminVoucher() {
                         {currentItems.map((v) => {
                             const computedStatus = getComputedStatus(v);
                             const active = isKichHoat(v);
+                            const isToggling = toggling === v.id;
 
                             return (
                                 <tr key={v.id}>
@@ -729,7 +735,9 @@ export default function AdminVoucher() {
                                         <strong
                                             style={{
                                                 color:
-                                                    v.soLuongDaDung > 0 ? "#d94b3f" : "inherit",
+                                                    v.soLuongDaDung > 0
+                                                        ? "#d94b3f"
+                                                        : "inherit",
                                             }}
                                         >
                                             {v.soLuongDaDung ?? 0}
@@ -770,6 +778,7 @@ export default function AdminVoucher() {
                                         <button
                                             type="button"
                                             onClick={() => handleToggleActive(v)}
+                                            disabled={isToggling}
                                             title={
                                                 active
                                                     ? "Click để ngưng sử dụng voucher (khách sẽ nhận thông báo)"
@@ -785,11 +794,19 @@ export default function AdminVoucher() {
                                                 color: active ? "#24833b" : "#c0392b",
                                                 fontWeight: 700,
                                                 fontSize: 12,
-                                                cursor: "pointer",
+                                                cursor: isToggling
+                                                    ? "wait"
+                                                    : "pointer",
                                                 whiteSpace: "nowrap",
+                                                opacity: isToggling ? 0.6 : 1,
+                                                transition: "all 0.15s",
                                             }}
                                         >
-                                            {active ? "✓ Hoạt động" : "⛔ Không hoạt động"}
+                                            {isToggling
+                                                ? "Đang xử lý..."
+                                                : active
+                                                    ? "✓ Hoạt động"
+                                                    : "⛔ Không hoạt động"}
                                         </button>
                                     </td>
                                 </tr>
@@ -1046,11 +1063,15 @@ export default function AdminVoucher() {
                                             <input
                                                 className="price-input"
                                                 type="text"
-                                                value={formatSoTienInput(form.giaTriGiam)}
+                                                value={formatSoTienInput(
+                                                    form.giaTriGiam
+                                                )}
                                                 onChange={(e) =>
                                                     handleChange(
                                                         "giaTriGiam",
-                                                        parseSoTienInput(e.target.value)
+                                                        parseSoTienInput(
+                                                            e.target.value
+                                                        )
                                                     )
                                                 }
                                                 placeholder="VD: 10.000"
@@ -1061,7 +1082,10 @@ export default function AdminVoucher() {
                                                 type="number"
                                                 value={form.giaTriGiam}
                                                 onChange={(e) =>
-                                                    handleChange("giaTriGiam", e.target.value)
+                                                    handleChange(
+                                                        "giaTriGiam",
+                                                        e.target.value
+                                                    )
                                                 }
                                                 placeholder="VD: 10 (Tối đa 50)"
                                                 max="50"
@@ -1073,11 +1097,15 @@ export default function AdminVoucher() {
                                         <input
                                             className="price-input"
                                             type="text"
-                                            value={formatSoTienInput(form.giamToiDa)}
+                                            value={formatSoTienInput(
+                                                form.giamToiDa
+                                            )}
                                             onChange={(e) =>
                                                 handleChange(
                                                     "giamToiDa",
-                                                    parseSoTienInput(e.target.value)
+                                                    parseSoTienInput(
+                                                        e.target.value
+                                                    )
                                                 )
                                             }
                                             placeholder="VD: 200.000"
@@ -1098,8 +1126,9 @@ export default function AdminVoucher() {
                                         border: "1px solid #c3e6cb",
                                     }}
                                 >
-                                    🚚 Voucher này sẽ <strong>miễn phí vận chuyển</strong>{" "}
-                                    cho khách hàng. Không giảm tiền hàng.
+                                    🚚 Voucher này sẽ{" "}
+                                    <strong>miễn phí vận chuyển</strong> cho khách
+                                    hàng. Không giảm tiền hàng.
                                 </div>
                             )}
 
