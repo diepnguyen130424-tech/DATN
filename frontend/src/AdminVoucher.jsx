@@ -50,24 +50,13 @@ function isKichHoat(v) {
     return v.trangThai !== "NGUNG_HOAT_DONG";
 }
 
-/**
- * Trạng thái hiển thị:
- *  - SAP_DIEN_RA   : chưa tới ngày bắt đầu
- *  - DANG_DIEN_RA  : đang trong thời gian hiệu lực
- *  - SAP_HET_HAN   : còn ≤ SAP_HET_HAN_NGAY ngày → khách nhận thông báo
- *  - DA_KET_THUC   : đã qua ngày kết thúc
- *  - NGUNG_SU_DUNG : admin tắt kích hoạt → khách nhận thông báo, không dùng được
- */
 function getComputedStatus(v) {
     if (v.trangThai === "NGUNG_HOAT_DONG") return "NGUNG_SU_DUNG";
-
     const now = new Date().getTime();
-
     if (v.ngayBatDau) {
         const start = new Date(v.ngayBatDau).getTime();
         if (!Number.isNaN(start) && now < start) return "SAP_DIEN_RA";
     }
-
     if (v.ngayKetThuc) {
         const end = new Date(v.ngayKetThuc).getTime();
         if (!Number.isNaN(end)) {
@@ -77,7 +66,6 @@ function getComputedStatus(v) {
             if (diff <= threshold) return "SAP_HET_HAN";
         }
     }
-
     return "DANG_DIEN_RA";
 }
 
@@ -108,13 +96,8 @@ function getTrangThaiBadgeStyle(trangThai) {
         NGUNG_SU_DUNG: { background: "#fdecea", color: "#c0392b" },
     };
     return {
-        padding: "4px 10px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 700,
-        whiteSpace: "nowrap",
-        display: "inline-block",
-        ...(styles[trangThai] || {}),
+        padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+        whiteSpace: "nowrap", display: "inline-block", textAlign: "center", ...(styles[trangThai] || {}),
     };
 }
 
@@ -125,17 +108,12 @@ function readCache() {
         const parsed = JSON.parse(raw);
         if (Date.now() - parsed.time > CACHE_TTL) return null;
         return parsed.data;
-    } catch {
-        return null;
-    }
+    } catch { return null; }
 }
 
 function writeCache(data) {
     try {
-        sessionStorage.setItem(
-            CACHE_KEY,
-            JSON.stringify({ data, time: Date.now() })
-        );
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, time: Date.now() }));
     } catch {}
 }
 
@@ -157,7 +135,6 @@ export default function AdminVoucher() {
     const [filterEndDate, setFilterEndDate] = useState("");
 
     const [sortConfig, setSortConfig] = useState({ key: "id", direction: "desc" });
-
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
@@ -185,15 +162,11 @@ export default function AdminVoucher() {
             }
 
             const timeoutId = setTimeout(() => controller.abort(), 12000);
-            const res = await fetch(`${API}/ma-giam-gia`, {
-                signal: controller.signal,
-            });
+            const res = await fetch(`${API}/ma-giam-gia`, { signal: controller.signal });
             clearTimeout(timeoutId);
 
             if (!isMountedRef.current) return;
-            if (!res.ok) {
-                throw new Error(`Lỗi ${res.status}: Không tải được danh sách`);
-            }
+            if (!res.ok) throw new Error(`Lỗi ${res.status}: Không tải được danh sách`);
 
             const data = await res.json();
             if (!isMountedRef.current) return;
@@ -213,9 +186,7 @@ export default function AdminVoucher() {
                     setError("");
                 } else {
                     let msg = err.message;
-                    if (err.message === "Failed to fetch") {
-                        msg = "Không kết nối được tới máy chủ.";
-                    }
+                    if (err.message === "Failed to fetch") msg = "Không kết nối được tới máy chủ.";
                     setError(msg);
                 }
             }
@@ -224,306 +195,166 @@ export default function AdminVoucher() {
         }
     };
 
-    useEffect(() => {
-        loadDanhSach();
-    }, []);
+    useEffect(() => { loadDanhSach(); }, []);
 
-    const openCreate = () => {
-        setEditing(null);
-        setForm(EMPTY_FORM);
-        setFormError("");
-        setShowModal(true);
-    };
+    const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setFormError(""); setShowModal(true); };
 
     const openEdit = (v) => {
         setEditing(v);
         setForm({
-            maVoucher: v.maVoucher || "",
-            tenVoucher: v.tenVoucher || "",
+            maVoucher: v.maVoucher || "", tenVoucher: v.tenVoucher || "",
             loaiGiam: v.loaiGiam || "PHAN_TRAM",
             giaTriGiam: v.loaiGiam === "FREESHIP" ? "" : (v.giaTriGiam ?? ""),
             giamToiDa: v.loaiGiam === "FREESHIP" ? "" : (v.giamToiDa ?? ""),
-            donToiThieu: v.donToiThieu ?? "",
-            soLuong: v.soLuong ?? "",
+            donToiThieu: v.donToiThieu ?? "", soLuong: v.soLuong ?? "",
             soLuongDaDung: v.soLuongDaDung ?? 0,
             ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
             ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
-            trangThai: v.trangThai === "NGUNG_HOAT_DONG"
-                ? "NGUNG_HOAT_DONG"
-                : "HOAT_DONG",
+            trangThai: v.trangThai === "NGUNG_HOAT_DONG" ? "NGUNG_HOAT_DONG" : "HOAT_DONG",
         });
-        setFormError("");
-        setShowModal(true);
+        setFormError(""); setShowModal(true);
     };
 
-    const closeModal = () => {
-        if (saving) return;
-        setShowModal(false);
-        setEditing(null);
-        setForm(EMPTY_FORM);
-        setFormError("");
-    };
-
-    const handleChange = (field, value) => {
-        setForm((old) => ({ ...old, [field]: value }));
-    };
+    const closeModal = () => { if (saving) return; setShowModal(false); setEditing(null); setForm(EMPTY_FORM); setFormError(""); };
+    const handleChange = (field, value) => setForm((old) => ({ ...old, [field]: value }));
 
     const validate = () => {
         if (!form.maVoucher.trim()) return "Vui lòng nhập mã voucher";
-        if (!/^[A-Z0-9_]+$/.test(form.maVoucher.trim().toUpperCase()))
-            return "Mã chỉ dùng chữ HOA, số và dấu gạch dưới";
+        if (!/^[A-Z0-9_]+$/.test(form.maVoucher.trim().toUpperCase())) return "Mã chỉ dùng chữ HOA, số và dấu gạch dưới";
         if (!form.tenVoucher.trim()) return "Vui lòng nhập tên voucher";
-
         if (form.loaiGiam !== "FREESHIP") {
-            if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0)
-                return "Giá trị giảm phải lớn hơn 0";
-
-            if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 50)
-                return "Giảm % không được vượt quá 50%";
+            if (!form.giaTriGiam || Number(form.giaTriGiam) <= 0) return "Giá trị giảm phải lớn hơn 0";
+            if (form.loaiGiam === "PHAN_TRAM" && Number(form.giaTriGiam) > 50) return "Giảm % không được vượt quá 50%";
         }
-
-        if (!form.soLuong || Number(form.soLuong) <= 0)
-            return "Số lượng phải lớn hơn 0";
+        if (!form.soLuong || Number(form.soLuong) <= 0) return "Số lượng phải lớn hơn 0";
         return "";
     };
 
     const handleSave = async () => {
         const err = validate();
-        if (err) {
-            setFormError(err);
-            return;
-        }
+        if (err) { setFormError(err); return; }
 
-        setSaving(true);
-        setFormError("");
+        setSaving(true); setFormError("");
 
         try {
             const laFreeship = form.loaiGiam === "FREESHIP";
-
             const body = {
-                maVoucher: form.maVoucher.trim().toUpperCase(),
-                tenVoucher: form.tenVoucher.trim(),
-                loaiGiam: form.loaiGiam,
-                giaTriGiam: laFreeship ? 0 : Number(form.giaTriGiam),
-                giamToiDa: laFreeship
-                    ? null
-                    : form.giamToiDa
-                        ? Number(form.giamToiDa)
-                        : null,
+                maVoucher: form.maVoucher.trim().toUpperCase(), tenVoucher: form.tenVoucher.trim(),
+                loaiGiam: form.loaiGiam, giaTriGiam: laFreeship ? 0 : Number(form.giaTriGiam),
+                giamToiDa: laFreeship ? null : form.giamToiDa ? Number(form.giamToiDa) : null,
                 donToiThieu: form.donToiThieu ? Number(form.donToiThieu) : null,
-                soLuong: Number(form.soLuong),
-                soLuongDaDung: Number(form.soLuongDaDung) || 0,
+                soLuong: Number(form.soLuong), soLuongDaDung: Number(form.soLuongDaDung) || 0,
                 ngayBatDau: form.ngayBatDau ? form.ngayBatDau + ":00" : null,
                 ngayKetThuc: form.ngayKetThuc ? form.ngayKetThuc + ":00" : null,
                 trangThai: form.trangThai,
             };
 
-            const url = editing
-                ? `${API}/ma-giam-gia/${editing.id}`
-                : `${API}/ma-giam-gia`;
-            const method = editing ? "PUT" : "POST";
-
-            const res = await fetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
+            const url = editing ? `${API}/ma-giam-gia/${editing.id}` : `${API}/ma-giam-gia`;
+            const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
             if (!res.ok) {
                 const text = await res.text();
                 let msg = "Lưu thất bại";
-                try {
-                    const j = JSON.parse(text);
-                    msg = j.message || msg;
-                } catch {
-                    msg = text || msg;
-                }
+                try { const j = JSON.parse(text); msg = j.message || msg; } catch { msg = text || msg; }
                 throw new Error(msg);
             }
 
             const savedData = await res.json();
-
-            let newList;
-            if (editing) {
-                newList = danhSach.map((item) =>
-                    item.id === savedData.id ? savedData : item
-                );
-            } else {
-                newList = [savedData, ...danhSach];
-            }
-
-            setDanhSach(newList);
-            writeCache(newList);
-            closeModal();
-            setTimeout(() => loadDanhSach(true), 500);
-        } catch (err) {
-            setFormError(err.message);
-        } finally {
-            setSaving(false);
-        }
+            let newList = editing ? danhSach.map((item) => item.id === savedData.id ? savedData : item) : [savedData, ...danhSach];
+            setDanhSach(newList); writeCache(newList); closeModal(); setTimeout(() => loadDanhSach(true), 500);
+        } catch (err) { setFormError(err.message); } finally { setSaving(false); }
     };
 
     const handleDelete = async (v) => {
         if (!window.confirm(`Xóa voucher "${v.maVoucher}"?`)) return;
-
         const oldList = danhSach;
         const newList = danhSach.filter((item) => item.id !== v.id);
-        setDanhSach(newList);
-        writeCache(newList);
-
+        setDanhSach(newList); writeCache(newList);
         try {
-            const res = await fetch(`${API}/ma-giam-gia/${v.id}`, {
-                method: "DELETE",
-            });
+            const res = await fetch(`${API}/ma-giam-gia/${v.id}`, { method: "DELETE" });
             if (!res.ok) throw new Error("Xóa thất bại");
             setTimeout(() => loadDanhSach(true), 400);
         } catch (err) {
-            setDanhSach(oldList);
-            writeCache(oldList);
-            alert(err.message);
+            setDanhSach(oldList); writeCache(oldList); alert(err.message);
         }
     };
 
-    /**
-     * Bật / tắt kích hoạt voucher qua endpoint PATCH riêng.
-     * Khi tắt → khách nhận thông báo và không sử dụng được voucher.
-     */
     const handleToggleActive = async (v) => {
         const active = isKichHoat(v);
-
         const confirmMsg = active
             ? `Ngưng sử dụng voucher "${v.maVoucher}"?\n\nKhách hàng sẽ nhận được thông báo và KHÔNG thể sử dụng voucher này nữa.`
             : `Kích hoạt lại voucher "${v.maVoucher}"?\n\nKhách hàng sẽ nhận được thông báo và có thể sử dụng voucher (nếu còn trong thời gian hiệu lực).`;
 
         if (!window.confirm(confirmMsg)) return;
-
         const newTrangThai = active ? "NGUNG_HOAT_DONG" : "HOAT_DONG";
-
         const oldList = danhSach;
-        const newList = danhSach.map((item) =>
-            item.id === v.id ? { ...item, trangThai: newTrangThai } : item
-        );
+        const newList = danhSach.map((item) => item.id === v.id ? { ...item, trangThai: newTrangThai } : item);
 
-        setDanhSach(newList);
-        writeCache(newList);
-        setToggling(v.id);
+        setDanhSach(newList); writeCache(newList); setToggling(v.id);
 
         try {
             const res = await fetch(`${API}/ma-giam-gia/${v.id}/kich-hoat`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ kichHoat: !active }),
+                method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kichHoat: !active }),
             });
-
             if (!res.ok) {
                 const text = await res.text();
-                let msg = "Cập nhật trạng thái thất bại";
-                try {
-                    const j = JSON.parse(text);
-                    msg = j.message || msg;
-                } catch {
-                    msg = text || msg;
-                }
+                let msg = "Cập nhật thất bại";
+                try { const j = JSON.parse(text); msg = j.message || msg; } catch { msg = text || msg; }
                 throw new Error(msg);
             }
-
             const saved = await res.json();
-
             setDanhSach((prev) => {
-                const updated = prev.map((item) =>
-                    item.id === saved.id ? { ...item, ...saved } : item
-                );
-                writeCache(updated);
-                return updated;
+                const updated = prev.map((item) => item.id === saved.id ? { ...item, ...saved } : item);
+                writeCache(updated); return updated;
             });
         } catch (err) {
-            setDanhSach(oldList);
-            writeCache(oldList);
-            alert(err.message);
-        } finally {
-            if (isMountedRef.current) setToggling(null);
-        }
+            setDanhSach(oldList); writeCache(oldList); alert(err.message);
+        } finally { if (isMountedRef.current) setToggling(null); }
     };
 
     const requestSort = (key) => {
         let direction = "asc";
-        if (sortConfig.key === key && sortConfig.direction === "asc") {
-            direction = "desc";
-        }
+        if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
         setSortConfig({ key, direction });
     };
 
-    const filtered = danhSach
-        .filter((v) => {
-            const kw = search.trim().toLowerCase();
-            const matchKw =
-                !kw ||
-                v.maVoucher?.toLowerCase().includes(kw) ||
-                v.tenVoucher?.toLowerCase().includes(kw);
-
-            const computedStatus = getComputedStatus(v);
-            const matchTT =
-                filterTrangThai === "TAT_CA" || computedStatus === filterTrangThai;
-
-            let matchTime = true;
-            if (v.ngayBatDau) {
-                const vDate = new Date(v.ngayBatDau).setHours(0, 0, 0, 0);
-                if (filterStartDate) {
-                    const fStart = new Date(filterStartDate).setHours(0, 0, 0, 0);
-                    if (vDate < fStart) matchTime = false;
-                }
-                if (filterEndDate) {
-                    const fEnd = new Date(filterEndDate).setHours(23, 59, 59, 999);
-                    if (vDate > fEnd) matchTime = false;
-                }
-            } else if (filterStartDate || filterEndDate) {
-                matchTime = false;
-            }
-
-            return matchKw && matchTT && matchTime;
-        })
-        .sort((a, b) => {
-            if (sortConfig.key === "id") {
-                return sortConfig.direction === "asc" ? a.id - b.id : b.id - a.id;
-            }
-            if (sortConfig.key === "maVoucher") {
-                const valA = a.maVoucher || "";
-                const valB = b.maVoucher || "";
-                if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
-                if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
-                return 0;
-            }
-            return 0;
-        });
+    const filtered = danhSach.filter((v) => {
+        const kw = search.trim().toLowerCase();
+        const matchKw = !kw || v.maVoucher?.toLowerCase().includes(kw) || v.tenVoucher?.toLowerCase().includes(kw);
+        const computedStatus = getComputedStatus(v);
+        const matchTT = filterTrangThai === "TAT_CA" || computedStatus === filterTrangThai;
+        let matchTime = true;
+        if (v.ngayBatDau) {
+            const vDate = new Date(v.ngayBatDau).setHours(0, 0, 0, 0);
+            if (filterStartDate) { const fStart = new Date(filterStartDate).setHours(0, 0, 0, 0); if (vDate < fStart) matchTime = false; }
+            if (filterEndDate) { const fEnd = new Date(filterEndDate).setHours(23, 59, 59, 999); if (vDate > fEnd) matchTime = false; }
+        } else if (filterStartDate || filterEndDate) matchTime = false;
+        return matchKw && matchTT && matchTime;
+    }).sort((a, b) => {
+        if (sortConfig.key === "id") return sortConfig.direction === "asc" ? a.id - b.id : b.id - a.id;
+        if (sortConfig.key === "maVoucher") {
+            const valA = a.maVoucher || "", valB = b.maVoucher || "";
+            if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+        }
+        return 0;
+    });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+    useEffect(() => { setCurrentPage(1); }, [search, filterTrangThai, filterStartDate, filterEndDate, sortConfig]);
+    useEffect(() => { setCurrentPage((page) => Math.min(page, totalPages)); }, [totalPages]);
 
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [search, filterTrangThai, filterStartDate, filterEndDate, sortConfig]);
-
-    useEffect(() => {
-        setCurrentPage((page) => Math.min(page, totalPages));
-    }, [totalPages]);
-
-    const currentItems = filtered.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
-
+    const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const showSkeleton = loading && danhSach.length === 0;
+    const SortIcon = ({ columnKey }) => sortConfig.key !== columnKey ? <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span> : <span style={{ marginLeft: 4 }}>{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
 
-    const SortIcon = ({ columnKey }) => {
-        if (sortConfig.key !== columnKey)
-            return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
-        return (
-            <span style={{ marginLeft: 4 }}>
-                {sortConfig.direction === "asc" ? "↑" : "↓"}
-            </span>
-        );
-    };
+    const TOTAL_COLS = 8;
+    const tableStyle = { minWidth: "1100px", borderCollapse: "separate", borderSpacing: "0" };
 
-    const TOTAL_COLS = 14;
+    // Cố định độ rộng cột Trạng thái và Thao tác để không bị ép chữ
+    const colStatusStyle = { minWidth: "130px", textAlign: "center" };
+    const stickyTh = { position: "sticky", right: 0, background: "#fff7f5", zIndex: 2, boxShadow: "-4px 0 10px rgba(0,0,0,0.05)", minWidth: "260px", textAlign: "center" };
+    const stickyTd = { position: "sticky", right: 0, background: "#fff", zIndex: 1, boxShadow: "-4px 0 10px rgba(0,0,0,0.05)", whiteSpace: "nowrap", verticalAlign: "middle" };
 
     return (
         <div className="admin-voucher">
@@ -533,25 +364,12 @@ export default function AdminVoucher() {
                     <h1>Quản lý Voucher</h1>
                     <p>Quản lý các mã giảm giá của cửa hàng.</p>
                 </div>
-                <button className="admin-date-button" onClick={openCreate}>
-                    + Thêm voucher
-                </button>
+                <button className="admin-date-button" onClick={openCreate}>+ Thêm voucher</button>
             </div>
 
-            <div
-                className="admin-filters"
-                style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
-            >
-                <input
-                    placeholder="Tìm theo mã hoặc tên voucher..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    style={{ flex: 1, minWidth: "200px" }}
-                />
-                <select
-                    value={filterTrangThai}
-                    onChange={(e) => setFilterTrangThai(e.target.value)}
-                >
+            <div className="admin-filters" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <input placeholder="Tìm theo mã hoặc tên voucher..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: 1, minWidth: "200px" }} />
+                <select value={filterTrangThai} onChange={(e) => setFilterTrangThai(e.target.value)}>
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="SAP_DIEN_RA">Sắp diễn ra</option>
                     <option value="DANG_DIEN_RA">Đang diễn ra</option>
@@ -560,73 +378,29 @@ export default function AdminVoucher() {
                     <option value="NGUNG_SU_DUNG">Ngưng sử dụng</option>
                 </select>
 
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        background: "#fff",
-                        padding: "0 10px",
-                        border: "1px solid #ddd",
-                        borderRadius: "4px",
-                    }}
-                >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#fff", padding: "0 10px", border: "1px solid #ddd", borderRadius: "4px" }}>
                     <span style={{ fontSize: "13px", color: "#666" }}>Từ ngày:</span>
-                    <input
-                        type="date"
-                        value={filterStartDate}
-                        onChange={(e) => setFilterStartDate(e.target.value)}
-                        style={{
-                            border: "none",
-                            outline: "none",
-                            padding: "8px 0",
-                            fontSize: "14px",
-                        }}
-                    />
+                    <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} style={{ border: "none", outline: "none", padding: "8px 0", fontSize: "14px" }} />
                     <span style={{ color: "#ccc" }}>|</span>
                     <span style={{ fontSize: "13px", color: "#666" }}>Đến:</span>
-                    <input
-                        type="date"
-                        value={filterEndDate}
-                        onChange={(e) => setFilterEndDate(e.target.value)}
-                        style={{
-                            border: "none",
-                            outline: "none",
-                            padding: "8px 0",
-                            fontSize: "14px",
-                        }}
-                    />
+                    <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} style={{ border: "none", outline: "none", padding: "8px 0", fontSize: "14px" }} />
                 </div>
             </div>
 
             {showSkeleton && (
-                <div className="admin-table-scroll">
-                    <table className="admin-table">
+                <div className="admin-table-scroll" style={{ overflowX: "auto", width: "100%" }}>
+                    <table className="admin-table" style={tableStyle}>
                         <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Mã</th>
-                            <th>Tên</th>
-                            <th>Loại</th>
-                            <th>Giá trị</th>
-                            <th>Giảm tối đa</th>
-                            <th>Đơn tối thiểu</th>
-                            <th>Số lượng</th>
-                            <th>Đã dùng</th>
-                            <th>Bắt đầu</th>
-                            <th>Hết hạn</th>
-                            <th>Trạng thái</th>
-                            <th>Thao tác</th>
-                            <th>Kích hoạt</th>
+                            <th>ID</th><th>Mã</th><th>Tên</th><th>Mức giảm</th><th>Điều kiện</th><th>Thời gian</th><th style={colStatusStyle}>Trạng thái</th>
+                            <th style={stickyTh}>Thao tác & Kích hoạt</th>
                         </tr>
                         </thead>
                         <tbody>
                         {[1, 2, 3, 4, 5].map((i) => (
                             <tr key={i} className="skeleton-row">
                                 {Array.from({ length: TOTAL_COLS }).map((_, j) => (
-                                    <td key={j}>
-                                        <div className="skeleton-bar" />
-                                    </td>
+                                    <td key={j} style={j === TOTAL_COLS - 1 ? stickyTd : {}}><div className="skeleton-bar" /></td>
                                 ))}
                             </tr>
                         ))}
@@ -637,49 +411,26 @@ export default function AdminVoucher() {
 
             {!showSkeleton && error && danhSach.length === 0 && (
                 <div className="admin-error-box">
-                    <div className="icon">⚠️</div>
-                    <h3>Không tải được dữ liệu</h3>
-                    <p>{error}</p>
+                    <div className="icon">⚠️</div><h3>Không tải được dữ liệu</h3><p>{error}</p>
                 </div>
             )}
 
             {!showSkeleton && danhSach.length > 0 && (
-                <div className="admin-table-scroll">
+                <div className="admin-table-scroll" style={{ overflowX: "auto", width: "100%" }}>
                     <div className="admin-table-head">
-                        <h2>Danh sách voucher</h2>
-                        <span>{filtered.length} voucher</span>
+                        <h2>Danh sách voucher</h2><span>{filtered.length} voucher</span>
                     </div>
-                    <table className="admin-table">
+                    <table className="admin-table" style={tableStyle}>
                         <thead>
                         <tr>
-                            <th
-                                onClick={() => requestSort("id")}
-                                style={{ cursor: "pointer", userSelect: "none" }}
-                                title="Click để sắp xếp theo ID"
-                            >
-                                ID <SortIcon columnKey="id" />
-                            </th>
-
-                            <th
-                                onClick={() => requestSort("maVoucher")}
-                                style={{ cursor: "pointer", userSelect: "none" }}
-                                title="Click để sắp xếp theo Mã"
-                            >
-                                Mã <SortIcon columnKey="maVoucher" />
-                            </th>
-
+                            <th onClick={() => requestSort("id")} style={{ cursor: "pointer" }}>ID <SortIcon columnKey="id" /></th>
+                            <th onClick={() => requestSort("maVoucher")} style={{ cursor: "pointer" }}>Mã <SortIcon columnKey="maVoucher" /></th>
                             <th>Tên</th>
-                            <th>Loại</th>
-                            <th>Giá trị</th>
-                            <th>Giảm tối đa</th>
-                            <th>Đơn tối thiểu</th>
-                            <th>Số lượng</th>
-                            <th>Đã dùng</th>
-                            <th>Bắt đầu</th>
-                            <th>Hết hạn</th>
-                            <th>Trạng thái</th>
-                            <th>Thao tác</th>
-                            <th>Kích hoạt</th>
+                            <th>Mức giảm</th>
+                            <th>Điều kiện</th>
+                            <th>Thời gian</th>
+                            <th style={colStatusStyle}>Trạng thái</th>
+                            <th style={stickyTh}>Thao tác & Kích hoạt</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -690,243 +441,97 @@ export default function AdminVoucher() {
 
                             return (
                                 <tr key={v.id}>
-                                    <td>
-                                        <strong>#{v.id}</strong>
-                                    </td>
-                                    <td>
-                                        <strong>{v.maVoucher}</strong>
-                                    </td>
+                                    <td><strong>#{v.id}</strong></td>
+                                    <td><strong>{v.maVoucher}</strong></td>
                                     <td>{v.tenVoucher}</td>
+
                                     <td>
-                                        {v.loaiGiam === "PHAN_TRAM" && "Phần trăm"}
-                                        {v.loaiGiam === "SO_TIEN" && "Số tiền"}
-                                        {v.loaiGiam === "FREESHIP" && (
-                                            <span
-                                                style={{
-                                                    padding: "4px 10px",
-                                                    background: "#eaf7ed",
-                                                    color: "#24833b",
-                                                    borderRadius: 999,
-                                                    fontSize: 12,
-                                                    fontWeight: 700,
-                                                    whiteSpace: "nowrap",
-                                                }}
-                                            >
-                                                    🚚 FREESHIP
-                                                </span>
-                                        )}
+                                        <div style={{ fontWeight: 600 }}>
+                                            {v.loaiGiam === "PHAN_TRAM" && `${v.giaTriGiam}%`}
+                                            {v.loaiGiam === "SO_TIEN" && formatGia(v.giaTriGiam)}
+                                            {v.loaiGiam === "FREESHIP" && "Freeship"}
+                                        </div>
+                                        {v.giamToiDa && <div style={{ fontSize: 11, color: "#666" }}>Tối đa: {formatGia(v.giamToiDa)}</div>}
                                     </td>
 
                                     <td>
-                                        {v.loaiGiam === "PHAN_TRAM" && `${v.giaTriGiam}%`}
-                                        {v.loaiGiam === "SO_TIEN" && formatGia(v.giaTriGiam)}
-                                        {v.loaiGiam === "FREESHIP" && "—"}
-                                    </td>
-                                    <td>
-                                        {v.giamToiDa ? formatGia(v.giamToiDa) : "—"}
+                                        <div style={{ fontSize: 12 }}>Đơn từ: <strong>{formatGia(v.donToiThieu)}</strong></div>
+                                        <div style={{ fontSize: 11, color: "#666" }}>Đã dùng: {v.soLuongDaDung ?? 0}/{v.soLuong ?? 0}</div>
                                     </td>
 
-                                    <td>{formatGia(v.donToiThieu)}</td>
-
-                                    <td>
-                                        <strong>{v.soLuong ?? 0}</strong>
-                                    </td>
-                                    <td>
-                                        <strong
-                                            style={{
-                                                color:
-                                                    v.soLuongDaDung > 0
-                                                        ? "#d94b3f"
-                                                        : "inherit",
-                                            }}
-                                        >
-                                            {v.soLuongDaDung ?? 0}
-                                        </strong>
+                                    <td style={{ whiteSpace: "nowrap" }}>
+                                        <div style={{ fontSize: 12 }}>BĐ: {formatDate(v.ngayBatDau)}</div>
+                                        <div style={{ fontSize: 12, color: "#d94b3f" }}>KT: {formatDate(v.ngayKetThuc)}</div>
                                     </td>
 
-                                    <td>{formatDate(v.ngayBatDau)}</td>
-                                    <td>{formatDate(v.ngayKetThuc)}</td>
-                                    <td>
-                                            <span
-                                                className={`order-status ${getTrangThaiClass(
-                                                    computedStatus
-                                                )}`}
-                                                style={getTrangThaiBadgeStyle(computedStatus)}
-                                            >
+                                    <td style={colStatusStyle}>
+                                            <span className={`order-status ${getTrangThaiClass(computedStatus)}`} style={getTrangThaiBadgeStyle(computedStatus)}>
                                                 {computedStatus === "SAP_HET_HAN" && "⏰ "}
                                                 {computedStatus === "NGUNG_SU_DUNG" && "⛔ "}
                                                 {getTrangThaiLabel(computedStatus)}
                                             </span>
                                     </td>
-                                    <td style={{ whiteSpace: "nowrap" }}>
-                                        <button
-                                            type="button"
-                                            className="btn-edit"
-                                            onClick={() => openEdit(v)}
-                                        >
-                                            Sửa
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-delete"
-                                            onClick={() => handleDelete(v)}
-                                        >
-                                            Xóa
-                                        </button>
-                                    </td>
-                                    <td>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleToggleActive(v)}
-                                            disabled={isToggling}
-                                            title={
-                                                active
-                                                    ? "Click để ngưng sử dụng voucher (khách sẽ nhận thông báo)"
-                                                    : "Click để kích hoạt lại voucher (khách sẽ nhận thông báo)"
-                                            }
-                                            style={{
-                                                padding: "6px 12px",
-                                                border: "none",
-                                                borderRadius: 999,
-                                                background: active
-                                                    ? "#eaf7ed"
-                                                    : "#fdecea",
-                                                color: active ? "#24833b" : "#c0392b",
-                                                fontWeight: 700,
-                                                fontSize: 12,
-                                                cursor: isToggling
-                                                    ? "wait"
-                                                    : "pointer",
-                                                whiteSpace: "nowrap",
-                                                opacity: isToggling ? 0.6 : 1,
-                                                transition: "all 0.15s",
-                                            }}
-                                        >
-                                            {isToggling
-                                                ? "Đang xử lý..."
-                                                : active
-                                                    ? "✓ Hoạt động"
-                                                    : "⛔ Không hoạt động"}
-                                        </button>
+
+                                    <td style={stickyTd}>
+                                        <div style={{ display: "flex", gap: "8px", alignItems: "center", justifyContent: "center" }}>
+                                            <button
+                                                type="button" onClick={() => openEdit(v)}
+                                                style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: "600", border: "1px solid #ddd", background: "#fff", color: "#333", cursor: "pointer", transition: "0.2s", whiteSpace: "nowrap" }}
+                                                onMouseEnter={(e) => e.currentTarget.style.background = "#f5f5f5"}
+                                                onMouseLeave={(e) => e.currentTarget.style.background = "#fff"}
+                                            >Sửa</button>
+
+                                            <button
+                                                type="button" onClick={() => handleDelete(v)}
+                                                style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: "600", border: "1px solid #fadbd8", background: "#fdecea", color: "#c0392b", cursor: "pointer", transition: "0.2s", whiteSpace: "nowrap" }}
+                                                onMouseEnter={(e) => e.currentTarget.style.background = "#fadbd8"}
+                                                onMouseLeave={(e) => e.currentTarget.style.background = "#fdecea"}
+                                            >Xóa</button>
+
+                                            <div style={{ width: "1px", height: "20px", background: "#eee", margin: "0 4px" }} />
+
+                                            {/* CÔNG TẮC GẠT (TOGGLE SWITCH) */}
+                                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                <button
+                                                    type="button" onClick={() => handleToggleActive(v)} disabled={isToggling}
+                                                    title={active ? "Ngưng sử dụng" : "Kích hoạt"}
+                                                    style={{
+                                                        width: "36px", height: "20px", borderRadius: "10px", border: "none", position: "relative",
+                                                        cursor: isToggling ? "wait" : "pointer", transition: "0.3s",
+                                                        background: active ? "#24833b" : "#ccc", opacity: isToggling ? 0.6 : 1,
+                                                    }}
+                                                >
+                                                        <span style={{
+                                                            position: "absolute", top: "2px", left: active ? "18px" : "2px",
+                                                            width: "16px", height: "16px", borderRadius: "50%", background: "#fff",
+                                                            transition: "0.3s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
+                                                        }} />
+                                                </button>
+                                                <span style={{ fontSize: "12px", fontWeight: 600, color: active ? "#24833b" : "#888", width: "30px" }}>
+                                                        {active ? "Bật" : "Tắt"}
+                                                    </span>
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
                             );
                         })}
+
                         {filtered.length === 0 && (
                             <tr>
-                                <td colSpan={TOTAL_COLS} className="admin-empty">
-                                    Không có voucher nào phù hợp
-                                </td>
+                                <td colSpan={TOTAL_COLS} className="admin-empty">Không có voucher nào phù hợp</td>
                             </tr>
                         )}
 
                         <tr>
-                            <td
-                                colSpan={TOTAL_COLS}
-                                style={{
-                                    textAlign: "center",
-                                    padding: "12px",
-                                }}
-                            >
+                            <td colSpan={TOTAL_COLS} style={{ textAlign: "center", padding: "16px" }}>
                                 {filtered.length > 0 && (
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            justifyContent: "center",
-                                            alignItems: "center",
-                                            gap: "8px",
-                                        }}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setCurrentPage((page) =>
-                                                    Math.max(1, page - 1)
-                                                )
-                                            }
-                                            disabled={currentPage === 1}
-                                            style={{
-                                                width: 56,
-                                                height: 56,
-                                                border: "1px solid #ddd",
-                                                borderRadius: 10,
-                                                background: "#fff",
-                                                fontSize: 22,
-                                                color:
-                                                    currentPage === 1
-                                                        ? "#ccc"
-                                                        : "#222",
-                                                cursor:
-                                                    currentPage === 1
-                                                        ? "default"
-                                                        : "pointer",
-                                            }}
-                                        >
-                                            ←
-                                        </button>
-
-                                        {Array.from(
-                                            { length: totalPages },
-                                            (_, index) => index + 1
-                                        ).map((page) => (
-                                            <button
-                                                key={page}
-                                                type="button"
-                                                onClick={() => setCurrentPage(page)}
-                                                style={{
-                                                    width: 56,
-                                                    height: 56,
-                                                    border:
-                                                        currentPage === page
-                                                            ? "1px solid #d94b3f"
-                                                            : "1px solid #ddd",
-                                                    borderRadius: 10,
-                                                    background:
-                                                        currentPage === page
-                                                            ? "#d94b3f"
-                                                            : "#fff",
-                                                    color:
-                                                        currentPage === page
-                                                            ? "#fff"
-                                                            : "#222",
-                                                    fontWeight:
-                                                        currentPage === page
-                                                            ? 700
-                                                            : 500,
-                                                    cursor: "pointer",
-                                                }}
-                                            >
-                                                {page}
-                                            </button>
+                                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
+                                        <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ width: 40, height: 40, border: "1px solid #ddd", borderRadius: 8, background: "#fff", fontSize: 16, color: currentPage === 1 ? "#ccc" : "#222", cursor: currentPage === 1 ? "default" : "pointer" }}>←</button>
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                            <button key={page} type="button" onClick={() => setCurrentPage(page)} style={{ width: 40, height: 40, border: currentPage === page ? "1px solid #d94b3f" : "1px solid #ddd", borderRadius: 8, background: currentPage === page ? "#d94b3f" : "#fff", color: currentPage === page ? "#fff" : "#222", fontWeight: currentPage === page ? 700 : 500, cursor: "pointer" }}>{page}</button>
                                         ))}
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setCurrentPage((page) =>
-                                                    Math.min(totalPages, page + 1)
-                                                )
-                                            }
-                                            disabled={currentPage === totalPages}
-                                            style={{
-                                                width: 56,
-                                                height: 56,
-                                                border: "1px solid #ddd",
-                                                borderRadius: 10,
-                                                background: "#fff",
-                                                fontSize: 22,
-                                                color:
-                                                    currentPage === totalPages
-                                                        ? "#ccc"
-                                                        : "#222",
-                                                cursor:
-                                                    currentPage === totalPages
-                                                        ? "default"
-                                                        : "pointer",
-                                            }}
-                                        >
-                                            →
-                                        </button>
+                                        <button type="button" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} style={{ width: 40, height: 40, border: "1px solid #ddd", borderRadius: 8, background: "#fff", fontSize: 16, color: currentPage === totalPages ? "#ccc" : "#222", cursor: currentPage === totalPages ? "default" : "pointer" }}>→</button>
                                     </div>
                                 )}
                             </td>
@@ -937,307 +542,38 @@ export default function AdminVoucher() {
             )}
 
             {showModal && (
-                <div
-                    onClick={closeModal}
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,.5)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        zIndex: 100,
-                        padding: 20,
-                    }}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: "#fff",
-                            borderRadius: 12,
-                            padding: 28,
-                            width: "100%",
-                            maxWidth: 620,
-                            maxHeight: "90vh",
-                            overflowY: "auto",
-                        }}
-                    >
-                        <h2 style={{ marginTop: 0 }}>
-                            {editing ? "Sửa voucher" : "Thêm voucher"}
-                        </h2>
-
-                        {formError && (
-                            <div
-                                style={{
-                                    background: "#fdecea",
-                                    color: "#c0392b",
-                                    padding: "10px 14px",
-                                    borderRadius: 8,
-                                    marginBottom: 16,
-                                    fontSize: 13,
-                                }}
-                            >
-                                {formError}
-                            </div>
-                        )}
-
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns: "1fr 1fr",
-                                gap: 14,
-                            }}
-                        >
-                            {editing && (
-                                <Field label="ID">
-                                    <input
-                                        className="price-input"
-                                        type="text"
-                                        value={editing.id || "tự động sinh"}
-                                        disabled
-                                        style={{
-                                            background: "#f5f5f5",
-                                            color: "#666",
-                                            cursor: "not-allowed",
-                                        }}
-                                    />
-                                </Field>
-                            )}
-                            <Field label="Mã voucher *">
-                                <input
-                                    className="price-input"
-                                    value={form.maVoucher}
-                                    onChange={(e) =>
-                                        handleChange(
-                                            "maVoucher",
-                                            e.target.value.toUpperCase()
-                                        )
-                                    }
-                                    placeholder="VD: SALE10"
-                                />
-                            </Field>
-
-                            <Field label="Tên voucher *">
-                                <input
-                                    className="price-input"
-                                    value={form.tenVoucher}
-                                    onChange={(e) =>
-                                        handleChange("tenVoucher", e.target.value)
-                                    }
-                                    placeholder="VD: Giảm 10% đơn hàng"
-                                />
-                            </Field>
-
+                <div onClick={closeModal} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 620, maxHeight: "90vh", overflowY: "auto" }}>
+                        <h2 style={{ marginTop: 0 }}>{editing ? "Sửa voucher" : "Thêm voucher"}</h2>
+                        {formError && <div style={{ background: "#fdecea", color: "#c0392b", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{formError}</div>}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                            {editing && <Field label="ID"><input className="price-input" type="text" value={editing.id || ""} disabled style={{ background: "#f5f5f5", color: "#666" }} /></Field>}
+                            <Field label="Mã voucher *"><input className="price-input" value={form.maVoucher} onChange={(e) => handleChange("maVoucher", e.target.value.toUpperCase())} placeholder="VD: SALE10" /></Field>
+                            <Field label="Tên voucher *"><input className="price-input" value={form.tenVoucher} onChange={(e) => handleChange("tenVoucher", e.target.value)} placeholder="VD: Giảm 10%" /></Field>
                             <Field label="Loại giảm">
-                                <select
-                                    className="price-input"
-                                    value={form.loaiGiam}
-                                    onChange={(e) => {
-                                        const loai = e.target.value;
-                                        setForm((old) => ({
-                                            ...old,
-                                            loaiGiam: loai,
-                                            giaTriGiam:
-                                                loai === "FREESHIP"
-                                                    ? ""
-                                                    : old.giaTriGiam,
-                                            giamToiDa:
-                                                loai === "FREESHIP"
-                                                    ? ""
-                                                    : old.giamToiDa,
-                                        }));
-                                    }}
-                                >
+                                <select className="price-input" value={form.loaiGiam} onChange={(e) => { const l = e.target.value; setForm((o) => ({ ...o, loaiGiam: l, giaTriGiam: l === "FREESHIP" ? "" : o.giaTriGiam, giamToiDa: l === "FREESHIP" ? "" : o.giamToiDa })); }}>
                                     <option value="PHAN_TRAM">Phần trăm (%)</option>
                                     <option value="SO_TIEN">Số tiền (đ)</option>
-                                    <option value="FREESHIP">
-                                        🚚 Miễn phí vận chuyển (FREESHIP)
-                                    </option>
+                                    <option value="FREESHIP">🚚 FREESHIP</option>
                                 </select>
                             </Field>
-
                             {form.loaiGiam !== "FREESHIP" && (
                                 <>
                                     <Field label="Giá trị giảm *">
-                                        {form.loaiGiam === "SO_TIEN" ? (
-                                            <input
-                                                className="price-input"
-                                                type="text"
-                                                value={formatSoTienInput(
-                                                    form.giaTriGiam
-                                                )}
-                                                onChange={(e) =>
-                                                    handleChange(
-                                                        "giaTriGiam",
-                                                        parseSoTienInput(
-                                                            e.target.value
-                                                        )
-                                                    )
-                                                }
-                                                placeholder="VD: 10.000"
-                                            />
-                                        ) : (
-                                            <input
-                                                className="price-input"
-                                                type="number"
-                                                value={form.giaTriGiam}
-                                                onChange={(e) =>
-                                                    handleChange(
-                                                        "giaTriGiam",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                placeholder="VD: 10 (Tối đa 50)"
-                                                max="50"
-                                            />
-                                        )}
+                                        {form.loaiGiam === "SO_TIEN" ? <input className="price-input" type="text" value={formatSoTienInput(form.giaTriGiam)} onChange={(e) => handleChange("giaTriGiam", parseSoTienInput(e.target.value))} placeholder="VD: 10.000" /> : <input className="price-input" type="number" value={form.giaTriGiam} onChange={(e) => handleChange("giaTriGiam", e.target.value)} placeholder="VD: 10" max="50" />}
                                     </Field>
-
-                                    <Field label="Giảm tối đa (đ)">
-                                        <input
-                                            className="price-input"
-                                            type="text"
-                                            value={formatSoTienInput(
-                                                form.giamToiDa
-                                            )}
-                                            onChange={(e) =>
-                                                handleChange(
-                                                    "giamToiDa",
-                                                    parseSoTienInput(
-                                                        e.target.value
-                                                    )
-                                                )
-                                            }
-                                            placeholder="VD: 200.000"
-                                        />
-                                    </Field>
+                                    <Field label="Giảm tối đa (đ)"><input className="price-input" type="text" value={formatSoTienInput(form.giamToiDa)} onChange={(e) => handleChange("giamToiDa", parseSoTienInput(e.target.value))} placeholder="VD: 200.000" /></Field>
                                 </>
                             )}
-
-                            {form.loaiGiam === "FREESHIP" && (
-                                <div
-                                    style={{
-                                        gridColumn: "1 / -1",
-                                        padding: "12px 14px",
-                                        background: "#eaf7ed",
-                                        color: "#24833b",
-                                        borderRadius: 8,
-                                        fontSize: 13,
-                                        border: "1px solid #c3e6cb",
-                                    }}
-                                >
-                                    🚚 Voucher này sẽ{" "}
-                                    <strong>miễn phí vận chuyển</strong> cho khách
-                                    hàng. Không giảm tiền hàng.
-                                </div>
-                            )}
-
-                            <Field label="Đơn tối thiểu (đ)">
-                                <input
-                                    className="price-input"
-                                    type="text"
-                                    value={formatSoTienInput(form.donToiThieu)}
-                                    onChange={(e) =>
-                                        handleChange(
-                                            "donToiThieu",
-                                            parseSoTienInput(e.target.value)
-                                        )
-                                    }
-                                    placeholder="VD: 500.000"
-                                />
-                            </Field>
-
-                            <Field label="Số lượng *">
-                                <input
-                                    className="price-input"
-                                    type="number"
-                                    value={form.soLuong}
-                                    onChange={(e) =>
-                                        handleChange("soLuong", e.target.value)
-                                    }
-                                    placeholder="VD: 100"
-                                />
-                            </Field>
-                            <Field label="Ngày bắt đầu">
-                                <input
-                                    className="price-input"
-                                    type="datetime-local"
-                                    value={form.ngayBatDau}
-                                    onChange={(e) =>
-                                        handleChange("ngayBatDau", e.target.value)
-                                    }
-                                />
-                            </Field>
-
-                            <Field label="Ngày kết thúc">
-                                <input
-                                    className="price-input"
-                                    type="datetime-local"
-                                    value={form.ngayKetThuc}
-                                    onChange={(e) =>
-                                        handleChange("ngayKetThuc", e.target.value)
-                                    }
-                                />
-                            </Field>
-
-                            <Field label="Kích hoạt">
-                                <select
-                                    className="price-input"
-                                    value={form.trangThai}
-                                    onChange={(e) =>
-                                        handleChange("trangThai", e.target.value)
-                                    }
-                                >
-                                    <option value="HOAT_DONG">✓ Hoạt động</option>
-                                    <option value="NGUNG_HOAT_DONG">
-                                        ⛔ Không hoạt động (khách không dùng được)
-                                    </option>
-                                </select>
-                            </Field>
+                            <Field label="Đơn tối thiểu (đ)"><input className="price-input" type="text" value={formatSoTienInput(form.donToiThieu)} onChange={(e) => handleChange("donToiThieu", parseSoTienInput(e.target.value))} placeholder="VD: 500.000" /></Field>
+                            <Field label="Số lượng *"><input className="price-input" type="number" value={form.soLuong} onChange={(e) => handleChange("soLuong", e.target.value)} placeholder="VD: 100" /></Field>
+                            <Field label="Ngày bắt đầu"><input className="price-input" type="datetime-local" value={form.ngayBatDau} onChange={(e) => handleChange("ngayBatDau", e.target.value)} /></Field>
+                            <Field label="Ngày kết thúc"><input className="price-input" type="datetime-local" value={form.ngayKetThuc} onChange={(e) => handleChange("ngayKetThuc", e.target.value)} /></Field>
+                            <Field label="Kích hoạt"><select className="price-input" value={form.trangThai} onChange={(e) => handleChange("trangThai", e.target.value)}><option value="HOAT_DONG">✓ Hoạt động</option><option value="NGUNG_HOAT_DONG">⛔ Không hoạt động</option></select></Field>
                         </div>
-
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "flex-end",
-                                gap: 10,
-                                marginTop: 24,
-                            }}
-                        >
-                            <button
-                                type="button"
-                                onClick={closeModal}
-                                disabled={saving}
-                                style={{
-                                    padding: "10px 20px",
-                                    border: "1px solid #ddd",
-                                    borderRadius: 8,
-                                    background: "#fff",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleSave}
-                                disabled={saving}
-                                style={{
-                                    padding: "10px 20px",
-                                    border: "none",
-                                    borderRadius: 8,
-                                    background: "#111",
-                                    color: "#fff",
-                                    cursor: "pointer",
-                                    fontWeight: 700,
-                                }}
-                            >
-                                {saving
-                                    ? "Đang lưu..."
-                                    : editing
-                                        ? "Cập nhật"
-                                        : "Tạo mới"}
-                            </button>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
+                            <button type="button" onClick={closeModal} disabled={saving} style={{ padding: "10px 20px", border: "1px solid #ddd", borderRadius: 8, background: "#fff", cursor: "pointer" }}>Hủy</button>
+                            <button type="button" onClick={handleSave} disabled={saving} style={{ padding: "10px 20px", border: "none", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontWeight: 700 }}>{saving ? "Đang lưu..." : editing ? "Cập nhật" : "Tạo mới"}</button>
                         </div>
                     </div>
                 </div>
@@ -1249,16 +585,7 @@ export default function AdminVoucher() {
 function Field({ label, children }) {
     return (
         <div>
-            <label
-                style={{
-                    display: "block",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    marginBottom: 6,
-                }}
-            >
-                {label}
-            </label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>{label}</label>
             {children}
         </div>
     );
