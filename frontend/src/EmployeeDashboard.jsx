@@ -857,7 +857,7 @@ export default function EmployeeDashboard({
                             )}
 
                             {activeMenu === "ban-hang" && (
-                                <BanHangTaiQuayContent />
+                                <BanHangTaiQuayContent taiKhoan={taiKhoan} />
                             )}
 
                             {activeMenu === "don-online" && (

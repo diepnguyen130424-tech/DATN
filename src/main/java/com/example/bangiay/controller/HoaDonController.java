@@ -268,5 +268,24 @@ public class HoaDonController {
         return ResponseEntity.ok(hoaDonService.taoHoaDonTaiQuay(req));
     }
 
+    @PostMapping("/giu-hang")
+    public ResponseEntity<?> giuHang(@RequestParam Long sanPhamChiTietId, @RequestParam int soLuong) {
+        try {
+            hoaDonService.giuHang(sanPhamChiTietId, soLuong);
+            return ResponseEntity.ok("Đã giữ hàng");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/nha-hang")
+    public ResponseEntity<?> nhaHang(@RequestParam Long sanPhamChiTietId, @RequestParam int soLuong) {
+        try {
+            hoaDonService.nhaHang(sanPhamChiTietId, soLuong);
+            return ResponseEntity.ok("Đã nhả hàng");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 
 }

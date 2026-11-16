@@ -3798,7 +3798,7 @@ function printAdminPosInvoice() {
     document.body.appendChild(iframe);
 }
 
-export function BanHangTaiQuayContent() {
+export function BanHangTaiQuayContent(taiKhoan) {
     // Tài khoản nhận tiền cố định của FShop; VietQR tự điền số tiền và nội dung theo đơn.
     const BANK_ID = "MB";
     const BANK_ACCOUNT_NO = "0867596002";
@@ -3828,6 +3828,29 @@ export function BanHangTaiQuayContent() {
     const [activeBillId, setActiveBillId] = useState("HD-1");
     const [billCounter, setBillCounter] = useState(1);
 
+    // Cập nhật tồn kho sản phẩm trên giao diện
+    const capNhatTonKhoSanPham = (variantId, delta) => {
+        setProducts(old => old.map(product => {
+            const hasVariant = (product.chiTiet || []).some(
+                v => String(v.id) === String(variantId)
+            );
+
+            if (!hasVariant) return product;
+
+            return {
+                ...product,
+                chiTiet: (product.chiTiet || []).map(v =>
+                    String(v.id) === String(variantId)
+                        ? {
+                            ...v,
+                            soLuongTon: Number(v.soLuongTon || 0) + delta
+                        }
+                        : v
+                ),
+                tonKhoPOS: Number(product.tonKhoPOS || 0) + delta
+            };
+        }));
+    };
     const loadProducts = async () => {
         try {
             setLoading(true); setError("");
@@ -3979,41 +4002,142 @@ export function BanHangTaiQuayContent() {
             const response = await fetch(`${API}/san-pham/${product.id}/chi-tiet`);
             const raw = await response.text(); let data; try { data = raw ? JSON.parse(raw) : []; } catch { data = []; }
             if (!response.ok) throw new Error(data?.message || data?.error || raw || "Không tải được size/màu sản phẩm");
-            const available = (Array.isArray(data) ? data : []).filter(v => Number(v.soLuongTon || 0) > 0 && (!v.trangThai || String(v.trangThai).toUpperCase() === "HOAT_DONG"));
-            if (isProductInactive(product)) {
-                setSelectedProduct(null);
-                setError("Sản phẩm đã ngừng hoạt động, không thể thêm vào hóa đơn.");
-                return;
-            }
+            const available = (Array.isArray(data) ? data : [])
+                .filter(v =>
+                    Number(v.soLuongTon) > 0 &&
+                    (!v.trangThai ||
+                        String(v.trangThai).toUpperCase() === "HOAT_DONG")
+                );
+
             setVariants(available); if (available.length) setSelectedVariantId(String(available[0].id));
             else setError("Sản phẩm này hiện không có biến thể còn hàng.");
         } catch (e) { setError(e.message || "Không tải được biến thể sản phẩm."); }
         finally { setLoadingVariants(false); }
     };
-    const addSelectedVariant = () => {
+
+    const addSelectedVariant = async () => {
         if (isProductInactive(selectedProduct)) {
-            setError("Sản phẩm đã ngừng hoạt động, không thể thêm vào hóa đơn.");
+            setError("Sản phẩm đã ngừng hoạt động.");
             setSelectedProduct(null);
             return;
         }
-        const variant = variants.find(v => String(v.id) === String(selectedVariantId));
-        if (!variant) return;
-        setCart(old => {
-            const existing = old.find(item => Number(item.variant.id) === Number(variant.id));
-            if (existing) {
-                if (existing.quantity >= Number(variant.soLuongTon || 0)) { setError(`Size/màu này chỉ còn ${variant.soLuongTon || 0} sản phẩm.`); return old; }
-                return old.map(item => Number(item.variant.id) === Number(variant.id) ? { ...item, quantity: item.quantity + 1 } : item);
+
+        // Lấy dữ liệu MỚI NHẤT từ state variants
+        const currentVariant = variants.find(
+            v => String(v.id) === String(selectedVariantId)
+        );
+
+        if (!currentVariant || Number(currentVariant.soLuongTon) <= 0) {
+            setError("Size/màu này đã hết hàng.");
+            return;
+        }
+
+        try {
+            // 1. Gọi API trừ kho Database
+            const res = await fetch(`${API}/hoa-don/giu-hang?sanPhamChiTietId=${currentVariant.id}&soLuong=1`, {
+                method: "POST"
+            });
+            if (!res.ok) {
+                throw new Error(await res.text() || "Không thể giữ hàng");
             }
-            return [...old, { product: selectedProduct, variant, quantity: 1 }];
-        });
-        setError(""); setSelectedProduct(null);
+
+            // 2. Cập nhật giỏ hàng
+            const tonKhoMoi = Number(currentVariant.soLuongTon) - 1;
+
+            setCart(old => {
+                const existing = old.find(
+                    item => Number(item.variant.id) === Number(currentVariant.id)
+                );
+
+                if (existing) {
+                    return old.map(item =>
+                        Number(item.variant.id) === Number(currentVariant.id)
+                            ? {
+                                ...item,
+                                quantity: item.quantity + 1,
+                                variant: {
+                                    ...item.variant,
+                                    soLuongTon: tonKhoMoi
+                                }
+                            }
+                            : item
+                    );
+                }
+
+                return [
+                    ...old,
+                    {
+                        product: selectedProduct,
+                        variant: {
+                            ...currentVariant,
+                            soLuongTon: tonKhoMoi
+                        },
+                        quantity: 1
+                    }
+                ];
+            });
+
+            capNhatTonKhoSanPham(currentVariant.id, -1);
+
+            // 3. Cập nhật giao diện (trừ kho hiển thị)
+            setVariants(old =>
+                old.map(v =>
+                    String(v.id) === String(currentVariant.id)
+                        ? { ...v, soLuongTon: Math.max(0, Number(v.soLuongTon || 0) - 1) }
+                        : v
+                )
+            );
+
+            setError("");
+            setSelectedProduct(null);
+        } catch (err) {
+            setError(err.message || "Không thể giữ hàng");
+        }
     };
-    const changeQuantity = (variantId, delta) => setCart(old => old.map(item => {
-        if (Number(item.variant.id) !== Number(variantId)) return item;
-        const next = item.quantity + delta;
-        if (next > Number(item.variant.soLuongTon || 0)) { setError(`Chỉ còn ${item.variant.soLuongTon || 0} sản phẩm trong kho.`); return item; }
-        return { ...item, quantity: next };
-    }).filter(item => item.quantity > 0));
+
+    const changeQuantity = async (variantId, delta) => {
+        const item = cart.find((i) => i.variant.id === variantId);
+        if (!item) return;
+
+        const currentVariant = variants.find(v => String(v.id) === String(variantId));
+        if (!currentVariant) return;
+
+        const newQty = item.quantity + delta;
+        if (newQty < 1) return;
+
+        if (delta > 0 && newQty > Number(currentVariant.soLuongTon)) {
+            setError(`Chỉ còn ${currentVariant.soLuongTon} sản phẩm.`);
+            return;
+        }
+
+        try {
+            const endpoint = delta > 0 ? "giu-hang" : "nha-hang";
+            const soLuongThayDoi = Math.abs(delta);
+
+            const res = await fetch(`${API}/hoa-don/${endpoint}?sanPhamChiTietId=${variantId}&soLuong=${soLuongThayDoi}`, {
+                method: "POST"
+            });
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(errorText || "Lỗi cập nhật kho");
+            }
+
+            setCart(old => old.map(i =>
+                i.variant.id === variantId ? { ...i, quantity: newQty } : i
+            ));
+
+            setVariants(old => old.map(v =>
+                String(v.id) === String(variantId)
+                    ? { ...v, soLuongTon: Number(v.soLuongTon) - delta }
+                    : v
+            ));
+
+            setError("");
+        } catch (err) {
+            setError(err.message || "Lỗi cập nhật kho");
+        }
+    };
+
     const priceOf = (product, variant) => Number(variant?.giaBan ?? variant?.gia ?? variant?.donGia ?? product?.giaBan ?? product?.gia ?? 0);
     const total = cart.reduce((sum, item) => sum + priceOf(item.product, item.variant) * item.quantity, 0);
     const money = value => `${Number(value || 0).toLocaleString("vi-VN")}đ`;
@@ -4100,7 +4224,23 @@ export function BanHangTaiQuayContent() {
                     </article>;
                 })}</div> : <p style={{ padding: 28, textAlign: "center", color: "#667085" }}>Không tìm thấy sản phẩm phù hợp.</p>}
             </section>
-            <aside style={{ ...panel, display: "flex", flexDirection: "column" }}><h2 style={{ margin: "2px 0 2px", fontSize: 24 }}>Giỏ hàng ({cart.length})</h2><p style={{ color: "#999", fontSize: 13, margin: "0 0 12px" }}>Hóa đơn tại quầy</p><div style={{ flex: 1, minHeight: 100, maxHeight: 320, overflowY: "auto" }}>{cart.length ? cart.map(item => <div key={item.variant.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "12px 0", borderBottom: "1px solid #eee" }}><div><strong>{item.product.tenSanPham}</strong><div style={{ color: "#667085", fontSize: 12, marginTop: 4 }}>Size {item.variant.kichCo?.tenKichCo || item.variant.kichCo?.kichCo || "-"} · {item.variant.mauSac?.tenMau || "-"}</div><b style={{ display: "block", color: "#ed4b2e", marginTop: 5 }}>{money(priceOf(item.product, item.variant))}</b><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 7 }}><button type="button" onClick={() => changeQuantity(item.variant.id, -1)}>−</button><span>{item.quantity}</span><button type="button" onClick={() => changeQuantity(item.variant.id, 1)}>+</button><small style={{ color: "#667085" }}>Còn {item.variant.soLuongTon}</small></div></div><button type="button" aria-label="Xóa sản phẩm" onClick={() => setCart(old => old.filter(row => row.variant.id !== item.variant.id))} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
+            <aside style={{ ...panel, display: "flex", flexDirection: "column" }}>
+                <h2 style={{ margin: "2px 0 2px", fontSize: 24 }}>Giỏ hàng ({cart.length})</h2>
+                <p style={{ color: "#999", fontSize: 13, margin: "0 0 12px" }}>Hóa đơn tại quầy</p>
+                <div style={{ flex: 1, minHeight: 100, maxHeight: 320, overflowY: "auto" }}>{cart.length ? cart.map(item => <div key={item.variant.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "12px 0", borderBottom: "1px solid #eee" }}><div><strong>{item.product.tenSanPham}</strong>
+                    <div style={{ color: "#667085", fontSize: 12, marginTop: 4 }}>Size {item.variant.kichCo?.tenKichCo || item.variant.kichCo?.kichCo || "-"} · {item.variant.mauSac?.tenMau || "-"}</div>
+                    <b style={{ display: "block", color: "#ed4b2e", marginTop: 5 }}>{money(priceOf(item.product, item.variant))}</b><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 7 }}>
+                        <button type="button" onClick={() => changeQuantity(item.variant.id, -1)}>−</button><span>{item.quantity}</span><button type="button" onClick={() => changeQuantity(item.variant.id, 1)}>+</button><small style={{ color: "#667085" }}>Còn {item.variant.soLuongTon}</small></div></div><button type="button" aria-label="Xóa sản phẩm"onClick={() => {
+                const itemToRemove = cart.find(row => row.variant.id === item.variant.id);
+                if (itemToRemove) {
+                    setVariants(oldVars => oldVars.map(v =>
+                        String(v.id) === String(itemToRemove.variant.id)
+                            ? { ...v, soLuongTon: Number(v.soLuongTon || 0) + itemToRemove.quantity }
+                            : v
+                    ));
+                }
+                setCart(old => old.filter(row => row.variant.id !== item.variant.id));
+            }} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
                 <div style={{ borderTop: "1px dashed #ddd", marginTop: 12, paddingTop: 14, display: "grid", gap: 10 }}><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Tạm tính</span><strong>{money(total)}</strong></div><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Giảm giá</span><strong>0đ</strong></div><div style={{ display: "flex", justifyContent: "space-between", fontSize: 19 }}><strong>Tổng tiền</strong><strong style={{ color: "#ed4b2e" }}>{money(total)}</strong></div></div>
                 <div style={{ borderTop: "1px solid #eee", marginTop: 16, paddingTop: 14, display: "grid", gap: 11 }}><strong style={{ fontSize: 15 }}>PHƯƠNG THỨC THANH TOÁN</strong><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{[["TIEN_MAT", "💵", "Tiền mặt"], ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"]].map(([value, icon, label]) => <button type="button" key={value} onClick={() => setPhuongThucThanhToan(value)} style={{ padding: "12px 6px", borderRadius: 9, border: `1px solid ${phuongThucThanhToan === value ? "#ed4b2e" : "#ddd"}`, background: phuongThucThanhToan === value ? "#fff3ef" : "#fff", color: phuongThucThanhToan === value ? "#ed4b2e" : "#555", cursor: "pointer" }}><span style={{ display: "block", fontSize: 20 }}>{icon}</span><small>{label}</small></button>)}</div><label style={{ fontSize: 13 }}>Chọn khách hàng đã lưu
                     <input list="fshop-pos-customers" value={customerSearch} onChange={e => {
@@ -4114,7 +4254,59 @@ export function BanHangTaiQuayContent() {
                 </label>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><input value={tenKhach} onChange={e => setTenKhach(e.target.value)} placeholder="Tên khách hàng" style={field}/><input value={soDienThoaiKhach} onChange={e => setSoDienThoaiKhach(e.target.value)} placeholder="Số điện thoại" style={field}/></div>
                     <button type="button" onClick={() => setShowNewCustomer(v => !v)} style={{ border: "1px solid #ed4b2e", borderRadius: 9, padding: 10, background: "#fff", color: "#ed4b2e", fontWeight: 700, cursor: "pointer" }}>{showNewCustomer ? "Đóng thêm khách hàng" : "+ Thêm khách hàng mới"}</button>
-                    {showNewCustomer && <div style={{ display: "grid", gap: 8, padding: 10, background: "#fff8f5", borderRadius: 9 }}><input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Họ tên khách hàng mới" style={field}/><input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Số điện thoại khách hàng mới" style={field}/><button type="button" disabled={busy} onClick={saveNewCustomer} style={buttonBase}>{busy ? "Đang lưu..." : "Lưu khách hàng"}</button></div>}<button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣　Thanh toán　${money(total)}`}</button><button type="button" disabled={!cart.length} onClick={() => setCart([])} style={{ border: "1px solid #ddd", borderRadius: 9, padding: 11, background: "#fff", color: "#777", cursor: cart.length ? "pointer" : "not-allowed" }}>Xóa giỏ hàng</button><small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
+                    {showNewCustomer && <div style={{ display: "grid", gap: 8, padding: 10, background: "#fff8f5", borderRadius: 9 }}>
+                        <input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Họ tên khách hàng mới" style={field}/>
+                        <input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Số điện thoại khách hàng mới" style={field}/>
+                        <button type="button" disabled={busy} onClick={saveNewCustomer} style={buttonBase}>{busy ? "Đang lưu..." : "Lưu khách hàng"}</button></div>}
+                    <button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣　Thanh toán　${money(total)}`}</button>
+                    <button
+                        type="button"
+                        aria-label="Xóa sản phẩm"
+                        onClick={async () => {
+                            try {
+                                const res = await fetch(
+                                    `${API}/hoa-don/nha-hang?sanPhamChiTietId=${item.variant.id}&soLuong=${item.quantity}`,
+                                    { method: "POST" }
+                                );
+
+                                if (!res.ok) {
+                                    throw new Error(await res.text() || "Không thể trả hàng về kho");
+                                }
+
+                                // Khôi phục tồn kho trong danh sách biến thể
+                                setVariants(old => old.map(v =>
+                                    String(v.id) === String(item.variant.id)
+                                        ? {
+                                            ...v,
+                                            soLuongTon: Number(v.soLuongTon || 0) + item.quantity
+                                        }
+                                        : v
+                                ));
+
+                                // Cập nhật tồn kho sản phẩm
+                                capNhatTonKhoSanPham(item.variant.id, item.quantity);
+
+                                // Xóa sản phẩm khỏi giỏ
+                                setCart(old => old.filter(
+                                    row => String(row.variant.id) !== String(item.variant.id)
+                                ));
+
+                                setError("");
+                            } catch (err) {
+                                setError(err.message || "Lỗi trả hàng về kho");
+                            }
+                        }}
+                        style={{
+                            border: 0,
+                            background: "transparent",
+                            color: "#b42318",
+                            fontSize: 22,
+                            cursor: "pointer"
+                        }}
+                    >
+                        ×
+                    </button>
+                    <small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
             </aside>
         </div>
         {successBill && <div className="admin-pos-success-backdrop" onClick={() => setSuccessBill(null)} style={{ position: "fixed", inset: 0, zIndex: 12000, background: "rgba(16,24,40,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>

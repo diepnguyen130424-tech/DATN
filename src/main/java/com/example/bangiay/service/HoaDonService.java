@@ -319,29 +319,33 @@ public class HoaDonService {
             }
 
             // 2. Kiểm tra biến thể
-            if (spct.getTrangThai() == null
-                    || (!"HOAT_DONG".equalsIgnoreCase(spct.getTrangThai())
-                    && !"ACTIVE".equalsIgnoreCase(spct.getTrangThai()))) {
-                throw new RuntimeException("Biến thể sản phẩm đang không hoạt động");
-            }
-
-
-            // -------------------------------------------------
-            // KIỂM TRA VÀ TRỪ TỒN KHO NGAY LẬP TỨC
-            // -------------------------------------------------
-
             if (spct.getSoLuongTon() == null
                     || spct.getSoLuongTon() < soLuong) {
 
                 throw new RuntimeException(
-                        "Sản phẩm " + spct.getMaSku() + " chỉ còn " + spct.getSoLuongTon() + " sản phẩm. Không đủ để đặt hàng!"
+                        "Sản phẩm " + spct.getMaSku()
+                                + " chỉ còn " + spct.getSoLuongTon()
+                                + " sản phẩm. Không đủ để đặt hàng!"
                 );
             }
 
-            // ⭐ TRỪ KHO NGAY TẠI ĐÂY
+            // Đơn online trừ kho một lần khi đặt hàng thành công
             spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
             sanPhamChiTietRepository.save(spct);
 
+            // -------------------------------------------------
+            // KIỂM TRA VÀ TRỪ TỒN KHO
+            // -------------------------------------------------
+            if (spct.getSoLuongTon() == null
+                    || spct.getSoLuongTon() < soLuong) {
+                throw new RuntimeException(
+                        "Sản phẩm chỉ còn " + spct.getSoLuongTon() + " sản phẩm. Không thể bán!"
+                );
+            }
+
+            // Trừ kho trực tiếp
+            spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
+            sanPhamChiTietRepository.save(spct);
 
             // -------------------------------------------------
             // LẤY GIÁ
@@ -498,7 +502,6 @@ public class HoaDonService {
                                         : phiVanChuyen.intValue()
                         )
                         .build();
-
 
 
         DiaChi diaChiDaLuu =
@@ -2074,6 +2077,7 @@ public class HoaDonService {
     /**
      * Trừ tồn kho cho từng sản phẩm trong hóa đơn.
      * Ném lỗi nếu bất kỳ sản phẩm nào không đủ tồn.
+     *
      * @Transactional: nếu 1 dòng lỗi → rollback toàn bộ.
      */
     private void truKhoTheoHoaDon(HoaDon hoaDon) {
@@ -2451,5 +2455,75 @@ public class HoaDonService {
                             + ", không thay đổi trạng thái."
             );
         }
+    }
+    // =========================================================
+// GIỮ HÀNG - TRỪ KHO KHI THÊM SẢN PHẨM VÀO GIỎ POS
+// =========================================================
+
+    @Transactional
+    public void giuHang(Long sanPhamChiTietId, int soLuong) {
+
+        if (sanPhamChiTietId == null) {
+            throw new RuntimeException("Không tìm thấy sản phẩm chi tiết");
+        }
+
+        if (soLuong <= 0) {
+            throw new RuntimeException("Số lượng giữ hàng phải lớn hơn 0");
+        }
+
+        SanPhamChiTiet spct = sanPhamChiTietRepository
+                .findById(sanPhamChiTietId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy sản phẩm chi tiết")
+                );
+
+        if (spct.getTrangThai() == null
+                || (!"HOAT_DONG".equalsIgnoreCase(spct.getTrangThai())
+                && !"ACTIVE".equalsIgnoreCase(spct.getTrangThai()))) {
+            throw new RuntimeException("Sản phẩm đang không hoạt động");
+        }
+
+        if (spct.getSoLuongTon() == null
+                || spct.getSoLuongTon() < soLuong) {
+            throw new RuntimeException(
+                    "Không đủ tồn kho. Chỉ còn "
+                            + spct.getSoLuongTon()
+            );
+        }
+
+        spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
+
+        sanPhamChiTietRepository.save(spct);
+    }
+
+
+// =========================================================
+// NHẢ HÀNG - CỘNG KHO KHI XÓA SẢN PHẨM KHỎI GIỎ POS
+// =========================================================
+
+    @Transactional
+    public void nhaHang(Long sanPhamChiTietId, int soLuong) {
+
+        if (sanPhamChiTietId == null) {
+            throw new RuntimeException("Không tìm thấy sản phẩm chi tiết");
+        }
+
+        if (soLuong <= 0) {
+            throw new RuntimeException("Số lượng nhả hàng phải lớn hơn 0");
+        }
+
+        SanPhamChiTiet spct = sanPhamChiTietRepository
+                .findById(sanPhamChiTietId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy sản phẩm chi tiết")
+                );
+
+        int tonKho = spct.getSoLuongTon() != null
+                ? spct.getSoLuongTon()
+                : 0;
+
+        spct.setSoLuongTon(tonKho + soLuong);
+
+        sanPhamChiTietRepository.save(spct);
     }
 }

@@ -2730,9 +2730,9 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
 <title>Hóa đơn FShop - Khổ giấy 80mm</title>
 <style>
     @page {
-        size: 80mm auto;
-        margin: 3mm;
-    }
+    size: 80mm;
+    margin: 3mm;
+}
 
     * {
         box-sizing: border-box !important;
@@ -3626,6 +3626,8 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
     const [detailError, setDetailError] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
     const [searchOrder, setSearchOrder] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 6; // Số đơn hàng trên 1 trang
 
     const khachHangId = taiKhoan?.khachHangId;
 
@@ -3824,6 +3826,16 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
 
     useEffect(() => { loadOrders(); }, [khachHangId]); // eslint-disable-line
 
+    // ⭐ PHÂN TRANG
+    const totalPages = Math.max(1, Math.ceil(filteredOrders.length / itemsPerPage));
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = filteredOrders.slice(indexOfFirstItem, indexOfLastItem);
+
+    // Tự động về trang 1 khi đổi bộ lọc/tìm kiếm
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [statusFilter, searchOrder]);
     const steps = [
         ["CHO_XAC_NHAN", "Chờ xác nhận"],
         ["DA_XAC_NHAN", "Đã xác nhận"],
@@ -3936,8 +3948,7 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
                             {!showOrderDetail && (
                                 <section className="order-list">
                                     {filteredOrders.length ? (
-                                        filteredOrders.map((order) => {
-                                            const status = getStatus(order);
+                                        currentItems.map((order) => {                                            const status = getStatus(order);
                                             const selected = String(getOrderId(selectedOrder)) === String(getOrderId(order));
                                             return (
                                                 <button type="button" key={getOrderId(order) || getOrderCode(order)}
@@ -4209,6 +4220,16 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
                                 </section>
                             )}
                         </div>
+                        {/* ⭐ THANH PHÂN TRANG */}
+                        {totalPages > 1 && (
+                            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", marginTop: "30px", marginBottom: "20px" }}>
+                                <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: "8px 16px", border: "1px solid #ddd", borderRadius: "8px", background: "#fff", cursor: currentPage === 1 ? "not-allowed" : "pointer", opacity: currentPage === 1 ? 0.5 : 1, fontWeight: 600 }}>← Trước</button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <button key={page} type="button" onClick={() => setCurrentPage(page)} style={{ width: "40px", height: "40px", border: "none", borderRadius: "8px", background: currentPage === page ? "#c94f3f" : "transparent", color: currentPage === page ? "#fff" : "#555", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>{page}</button>
+                                ))}
+                                <button type="button" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} style={{ padding: "8px 16px", border: "1px solid #ddd", borderRadius: "8px", background: "#fff", cursor: currentPage === totalPages ? "not-allowed" : "pointer", opacity: currentPage === totalPages ? 0.5 : 1, fontWeight: 600 }}>Sau →</button>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
