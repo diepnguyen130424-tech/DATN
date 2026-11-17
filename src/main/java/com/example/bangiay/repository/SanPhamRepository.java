@@ -8,6 +8,12 @@ import java.util.List;
 
 public interface SanPhamRepository extends JpaRepository<SanPham, Long> {
 
+    boolean existsByMaSanPham(String maSanPham);
+
+    @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(ma_san_pham FROM 2) AS BIGINT)), 0) " +
+            "FROM san_pham WHERE ma_san_pham ~ '^N[0-9]+$'", nativeQuery = true)
+    long findMaxMaSanPhamNumber();
+
     long countByDanhMuc_Id(Long danhMucId);
 
     long countByThuongHieu_Id(Long thuongHieuId);

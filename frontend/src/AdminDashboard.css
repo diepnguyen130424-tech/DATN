@@ -2872,3 +2872,123 @@
         min-width: 100%;
     }
 }
+
+
+/* Dashboard nâng cấp theo góp ý: KPI thanh toán, đơn hàng và biểu đồ thương hiệu */
+.dashboard-stats-expanded {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-export-button {
+    min-height: 38px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    background: #e53935;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.dashboard-export-button:hover { background: #c62828; }
+
+.dashboard-brand-card { margin-bottom: 18px; }
+.dashboard-brand-layout {
+    display: grid;
+    grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+    align-items: center;
+    gap: 34px;
+    padding: 28px 12px 8px;
+}
+.dashboard-brand-donut {
+    width: 220px;
+    height: 220px;
+    max-width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    margin: 0 auto;
+}
+.dashboard-brand-donut-hole {
+    width: 58%;
+    height: 58%;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 12px rgba(16,24,40,.08);
+}
+.dashboard-brand-donut-hole strong { font-size: 25px; color: #202630; }
+.dashboard-brand-donut-hole span { font-size: 11px; color: #87909b; margin-top: 4px; }
+.dashboard-brand-legend { display: flex; flex-direction: column; gap: 13px; }
+.dashboard-brand-legend-row {
+    display: grid;
+    grid-template-columns: 12px minmax(90px, 1fr) auto 55px;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+}
+.dashboard-brand-color { width: 10px; height: 10px; border-radius: 3px; }
+.dashboard-brand-name { color: #56606d; overflow-wrap: anywhere; }
+.dashboard-brand-legend-row strong { color: #242a32; }
+.dashboard-brand-legend-row small { color: #89919c; text-align: right; }
+
+@media (max-width: 1100px) {
+    .dashboard-stats-expanded { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 650px) {
+    .dashboard-brand-layout { grid-template-columns: 1fr; gap: 24px; }
+    .dashboard-brand-donut { width: 190px; height: 190px; }
+    .dashboard-brand-legend-row { grid-template-columns: 12px minmax(70px, 1fr) auto 48px; }
+}
+
+/* Bảng doanh thu phân tách theo kênh bán và phương thức thanh toán */
+.dashboard-payment-breakdown {
+    margin-bottom: 18px;
+}
+.dashboard-payment-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+.dashboard-payment-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 560px;
+}
+.dashboard-payment-table th,
+.dashboard-payment-table td {
+    padding: 13px 16px;
+    border-bottom: 1px solid #edf0f4;
+    text-align: right;
+    color: #344054;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.dashboard-payment-table thead th {
+    color: #8792a2;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f8fafc;
+}
+.dashboard-payment-table th:first-child,
+.dashboard-payment-table tbody th {
+    text-align: left;
+}
+.dashboard-payment-table tbody th {
+    color: #202b3f;
+    font-weight: 700;
+}
+.dashboard-payment-table tbody td:last-child {
+    color: #e53935;
+    font-weight: 700;
+}
+.dashboard-payment-note {
+    margin: 12px 0 0;
+    color: #8a94a5;
+    font-size: 11px;
+    line-height: 1.5;
+}

@@ -4,8 +4,11 @@ import com.example.bangiay.entity.ThanhToan;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface ThanhToanRepository extends JpaRepository<ThanhToan, Long> {
 
     Optional<ThanhToan> findByHoaDon_Id(Long hoaDonId);
+
+    List<ThanhToan> findByHoaDon_IdIn(List<Long> hoaDonIds);
 }

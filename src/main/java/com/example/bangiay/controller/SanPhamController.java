@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,11 @@ import java.util.Map;
 public class SanPhamController {
 
     private final SanPhamService sanPhamService;
+
+    @GetMapping("/ma-moi")
+    public ResponseEntity<Map<String, String>> getMaMoi() {
+        return ResponseEntity.ok(Map.of("maSanPham", sanPhamService.xemMaSanPhamTiepTheo()));
+    }
 
     @GetMapping
     public ResponseEntity<List<SanPham>> getAll() {
@@ -108,5 +114,12 @@ public class SanPhamController {
         sanPhamService.deleteChiTiet(id);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleValidationError(IllegalArgumentException exception) {
+        return ResponseEntity.badRequest().body(Map.of(
+                "message", exception.getMessage() == null ? "Dữ liệu sản phẩm không hợp lệ." : exception.getMessage()
+        ));
     }
 }

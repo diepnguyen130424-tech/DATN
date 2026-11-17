@@ -3,10 +3,13 @@ package com.example.bangiay.controller;
 import com.example.bangiay.entity.SanPhamChiTiet;
 import com.example.bangiay.service.SanPhamService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/san-pham-chi-tiet")
@@ -45,24 +48,40 @@ public class SanPhamChiTietController {
     }
 
     @PostMapping
-    public ResponseEntity<SanPhamChiTiet> create(
+    public ResponseEntity<?> create(
             @RequestBody SanPhamChiTiet sanPhamChiTiet) {
-
-        return ResponseEntity.ok(
-                sanPhamService.saveChiTiet(sanPhamChiTiet)
-        );
+        try {
+            return ResponseEntity.ok(sanPhamService.saveChiTiet(sanPhamChiTiet));
+        } catch (IllegalArgumentException ex) {
+            return buildValidationError(ex);
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<SanPhamChiTiet> update(
+    public ResponseEntity<?> update(
             @PathVariable Long id,
             @RequestBody SanPhamChiTiet sanPhamChiTiet) {
+        try {
+            sanPhamChiTiet.setId(id);
+            return ResponseEntity.ok(sanPhamService.saveChiTiet(sanPhamChiTiet));
+        } catch (IllegalArgumentException ex) {
+            return buildValidationError(ex);
+        }
+    }
 
-        sanPhamChiTiet.setId(id);
+    /** Trả lỗi nghiệp vụ có cấu trúc thống nhất để Frontend đọc được message. */
+    private ResponseEntity<Map<String, String>> buildValidationError(IllegalArgumentException ex) {
+        String message = (ex.getMessage() == null || ex.getMessage().isBlank())
+                ? "Dữ liệu biến thể không hợp lệ."
+                : ex.getMessage();
+        boolean conflict = message.toLowerCase(Locale.ROOT).contains("trùng")
+                || message.toLowerCase(Locale.ROOT).contains("đã tồn tại");
 
-        return ResponseEntity.ok(
-                sanPhamService.saveChiTiet(sanPhamChiTiet)
-        );
+        return ResponseEntity.status(conflict ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST)
+                .body(Map.of(
+                        "error", conflict ? "DUPLICATE_VARIANT" : "VALIDATION_ERROR",
+                        "message", message
+                ));
     }
 
     @DeleteMapping("/{id}")

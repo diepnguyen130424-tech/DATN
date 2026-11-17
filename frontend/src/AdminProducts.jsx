@@ -202,13 +202,22 @@ function AdminProducts() {
         trangThai: "HOAT_DONG",
     });
 
-    const openCreate = () => {
+    const openCreate = async () => {
         setEditingId(null);
         setForm(emptyForm);
         setVariantDrafts([emptyVariantDraft()]);
         setQuickPrice("");
         setQuickQuantity("");
         setShowModal(true);
+        try {
+            const response = await fetch(`${API}/san-pham/ma-moi`);
+            const data = response.ok ? await response.json() : null;
+            if (data?.maSanPham) {
+                setForm((current) => ({ ...current, maSanPham: data.maSanPham }));
+            }
+        } catch (error) {
+            console.warn("Không tải được mã sản phẩm xem trước; Backend sẽ tự sinh mã khi lưu.", error);
+        }
     };
 
     const openEdit = async (product) => {
@@ -336,6 +345,18 @@ function AdminProducts() {
             row.kichCoId && row.mauSacId && row.giaBan !== ""
         );
 
+        if (!form.danhMucId) {
+            alert("Vui lòng chọn danh mục sản phẩm.");
+            return;
+        }
+        if (!form.thuongHieuId) {
+            alert("Vui lòng chọn thương hiệu sản phẩm.");
+            return;
+        }
+        if (!form.tenSanPham.trim()) {
+            alert("Vui lòng nhập tên sản phẩm.");
+            return;
+        }
         if (partiallyFilled) {
             alert("Vui lòng chọn đầy đủ size, màu sắc và giá bán cho từng biến thể.");
             return;
@@ -344,9 +365,17 @@ function AdminProducts() {
             alert("Bạn cần thêm ít nhất một biến thể size/màu và giá bán để khách hàng có thể mua sản phẩm.");
             return;
         }
-        const combinationKeys = validDrafts.map((row) => `${row.kichCoId}-${row.mauSacId}`);
-        if (new Set(combinationKeys).size !== combinationKeys.length) {
-            alert("Không thể tạo hai biến thể trùng cùng size và màu sắc.");
+        const seenCombinations = new Set();
+        const duplicateVariant = validDrafts.find((row) => {
+            const key = `${row.kichCoId}-${row.mauSacId}`;
+            if (seenCombinations.has(key)) return true;
+            seenCombinations.add(key);
+            return false;
+        });
+        if (duplicateVariant) {
+            const sizeName = sizes.find((item) => String(item.id) === String(duplicateVariant.kichCoId))?.tenKichCo || duplicateVariant.kichCoId;
+            const colorName = colors.find((item) => String(item.id) === String(duplicateVariant.mauSacId))?.tenMau || duplicateVariant.mauSacId;
+            alert(`Biến thể bị trùng: Size ${sizeName} – màu ${colorName}. Mỗi sản phẩm chỉ được có một biến thể cho cùng size và màu sắc.`);
             return;
         }
         if (validDrafts.some((row) => Number(row.giaBan) <= 0 || !Number.isFinite(Number(row.giaBan)))) {
@@ -369,8 +398,8 @@ function AdminProducts() {
             const payload = {
                 maSanPham: form.maSanPham,
                 tenSanPham: form.tenSanPham,
-                danhMuc: form.danhMucId ? { id: Number(form.danhMucId) } : null,
-                thuongHieu: form.thuongHieuId ? { id: Number(form.thuongHieuId) } : null,
+                danhMuc: { id: Number(form.danhMucId) },
+                thuongHieu: { id: Number(form.thuongHieuId) },
                 chatLieu: form.chatLieu,
                 kieuDang: form.kieuDang,
                 xuatXu: form.xuatXu,
@@ -395,7 +424,7 @@ function AdminProducts() {
             const stockImportItems = [];
             for (const row of validDrafts) {
                 const isNewVariant = !row.id;
-                const sku = row.maSku || taoMaSku(form.maSanPham, row.kichCoId, row.mauSacId);
+                const sku = row.maSku || taoMaSku(savedProduct.maSanPham || form.maSanPham, row.kichCoId, row.mauSacId);
                 const variantPayload = {
                     sanPham: { id: Number(savedProduct.id) },
                     kichCo: { id: Number(row.kichCoId) },
@@ -489,7 +518,7 @@ function AdminProducts() {
                 try {
                     const result = await response.json();
                     message = result.message || result.error || message;
-                } catch (_) {
+                } catch {
                     // Giữ thông báo mặc định nếu server không trả JSON.
                 }
                 throw new Error(message);
@@ -961,10 +990,12 @@ function AdminProducts() {
                                     <input
                                         name="maSanPham"
                                         value={form.maSanPham}
+                                        readOnly={!editingId}
                                         onChange={handleChange}
-                                        required
-                                        placeholder="VD: SP001"
+                                        required={Boolean(editingId)}
+                                        placeholder="Mã sẽ tự sinh khi tạo sản phẩm"
                                     />
+                                    {!editingId && <small className="product-auto-code-note">Mã sản phẩm được hệ thống tự động cấp và không trùng mã đã sử dụng.</small>}
                                 </div>
 
                                 <div className="form-group">
@@ -983,13 +1014,14 @@ function AdminProducts() {
 
                                 <div className="form-group">
                                     <label>
-                                        Danh mục
+                                        Danh mục *
                                     </label>
 
                                     <select
                                         name="danhMucId"
                                         value={form.danhMucId}
                                         onChange={handleChange}
+                                        required
                                     >
                                         <option value="">
                                             Chọn danh mục
@@ -1013,13 +1045,14 @@ function AdminProducts() {
 
                                 <div className="form-group">
                                     <label>
-                                        Thương hiệu
+                                        Thương hiệu *
                                     </label>
 
                                     <select
                                         name="thuongHieuId"
                                         value={form.thuongHieuId}
                                         onChange={handleChange}
+                                        required
                                     >
                                         <option value="">
                                             Chọn thương hiệu

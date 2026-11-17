@@ -4,6 +4,8 @@ import com.example.bangiay.service.DashboardStatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -45,5 +47,27 @@ public class AdminDashboardController {
                 loaiHoaDon,
                 phuongThucThanhToan
         ));
+    }
+    @GetMapping("/xuat-excel")
+    public ResponseEntity<byte[]> exportExcel(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tuNgay,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate denNgay,
+            @RequestParam(required = false) String trangThai,
+            @RequestParam(required = false) String loaiHoaDon,
+            @RequestParam(required = false) String phuongThucThanhToan
+    ) {
+        if (tuNgay != null && denNgay != null && tuNgay.isAfter(denNgay)) {
+            return ResponseEntity.badRequest().build();
+        }
+        byte[] file = dashboardStatsService.exportOverviewExcel(
+                tuNgay, denNgay, trangThai, loaiHoaDon, phuongThucThanhToan
+        );
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=fshop-tong-quan.xlsx")
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
     }
 }

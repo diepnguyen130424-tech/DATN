@@ -1,13 +1,17 @@
 package com.example.bangiay.service;
 
+import com.example.bangiay.entity.DanhMuc;
 import com.example.bangiay.entity.KichCo;
 import com.example.bangiay.entity.MauSac;
+import com.example.bangiay.entity.ThuongHieu;
 import com.example.bangiay.entity.SanPham;
 import com.example.bangiay.entity.SanPhamChiTiet;
+import com.example.bangiay.repository.DanhMucRepository;
 import com.example.bangiay.repository.KichCoRepository;
 import com.example.bangiay.repository.MauSacRepository;
 import com.example.bangiay.repository.SanPhamChiTietRepository;
 import com.example.bangiay.repository.SanPhamRepository;
+import com.example.bangiay.repository.ThuongHieuRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +30,8 @@ public class SanPhamService {
     private final SanPhamChiTietRepository sanPhamChiTietRepository;
     private final KichCoRepository kichCoRepository;
     private final MauSacRepository mauSacRepository;
+    private final DanhMucRepository danhMucRepository;
+    private final ThuongHieuRepository thuongHieuRepository;
 
     public List<SanPham> getAll() {
         return sanPhamRepository.findAll();
@@ -36,24 +42,71 @@ public class SanPhamService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
     }
 
+    /** Mã xem trước cho form; khi lưu Backend luôn sinh lại để tránh trùng khi nhiều người thao tác. */
+    public String xemMaSanPhamTiepTheo() {
+        return taoMaSanPhamMoi();
+    }
+
+    private String taoMaSanPhamMoi() {
+        // Chỉ lấy giá trị số lớn nhất từ database, tránh findAll() và xử lý toàn bộ
+        // danh sách sản phẩm trong bộ nhớ mỗi lần mở form/thêm sản phẩm.
+        long max = sanPhamRepository.findMaxMaSanPhamNumber();
+        String candidate;
+        do {
+            max++;
+            candidate = String.format("N%02d", max);
+        } while (sanPhamRepository.existsByMaSanPham(candidate));
+        return candidate;
+    }
+
     @Transactional
-    public SanPham save(SanPham sanPham) {
-        if (sanPham.getId() == null) {
-            if (sanPham.getNgayTao() == null) {
-                sanPham.setNgayTao(LocalDateTime.now());
-            }
-            if (sanPham.getTrangThai() == null || sanPham.getTrangThai().isBlank()) {
-                sanPham.setTrangThai("HOAT_DONG");
+    public SanPham save(SanPham request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Dữ liệu sản phẩm không hợp lệ.");
+        }
+        if (request.getTenSanPham() == null || request.getTenSanPham().isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập tên sản phẩm.");
+        }
+        if (request.getDanhMuc() == null || request.getDanhMuc().getId() == null) {
+            throw new IllegalArgumentException("Vui lòng chọn danh mục sản phẩm.");
+        }
+        if (request.getThuongHieu() == null || request.getThuongHieu().getId() == null) {
+            throw new IllegalArgumentException("Vui lòng chọn thương hiệu sản phẩm.");
+        }
+
+        // Lấy quan hệ từ DB, không lưu trực tiếp object chỉ có ID nhận từ JSON.
+        DanhMuc danhMuc = danhMucRepository.findById(request.getDanhMuc().getId())
+                .orElseThrow(() -> new IllegalArgumentException("Danh mục được chọn không tồn tại."));
+        ThuongHieu thuongHieu = thuongHieuRepository.findById(request.getThuongHieu().getId())
+                .orElseThrow(() -> new IllegalArgumentException("Thương hiệu được chọn không tồn tại."));
+
+        SanPham entity;
+        if (request.getId() == null) {
+            entity = request;
+            entity.setMaSanPham(taoMaSanPhamMoi());
+            entity.setNgayTao(LocalDateTime.now());
+            if (entity.getTrangThai() == null || entity.getTrangThai().isBlank()) {
+                entity.setTrangThai("HOAT_DONG");
             }
         } else {
-            SanPham sanPhamCu = sanPhamRepository.findById(sanPham.getId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
-            sanPham.setNgayTao(sanPhamCu.getNgayTao());
-            if (sanPham.getTrangThai() == null || sanPham.getTrangThai().isBlank()) {
-                sanPham.setTrangThai(sanPhamCu.getTrangThai());
+            entity = sanPhamRepository.findById(request.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm cần cập nhật."));
+            entity.setTenSanPham(request.getTenSanPham().trim());
+            entity.setChatLieu(request.getChatLieu());
+            entity.setKieuDang(request.getKieuDang());
+            entity.setXuatXu(request.getXuatXu());
+            entity.setMoTa(request.getMoTa());
+            entity.setHinhAnh(request.getHinhAnh());
+            if (request.getTrangThai() != null && !request.getTrangThai().isBlank()) {
+                entity.setTrangThai(request.getTrangThai());
             }
+            // Giữ nguyên mã sản phẩm và ngày tạo khi cập nhật.
         }
-        return sanPhamRepository.save(sanPham);
+
+        entity.setTenSanPham(entity.getTenSanPham().trim());
+        entity.setDanhMuc(danhMuc);
+        entity.setThuongHieu(thuongHieu);
+        return sanPhamRepository.save(entity);
     }
 
     /**
@@ -138,11 +191,15 @@ public class SanPhamService {
 
         boolean trungToHop = current == null
                 ? sanPhamChiTietRepository.existsBySanPham_IdAndKichCo_IdAndMauSac_Id(
-                        sanPham.getId(), kichCo.getId(), mauSac.getId())
+                sanPham.getId(), kichCo.getId(), mauSac.getId())
                 : sanPhamChiTietRepository.existsBySanPham_IdAndKichCo_IdAndMauSac_IdAndIdNot(
-                        sanPham.getId(), kichCo.getId(), mauSac.getId(), current.getId());
+                sanPham.getId(), kichCo.getId(), mauSac.getId(), current.getId());
         if (trungToHop) {
-            throw new IllegalArgumentException("Sản phẩm đã có biến thể với size và màu sắc này.");
+            throw new IllegalArgumentException(
+                    "Biến thể bị trùng: sản phẩm " + sanPham.getMaSanPham()
+                            + " (" + sanPham.getTenSanPham() + "), size "
+                            + kichCo.getTenKichCo() + ", màu " + mauSac.getTenMau()
+                            + " đã tồn tại. Hãy chọn size hoặc màu khác.");
         }
 
         String maSku = request.getMaSku() == null ? "" : request.getMaSku().trim();

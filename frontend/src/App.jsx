@@ -488,7 +488,6 @@ function App() {
         };
         window.addEventListener("focus", onFocus);
         return () => window.removeEventListener("focus", onFocus);
-        // eslint-disable-next-line
     }, [page]);
 
     const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2000); };
@@ -669,11 +668,6 @@ function App() {
     };
 
     const tongSoLuong = gioHang.reduce((t, i) => t + i.soLuong, 0);
-    const tongTienSale = gioHang.reduce((t, i) => {
-        const g = i.chiTiet?.giaBan || i.sanPham?.giaBan || 0;
-        return t + Number(g) * i.soLuong;
-    }, 0);
-
     if (sepayReturn) {
         return <SePayPaymentReturn
             hoaDonId={sepayReturn.hoaDonId}
@@ -734,7 +728,7 @@ function App() {
                 />
             )}
 
-            {page === "cart" && <Cart gioHang={gioHang} tongTien={tongTienSale} tangSoLuong={tangSoLuong}
+            {page === "cart" && <Cart gioHang={gioHang} tangSoLuong={tangSoLuong}
                                       giamSoLuong={giamSoLuong} xoaKhoiGio={xoaKhoiGio} setPage={setPage} taiKhoan={taiKhoan}
                                       selectedVariantIds={selectedVariantIds} setSelectedVariantIds={setSelectedVariantIds}
                                       capNhatSoLuong={capNhatSoLuong} capNhatBienThe={capNhatBienThe}
@@ -1703,7 +1697,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
     );
 }
 
-function Cart({ gioHang, tongTien, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage, taiKhoan,
+function Cart({ gioHang, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage, taiKhoan,
                   selectedVariantIds = [], setSelectedVariantIds = () => {},
                   capNhatSoLuong = async () => false, capNhatBienThe = async () => false,
                   khuyenMaiActive = null }) {
@@ -2022,7 +2016,6 @@ function SePayPaymentReturn({ hoaDonId, ketQua }) {
     const [dangKiemTra, setDangKiemTra] = useState(false);
     const [loiKiemTra, setLoiKiemTra] = useState("");
     const [thongBao, setThongBao] = useState("");
-    const [lanCapNhat, setLanCapNhat] = useState(0);
     const daThanhToan = String(thanhToan?.trangThai || "").trim().toUpperCase() === "DA_THANH_TOAN";
 
     // Đọc được cả response trả về trực tiếp ThanhToan hoặc bọc trong data/thanhToan.
@@ -2122,7 +2115,7 @@ function SePayPaymentReturn({ hoaDonId, ketQua }) {
             daHuy = true;
             if (timer) window.clearTimeout(timer);
         };
-    }, [hoaDonId, lanCapNhat]);
+    }, [hoaDonId, daThanhToan]);
 
     const maDon = thanhToan?.hoaDon?.maHoaDon || thanhToan?.maHoaDon || `#${hoaDonId}`;
     const laHuy = ketQua === "cancel";
@@ -2200,7 +2193,7 @@ function SePayPaymentReturn({ hoaDonId, ketQua }) {
     );
 }
 
-function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioHang, setSelectedVariantIds,
+function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantIds,
                       khuyenMaiActive = null }) {
     const [hoTen, setHoTen] = useState("");
     const [soDienThoai, setSoDienThoai] = useState("");
@@ -2209,7 +2202,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [selectedAddressId, setSelectedAddressId] = useState("");
     const [saveAddress, setSaveAddress] = useState(false);
     const [phiShipMoi, setPhiShipMoi] = useState(PHI_SHIP_MAC_DINH);
-    const [setAsDefault, setSetAsDefault] = useState(false);
+    const setAsDefault = false;
     const [addressModalOpen, setAddressModalOpen] = useState(false);
     const [addingAddress, setAddingAddress] = useState(false);
     const [savingAddress, setSavingAddress] = useState(false);
@@ -2345,16 +2338,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
         loadCustomerInfo();
     }, []);
 
-    const chonDiaChiDaLuu = (id) => {
-        setSelectedAddressId(id);
-        const address = addresses.find((a) => String(a.id) === String(id));
-        if (address) {
-            setHoTen(address.tenNguoiNhan || "");
-            setSoDienThoai(address.soDienThoai || "");
-            setDiaChi(address.diaChi || "");
-        }
-    };
-
     const chonDiaChiVaDong = (address) => {
         if (!address) return;
         setSelectedAddressId(String(address.id));
@@ -2397,7 +2380,7 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
                 body: JSON.stringify({ khachHang: { id: khId }, tenNguoiNhan: newAddress.tenNguoiNhan.trim(), soDienThoai: newAddress.soDienThoai.trim(), diaChi: newAddress.diaChi.trim(), macDinh: newAddress.macDinh, phiShip: Number(newAddress.phiShip) || PHI_SHIP_MAC_DINH })
             });
             const text = await res.text();
-            let saved = null; try { saved = text ? JSON.parse(text) : null; } catch {}
+            let saved = null; try { saved = text ? JSON.parse(text) : null; } catch { /* Phản hồi có thể không phải JSON. */ }
             if (!res.ok) throw new Error(saved?.message || "Không lưu được địa chỉ mới.");
             let list = addresses;
             if (newAddress.macDinh) list = list.map((a) => ({ ...a, macDinh: false }));
@@ -2414,9 +2397,8 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
     const [dangDatHang, setDangDatHang] = useState(false);
     const [bill, setBill] = useState(null);
     const [vouchers, setVouchers] = useState([]);
-    const [maVoucher, setMaVoucher] = useState("");
     const [voucherError, setVoucherError] = useState("");
-    const [checkingVoucher, setCheckingVoucher] = useState(false);
+    const [, setCheckingVoucher] = useState(false);
     const [danhSachVoucherActive, setDanhSachVoucherActive] = useState([]);
     const [dangTaiVoucher, setDangTaiVoucher] = useState(false);
     const [loiTaiVoucher, setLoiTaiVoucher] = useState("");
@@ -2441,61 +2423,80 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
         const loadVoucherList = async () => {
             try {
                 setLoadingVoucherList(true);
+                setDangTaiVoucher(true);
                 const res = await fetch(`${API}/ma-giam-gia/dang-hoat-dong`);
                 if (!res.ok) throw new Error("Không tải được voucher");
                 const data = await res.json();
-                setVoucherList(Array.isArray(data) ? data : []);
+                const activeVouchers = Array.isArray(data) ? data : [];
+                setVoucherList(activeVouchers);
+                setDanhSachVoucherActive(activeVouchers);
+                setLoiTaiVoucher("");
             } catch (e) {
                 console.error(e);
                 setVoucherList([]);
+                setDanhSachVoucherActive([]);
+                setLoiTaiVoucher("Không tải được danh sách voucher.");
             } finally {
                 setLoadingVoucherList(false);
+                setDangTaiVoucher(false);
             }
         };
         loadVoucherList();
     }, []);
 
-    const apDungVoucher = async () => {
-        const code = maVoucher.trim().toUpperCase();
-        if (!code) { setVoucherError("Vui lòng nhập mã"); return; }
+    const chonVoucherCoSan = async (voucher) => {
+        if (!voucher?.maVoucher) {
+            setVoucherError("Voucher không hợp lệ.");
+            return;
+        }
+        if (vouchers.length >= MAX_VOUCHER) {
+            setVoucherError(`Chỉ được áp dụng ${MAX_VOUCHER} mã.`);
+            return;
+        }
 
-        // Vì MAX_VOUCHER = 1, nếu đã có voucher thì không cho nhập thêm
-        if (vouchers.length >= MAX_VOUCHER) { setVoucherError(`Chỉ được áp dụng ${MAX_VOUCHER} mã`); return; }
+        const code = String(voucher.maVoucher).trim().toUpperCase();
+        if (vouchers.some((item) => String(item.maVoucher || "").toUpperCase() === code)) {
+            setVoucherError("Mã voucher này đã được áp dụng.");
+            return;
+        }
 
-        if (vouchers.some((v) => String(v.maVoucher || "").toUpperCase() === code)) { setVoucherError("Mã đã dùng"); return; }
-        setCheckingVoucher(true); setVoucherError("");
+        setCheckingVoucher(true);
+        setVoucherError("");
         try {
-            const khId = (() => {
-                try { const raw = localStorage.getItem("taiKhoan"); return raw ? JSON.parse(raw).khachHangId : null; }
-                catch { return null; }
-            })();
-            const r = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
+            const account = JSON.parse(localStorage.getItem("taiKhoan") || "null");
+            const customerId = account?.khachHangId ?? null;
+            const response = await fetch(`${API}/ma-giam-gia/kiem-tra`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     ma: code,
                     maVoucher: code,
                     tongTien: Number(tongTienSale) || 0,
                     tongTienHang: Number(tongTienSale) || 0,
-                    khachHangId: khId ?? null,
+                    khachHangId: customerId,
                 }),
             });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.message || "Mã không hợp lệ");
-            const found = voucherList.find((x) => String(x.maVoucher || "").toUpperCase() === code);
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result?.message || result?.error || "Voucher không hợp lệ hoặc không đủ điều kiện.");
+            }
 
-            // SỬA TẠI ĐÂY: Ghi đè mảng vouchers bằng mảng mới chỉ có 1 phần tử
             setVouchers([{
-                ...d,
-                id: d.id ?? d.voucherId ?? found?.id,
-                maVoucher: d.maVoucher || code,
-                tenVoucher: d.tenVoucher || found?.tenVoucher || code,
-                loaiGiam: d.loaiGiam || found?.loaiGiam,
-                giaTriGiam: d.giaTriGiam ?? found?.giaTriGiam,
+                ...result,
+                id: result.id ?? result.voucherId ?? voucher.id,
+                maVoucher: result.maVoucher || code,
+                tenVoucher: result.tenVoucher || voucher.tenVoucher || code,
+                loaiGiam: result.loaiGiam || voucher.loaiGiam,
+                giaTriGiam: result.giaTriGiam ?? voucher.giaTriGiam,
             }]);
-            setMaVoucher("");
-        } catch (e) { setVoucherError(e.message || "Mã không hợp lệ"); }
-        finally { setCheckingVoucher(false); }
+            setShowVoucherList(false);
+        } catch (error) {
+            setVoucherError(error.message || "Không thể áp dụng voucher.");
+        } finally {
+            setCheckingVoucher(false);
+        }
     };
+
     const xoaVoucher = (idx) => { setVouchers((p) => p.filter((_, i) => i !== idx)); setVoucherError(""); };
 
     const hienThiPT = (pt) => pt === "CHUYEN_KHOAN" ? "Chuyển khoản qua SePay" : "Tiền mặt khi nhận hàng";
@@ -2688,8 +2689,6 @@ function Checkout({ gioHang, tatCaGioHang, gioHangId, tongTien, setPage, setGioH
         finally { setDangDatHang(false); }
     };
 
-    // In hóa đơn khách hàng bằng tài liệu iframe độc lập.
-    // Tránh xung đột với các quy tắc @media print của trang quản trị.
     const handlePrintCustomerInvoice = () => {
         const invoice = document.getElementById("invoice-print-area");
         if (!invoice) {

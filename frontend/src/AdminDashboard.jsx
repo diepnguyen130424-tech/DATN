@@ -328,15 +328,6 @@ function formatChartMoney(value) {
     return `${number.toLocaleString("vi-VN")}`;
 }
 
-function isRevenueOrder(hoaDon) {
-    const status = String(hoaDon?.trangThai || "").toUpperCase();
-
-    return (
-        status === "DA_GIAO" ||
-        status === "DA_THANH_TOAN"
-    );
-}
-
 function getHoaDonDate(hoaDon) {
     const value =
         hoaDon?.ngayLap ||
@@ -352,16 +343,6 @@ function getHoaDonDate(hoaDon) {
         : date;
 }
 
-function isSameDay(dateA, dateB) {
-    if (!dateA || !dateB) return false;
-
-    return (
-        dateA.getFullYear() === dateB.getFullYear() &&
-        dateA.getMonth() === dateB.getMonth() &&
-        dateA.getDate() === dateB.getDate()
-    );
-}
-
 function toDateInputValue(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -369,7 +350,7 @@ function toDateInputValue(date) {
     return `${year}-${month}-${day}`;
 }
 
-function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
+function DashboardContent({ eyebrow = "FSHOP ADMIN" }) {
     const [dashboardError, setDashboardError] = useState("");
     const [dateFrom, setDateFrom] = useState(() => {
         const now = new Date();
@@ -378,6 +359,7 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
     const [dateTo, setDateTo] = useState(() => toDateInputValue(new Date()));
     const [dashboardStats, setDashboardStats] = useState(null);
     const [loadingDashboardStats, setLoadingDashboardStats] = useState(true);
+    const [exportingExcel, setExportingExcel] = useState(false);
     const [filterStatus, setFilterStatus] = useState("");
     const [filterOrderType, setFilterOrderType] = useState("");
     const [filterPaymentMethod, setFilterPaymentMethod] = useState("");
@@ -392,8 +374,6 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
         if (filterOrderType) params.set("loaiHoaDon", filterOrderType);
         if (filterPaymentMethod) params.set("phuongThucThanhToan", filterPaymentMethod);
 
-        setLoadingDashboardStats(true);
-        setDashboardError("");
         fetch(`${API}/admin/dashboard/thong-ke?${params.toString()}`)
             .then(async (response) => {
                 const data = await response.json().catch(() => ({}));
@@ -401,7 +381,10 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
                 return data;
             })
             .then((data) => {
-                if (mounted) setDashboardStats(data);
+                if (mounted) {
+                    setDashboardError("");
+                    setDashboardStats(data);
+                }
             })
             .catch((err) => {
                 console.error("Lỗi tải thống kê tổng quan:", err);
@@ -417,7 +400,6 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
     const productCount = Number(dashboardStats?.productCount || 0);
     const customerCount = Number(dashboardStats?.customerCount || 0);
 
-    const filteredHoaDons = dashboardStats?.recentOrders || [];
     const totalRevenue = Number(dashboardStats?.totalRevenue || 0);
     const statusCounts = dashboardStats?.statusCounts || {};
     const revenueMap = new Map(
@@ -434,7 +416,6 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
         };
     });
     const maxRevenue = Math.max(...revenueByDay.map((item) => item.revenue), 1);
-    const recentOrders = filteredHoaDons.slice(0, 4);
     const productPerformance = (dashboardStats?.products || []).map((product) => ({
         id: product.id,
         code: product.code || `SP${product.id}`,
@@ -456,7 +437,49 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
         .sort((a, b) => a.stock - b.stock)
         .slice(0, 5);
     const topCustomers = dashboardStats?.topCustomers || [];
-    const filteredOrderCount = Number(dashboardStats?.orderCount || 0);
+    const topBrands = dashboardStats?.topBrands || [];
+    const totalBrandSold = topBrands.reduce((sum, brand) => sum + Number(brand.sold || 0), 0);
+    const brandColors = ["#e53935", "#2563eb", "#16a34a", "#f59e0b", "#8b5cf6", "#0891b2", "#64748b"];
+    let brandOffset = 0;
+    const brandGradient = topBrands.length
+        ? `conic-gradient(${topBrands.map((brand, index) => {
+            const value = totalBrandSold > 0 ? Number(brand.sold || 0) / totalBrandSold * 100 : 0;
+            const start = brandOffset;
+            brandOffset += value;
+            return `${brandColors[index % brandColors.length]} ${start}% ${brandOffset}%`;
+        }).join(", ")})`
+        : "conic-gradient(#e9edf2 0% 100%)";
+
+    const handleExportExcel = async () => {
+        if (exportingExcel) return;
+        setExportingExcel(true);
+        try {
+            const params = new URLSearchParams();
+            if (dateFrom) params.set("tuNgay", dateFrom);
+            if (dateTo) params.set("denNgay", dateTo);
+            if (filterStatus) params.set("trangThai", filterStatus);
+            if (filterOrderType) params.set("loaiHoaDon", filterOrderType);
+            if (filterPaymentMethod) params.set("phuongThucThanhToan", filterPaymentMethod);
+            const response = await fetch(`${API}/admin/dashboard/xuat-excel?${params.toString()}`);
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || "Không thể xuất báo cáo Excel");
+            }
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `FShop_TongQuan_${dateFrom || "tat-ca"}_${dateTo || "tat-ca"}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) {
+            alert(error.message || "Xuất Excel thất bại");
+        } finally {
+            setExportingExcel(false);
+        }
+    };
 
     return (
         <div className="admin-dashboard-content">
@@ -526,6 +549,15 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
                         setDateFrom(toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1)));
                         setDateTo(toDateInputValue(now));
                     }}>Đặt lại lọc</button>
+                    <button
+                        type="button"
+                        className="dashboard-export-button"
+                        onClick={handleExportExcel}
+                        disabled={exportingExcel}
+                        aria-busy={exportingExcel}
+                    >
+                        {exportingExcel ? "Đang tạo Excel..." : "↓ Xuất Excel"}
+                    </button>
                 </div>
             </div>
 
@@ -541,78 +573,74 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
                 </div>
             ) : null}
 
-            <div className="admin-stats">
+            <div className="admin-stats dashboard-stats-expanded">
                 <div className="admin-stat-card">
-                    <div className="admin-stat-top">
-                        <div className="admin-stat-icon">
-                            □
-                        </div>
-
-                    </div>
-
-                    <div className="admin-stat-value">
-                        {loadingDashboardStats ? "..." : productCount.toLocaleString("vi-VN")}
-                    </div>
-
-                    <div className="admin-stat-label">
-                        Tổng sản phẩm
-                    </div>
+                    <div className="admin-stat-top"><div className="admin-stat-icon">₫</div></div>
+                    <div className="admin-stat-value">{loadingDashboardStats ? "..." : formatTien(totalRevenue)}</div>
+                    <div className="admin-stat-label">Tổng doanh thu đã ghi nhận</div>
                 </div>
-
                 <div className="admin-stat-card">
-                    <div className="admin-stat-top">
-                        <div className="admin-stat-icon">
-                            ▧
-                        </div>
-
-                    </div>
-
-                    <div className="admin-stat-value">
-                        {loadingDashboardStats ? "..." : filteredOrderCount.toLocaleString("vi-VN")}
-                    </div>
-
-                    <div className="admin-stat-label">
-                        Đơn hàng
-                    </div>
+                    <div className="admin-stat-top"><div className="admin-stat-icon">▣</div></div>
+                    <div className="admin-stat-value">{loadingDashboardStats ? "..." : formatTien(dashboardStats?.cashRevenue || 0)}</div>
+                    <div className="admin-stat-label">Doanh thu tiền mặt</div>
                 </div>
-
                 <div className="admin-stat-card">
-                    <div className="admin-stat-top">
-                        <div className="admin-stat-icon">
-                            ◎
-                        </div>
-
-                    </div>
-
-                    <div className="admin-stat-value">
-                        {loadingDashboardStats ? "..." : customerCount.toLocaleString("vi-VN")}
-                    </div>
-
-                    <div className="admin-stat-label">
-                        Khách hàng
-                    </div>
+                    <div className="admin-stat-top"><div className="admin-stat-icon">⇄</div></div>
+                    <div className="admin-stat-value">{loadingDashboardStats ? "..." : formatTien(dashboardStats?.transferRevenue || 0)}</div>
+                    <div className="admin-stat-label">Doanh thu chuyển khoản</div>
                 </div>
-
                 <div className="admin-stat-card">
-                    <div className="admin-stat-top">
-                        <div className="admin-stat-icon">
-                            ₫
-                        </div>
-
-                        <span className="admin-growth">
-                            Đã giao / đã thanh toán
-                        </span>
-                    </div>
-
-                    <div className="admin-stat-value">
-                        {loadingDashboardStats ? "..." : formatTien(totalRevenue)}
-                    </div>
-
-                    <div className="admin-stat-label">
-                        Doanh thu
-                    </div>
+                    <div className="admin-stat-top"><div className="admin-stat-icon">⌂</div></div>
+                    <div className="admin-stat-value">{loadingDashboardStats ? "..." : Number(dashboardStats?.counterOrderCount || 0).toLocaleString("vi-VN")}</div>
+                    <div className="admin-stat-label">Tổng đơn tại quầy</div>
+                </div>
+                <div className="admin-stat-card">
+                    <div className="admin-stat-top"><div className="admin-stat-icon">▤</div></div>
+                    <div className="admin-stat-value">{loadingDashboardStats ? "..." : Number(dashboardStats?.onlineOrderCount || 0).toLocaleString("vi-VN")}</div>
+                    <div className="admin-stat-label">Tổng đơn online</div>
+                </div>
+                <div className="admin-stat-card">
+                    <div className="admin-stat-top"><div className="admin-stat-icon">◎</div></div>
+                    <div className="admin-stat-value">{loadingDashboardStats ? "..." : customerCount.toLocaleString("vi-VN")}</div>
+                    <div className="admin-stat-label">Tổng khách hàng</div>
+                </div>
+                <div className="admin-stat-card">
+                    <div className="admin-stat-top"><div className="admin-stat-icon">□</div></div>
+                    <div className="admin-stat-value">{loadingDashboardStats ? "..." : productCount.toLocaleString("vi-VN")}</div>
+                    <div className="admin-stat-label">Tổng sản phẩm</div>
                 </div>
             </div>
+
+            <section className="admin-card dashboard-payment-breakdown">
+                <div className="admin-card-heading">
+                    <div>
+                        <h2>Doanh thu theo kênh bán</h2>
+                        <p>Phân chia theo hình thức thanh toán trong khoảng thời gian và bộ lọc đã chọn</p>
+                    </div>
+                </div>
+                <div className="dashboard-payment-table-wrap">
+                    <table className="dashboard-payment-table">
+                        <thead>
+                        <tr><th>Kênh bán</th><th>Tiền mặt</th><th>Chuyển khoản / Ví điện tử</th><th>Tổng</th></tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <th>Tại quầy</th>
+                            <td>{loadingDashboardStats ? "..." : formatTien(dashboardStats?.counterCashRevenue || 0)}</td>
+                            <td>{loadingDashboardStats ? "..." : formatTien(dashboardStats?.counterTransferRevenue || 0)}</td>
+                            <td>{loadingDashboardStats ? "..." : formatTien(Number(dashboardStats?.counterCashRevenue || 0) + Number(dashboardStats?.counterTransferRevenue || 0))}</td>
+                        </tr>
+                        <tr>
+                            <th>Online</th>
+                            <td>{loadingDashboardStats ? "..." : formatTien(dashboardStats?.onlineCashRevenue || 0)}</td>
+                            <td>{loadingDashboardStats ? "..." : formatTien(dashboardStats?.onlineTransferRevenue || 0)}</td>
+                            <td>{loadingDashboardStats ? "..." : formatTien(Number(dashboardStats?.onlineCashRevenue || 0) + Number(dashboardStats?.onlineTransferRevenue || 0))}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p className="dashboard-payment-note">Đơn COD online được tính vào tiền mặt; VNPay, MoMo và chuyển khoản được tính vào thanh toán điện tử.</p>
+            </section>
 
             <div className="admin-dashboard-grid">
                 <section className="admin-card revenue-card">
@@ -760,130 +788,42 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
                 </section>
             </div>
 
-            <section className="admin-card">
+            <section className="admin-card dashboard-brand-card">
                 <div className="admin-card-heading">
                     <div>
-                        <h2>Đơn hàng gần đây</h2>
-
-                        <p>
-                            {filteredOrderCount.toLocaleString("vi-VN")} đơn theo bộ lọc · hiển thị 4 đơn gần nhất
-                        </p>
+                        <h2>Thương hiệu bán chạy</h2>
+                        <p>Tỷ trọng theo tổng số đôi đã bán trong khoảng thời gian chọn</p>
                     </div>
-
-                    <button
-                        type="button"
-                        className="admin-link-button"
-                        onClick={onViewAll}
-                    >
-                        Xem tất cả →
-                    </button>
+                    <strong>{loadingDashboardStats ? "Đang tải..." : `${totalBrandSold.toLocaleString("vi-VN")} đôi`}</strong>
                 </div>
-
-                <div className="admin-table-scroll">
-                    {loadingDashboardStats ? (
-                        <div
-                            style={{
-                                padding: "40px",
-                                textAlign: "center",
-                                color: "#777",
-                            }}
-                        >
-                            Đang tải đơn hàng...
+                {loadingDashboardStats ? (
+                    <div className="admin-product-stat-empty">Đang tổng hợp dữ liệu thương hiệu...</div>
+                ) : topBrands.length === 0 ? (
+                    <div className="admin-product-stat-empty">Chưa có dữ liệu bán hàng theo thương hiệu trong khoảng thời gian này.</div>
+                ) : (
+                    <div className="dashboard-brand-layout">
+                        <div className="dashboard-brand-donut" style={{ background: brandGradient }}>
+                            <div className="dashboard-brand-donut-hole">
+                                <strong>{totalBrandSold.toLocaleString("vi-VN")}</strong>
+                                <span>đôi đã bán</span>
+                            </div>
                         </div>
-                    ) : recentOrders.length === 0 ? (
-                        <div
-                            style={{
-                                padding: "40px",
-                                textAlign: "center",
-                                color: "#777",
-                            }}
-                        >
-                            Chưa có đơn hàng.
+                        <div className="dashboard-brand-legend">
+                            {topBrands.map((brand, index) => {
+                                const sold = Number(brand.sold || 0);
+                                const percent = totalBrandSold ? sold / totalBrandSold * 100 : 0;
+                                return (
+                                    <div className="dashboard-brand-legend-row" key={brand.id}>
+                                        <span className="dashboard-brand-color" style={{ background: brandColors[index % brandColors.length] }} />
+                                        <span className="dashboard-brand-name">{brand.name}</span>
+                                        <strong>{sold.toLocaleString("vi-VN")} đôi</strong>
+                                        <small>{percent.toFixed(1)}%</small>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    ) : (
-                        <table className="admin-table">
-                            <thead>
-                            <tr>
-                                <th>
-                                    Mã hóa đơn
-                                </th>
-
-                                <th>
-                                    Khách hàng
-                                </th>
-
-                                <th>Loại đơn</th>
-                                <th>Thanh toán</th>
-                                <th>Tổng tiền</th>
-                                <th>Trạng thái</th>
-                            </tr>
-                            </thead>
-
-                            <tbody>
-                            {recentOrders.map(
-                                (hoaDon) => (
-                                    <tr
-                                        key={
-                                            hoaDon.id
-                                        }
-                                    >
-                                        <td>
-                                            <strong>
-                                                {hoaDon.maHoaDon ||
-                                                    `HD${hoaDon.id}`}
-                                            </strong>
-                                        </td>
-
-                                        <td>
-                                            {hoaDon.tenKhachHang ||
-                                                hoaDon.tenNguoiNhan ||
-                                                "Khách lẻ"}
-                                        </td>
-
-                                        <td>{tenLoaiHoaDon(hoaDon.loaiHoaDon)}</td>
-                                        <td>{tenPhuongThuc(hoaDon.phuongThucThanhToan)}</td>
-                                        <td><strong>{formatTien(hoaDon.tongThanhToan)}</strong></td>
-
-                                        <td>
-                                            <span
-                                                className="order-status"
-                                                style={{
-                                                    display:
-                                                        "inline-flex",
-                                                    alignItems:
-                                                        "center",
-                                                    justifyContent:
-                                                        "center",
-                                                    padding:
-                                                        "6px 12px",
-                                                    borderRadius:
-                                                        "999px",
-                                                    fontSize:
-                                                        "12px",
-                                                    fontWeight:
-                                                        700,
-                                                    whiteSpace:
-                                                        "nowrap",
-                                                    ...getTrangThaiDonHangStyle(
-                                                        hoaDon.trangThai
-                                                    ),
-                                                }}
-                                            >
-                                                {hoaDon.trangThai ===
-                                                    "DA_THANH_TOAN" &&
-                                                    "✓ "}
-                                                {tenTrangThaiHoaDon(
-                                                    hoaDon.trangThai
-                                                )}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                )
-                            )}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
+                    </div>
+                )}
             </section>
 
             <div className="admin-dashboard-products-grid">
@@ -946,7 +886,7 @@ function DashboardContent({ onViewAll, eyebrow = "FSHOP ADMIN" }) {
                     <div className="admin-card-heading">
                         <div>
                             <h2>Khách hàng mua nhiều</h2>
-                            <p>Top khách hàng theo doanh thu trong khoảng thời gian và bộ lọc đã chọn</p>
+                            <p>Xếp hạng theo số đơn hàng; doanh thu dùng để phân hạng khi bằng số đơn, trong khoảng thời gian và bộ lọc đã chọn</p>
                         </div>
                     </div>
                     {loadingDashboardStats ? (
@@ -2325,7 +2265,7 @@ function CustomerContent() {
                 channel.close();
             }
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, []);
 
     const filtered = customers.filter((item) => {
@@ -3853,47 +3793,66 @@ export function BanHangTaiQuayContent(taiKhoan) {
     };
     const loadProducts = async () => {
         try {
-            setLoading(true); setError("");
-            const response = await fetch(`${API}/san-pham`);
+            setLoading(true);
+            setError("");
+            // Lấy danh sách và toàn bộ biến thể trong 2 request song song,
+            // tránh gọi API chi tiết riêng cho từng sản phẩm.
+            const [response, variantsResponse] = await Promise.all([
+                fetch(`${API}/san-pham`),
+                fetch(`${API}/san-pham-chi-tiet`),
+            ]);
             const raw = await response.text();
-            let data; try { data = raw ? JSON.parse(raw) : []; } catch { data = []; }
-            if (!response.ok) throw new Error(data?.message || data?.error || raw || "Không tải được sản phẩm");
-            // API /san-pham có thể chỉ trả thông tin cơ bản; lấy thêm biến thể
-            // để hiển thị giá bán và tồn kho thực tế ngay trên thẻ sản phẩm.
+            let data;
+            try { data = raw ? JSON.parse(raw) : []; } catch { data = []; }
+            if (!response.ok) {
+                throw new Error(data?.message || data?.error || raw || "Không tải được sản phẩm");
+            }
+            if (!variantsResponse.ok) {
+                throw new Error("Không tải được biến thể sản phẩm");
+            }
+
+            const variantsRaw = await variantsResponse.json();
             const danhSach = Array.isArray(data) ? data : [];
-            const productsWithDetails = await Promise.all(danhSach.map(async (product) => {
-                try {
-                    const detailResponse = await fetch(`${API}/san-pham/${product.id}/chi-tiet`);
-                    if (!detailResponse.ok) {
-                        return { ...product, chiTiet: [], giaBan: product.giaBan ?? product.gia ?? null, tonKhoPOS: null, loiTaiBienThe: true };
-                    }
-                    const detailRaw = await detailResponse.text();
-                    let detailData;
-                    try { detailData = detailRaw ? JSON.parse(detailRaw) : []; } catch { detailData = []; }
-                    const chiTiet = Array.isArray(detailData) ? detailData : [];
-                    const activeVariants = chiTiet.filter(v => !v.trangThai || String(v.trangThai).toUpperCase() === "HOAT_DONG");
-                    const pricedVariants = activeVariants
-                        .map(v => Number(v.giaBan ?? v.gia ?? v.donGia ?? 0))
-                        .filter(price => Number.isFinite(price) && price > 0);
-                    const stock = activeVariants.reduce((sum, v) => sum + Math.max(0, Number(v.soLuongTon ?? 0)), 0);
-                    return {
-                        ...product,
-                        chiTiet,
-                        // Dùng giá thấp nhất của biến thể đang hoạt động làm giá tham khảo.
-                        giaBan: pricedVariants.length ? Math.min(...pricedVariants) : (product.giaBan ?? product.gia ?? null),
-                        tonKhoPOS: stock,
-                        loiTaiBienThe: false,
-                    };
-                } catch (detailError) {
-                    console.error(`Không tải được size/màu sản phẩm ${product.id}:`, detailError);
-                    return { ...product, chiTiet: [], giaBan: product.giaBan ?? product.gia ?? null, tonKhoPOS: null, loiTaiBienThe: true };
-                }
-            }));
+            const allVariants = Array.isArray(variantsRaw) ? variantsRaw : [];
+            const variantsByProduct = new Map();
+            allVariants.forEach((variant) => {
+                const productId = variant?.sanPham?.id ?? variant?.sanPhamId;
+                if (productId == null) return;
+                const key = String(productId);
+                if (!variantsByProduct.has(key)) variantsByProduct.set(key, []);
+                variantsByProduct.get(key).push(variant);
+            });
+
+            const productsWithDetails = danhSach.map((product) => {
+                const chiTiet = variantsByProduct.get(String(product.id)) || [];
+                const activeVariants = chiTiet.filter(
+                    (variant) => !variant.trangThai || String(variant.trangThai).toUpperCase() === "HOAT_DONG"
+                );
+                const pricedVariants = activeVariants
+                    .map((variant) => Number(variant.giaBan ?? variant.gia ?? variant.donGia ?? 0))
+                    .filter((price) => Number.isFinite(price) && price > 0);
+                const stock = activeVariants.reduce(
+                    (sum, variant) => sum + Math.max(0, Number(variant.soLuongTon ?? 0)),
+                    0
+                );
+                return {
+                    ...product,
+                    chiTiet,
+                    giaBan: pricedVariants.length
+                        ? Math.min(...pricedVariants)
+                        : (product.giaBan ?? product.gia ?? null),
+                    tonKhoPOS: stock,
+                    loiTaiBienThe: false,
+                };
+            });
             setProducts(productsWithDetails);
-        } catch (e) { setError(e.message || "Không thể tải sản phẩm từ máy chủ."); }
-        finally { setLoading(false); }
+        } catch (e) {
+            setError(e.message || "Không thể tải sản phẩm từ máy chủ.");
+        } finally {
+            setLoading(false);
+        }
     };
-    useEffect(() => { loadProducts(); }, []);
+    useEffect(() => { Promise.resolve().then(loadProducts); }, []);
     useEffect(() => {
         getKhachHangs(true)
             .then(data => setCustomers(Array.isArray(data) ? data : []))
@@ -4220,7 +4179,7 @@ export function BanHangTaiQuayContent(taiKhoan) {
                     const image = product.hinhAnh || product.anhDaiDien || product.urlAnh || "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=500&q=80";
                     return <article key={product.id} style={{ minWidth: 0, border: "1px solid #ececec", borderRadius: 12, padding: 9, display: "flex", flexDirection: "column", background: "#fff" }}>
                         <button type="button" onClick={() => openVariants(product)} aria-label={`Chọn size màu ${product.tenSanPham}`} style={{ position: "relative", border: 0, padding: 0, background: "#f7f7f7", borderRadius: 9, cursor: "pointer", overflow: "hidden" }}><img src={image} alt={product.tenSanPham || "Sản phẩm"} style={{ width: "100%", height: 145, objectFit: "contain", display: "block" }}/><span style={{ position: "absolute", right: 8, bottom: 8, width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", color: "#fff", background: "#ed4b2e", boxShadow: "0 2px 7px #0002", fontSize: 22 }}>+</span></button>
-                        <small style={{ color: "#ed4b2e", fontSize: 10, fontWeight: 700, marginTop: 10, textTransform: "uppercase" }}>{brandName(product)}</small><strong style={{ display: "block", fontSize: 13, lineHeight: 1.4, minHeight: 38, marginTop: 6, overflowWrap: "anywhere" }}>{product.tenSanPham || "Sản phẩm"}</strong><small style={{ color: "#999", marginTop: 6 }}>{product.maSanPham || `SP${product.id}`}</small><strong style={{ color: "#ed4b2e", fontSize: 15, marginTop: 8, whiteSpace: "normal", overflowWrap: "anywhere" }}>{(product.giaBan ?? product.gia) != null && Number(product.giaBan ?? product.gia) > 0 ? money(product.giaBan ?? product.gia) : "Chưa có giá"}</strong><small style={{ color: "#777", fontSize: 11, margin: "7px 0 10px" }}><span style={{ color: stock > 0 ? "#20b66a" : "#d92d20" }}>●</span> {stock == null ? (product.loiTaiBienThe ? "Chưa tải được tồn kho" : "Chưa có dữ liệu tồn kho") : stock > 0 ? `Còn hàng (${stock})` : "Hết hàng"}</small><button type="button" disabled={inactive || stock === 0} onClick={() => openVariants(product)} style={{ ...buttonBase, marginTop: "auto", fontSize: 12, opacity: inactive || stock === 0 ? .55 : 1, cursor: inactive || stock === 0 ? "not-allowed" : "pointer", background: inactive ? "#98a2b3" : buttonBase.background }}>{inactive ? "Ngừng hoạt động" : stock === 0 ? "Hết hàng" : "Thêm vào giỏ　＋"}</button>
+                        <small style={{ color: "#ed4b2e", fontSize: 10, fontWeight: 700, marginTop: 10, textTransform: "uppercase" }}>{brandName(product)}</small><strong style={{ display: "block", fontSize: 13, lineHeight: 1.4, minHeight: 38, marginTop: 6, overflowWrap: "anywhere" }}>{product.tenSanPham || "Sản phẩm"}</strong><small style={{ color: "#999", marginTop: 6 }}>{product.maSanPham || `SP${product.id}`}</small><strong style={{ color: "#ed4b2e", fontSize: 15, marginTop: 8, whiteSpace: "normal", overflowWrap: "anywhere" }}>{(product.giaBan ?? product.gia) != null && Number(product.giaBan ?? product.gia) > 0 ? money(product.giaBan ?? product.gia) : "Chưa có giá"}</strong><small style={{ color: "#777", fontSize: 11, margin: "7px 0 10px" }}><span style={{ color: stock > 0 ? "#20b66a" : "#d92d20" }}>●</span> {stock == null ? (product.loiTaiBienThe ? "Chưa tải được tồn kho" : "Chưa có dữ liệu tồn kho") : stock > 0 ? `Còn hàng (${stock})` : "Hết hàng"}</small><button type="button" disabled={inactive || stock === 0} onClick={() => openVariants(product)} style={{ ...buttonBase, marginTop: "auto", fontSize: 12, opacity: inactive || stock === 0 ? .55 : 1, cursor: inactive || stock === 0 ? "not-allowed" : "pointer", background: inactive ? "#98a2b3" : buttonBase.background }}>{inactive ? "Ngừng hoạt động" : stock === 0 ? "Hết hàng" : "Thêm vào giỏ ＋"}</button>
                     </article>;
                 })}</div> : <p style={{ padding: 28, textAlign: "center", color: "#667085" }}>Không tìm thấy sản phẩm phù hợp.</p>}
             </section>
@@ -4231,16 +4190,16 @@ export function BanHangTaiQuayContent(taiKhoan) {
                     <div style={{ color: "#667085", fontSize: 12, marginTop: 4 }}>Size {item.variant.kichCo?.tenKichCo || item.variant.kichCo?.kichCo || "-"} · {item.variant.mauSac?.tenMau || "-"}</div>
                     <b style={{ display: "block", color: "#ed4b2e", marginTop: 5 }}>{money(priceOf(item.product, item.variant))}</b><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 7 }}>
                         <button type="button" onClick={() => changeQuantity(item.variant.id, -1)}>−</button><span>{item.quantity}</span><button type="button" onClick={() => changeQuantity(item.variant.id, 1)}>+</button><small style={{ color: "#667085" }}>Còn {item.variant.soLuongTon}</small></div></div><button type="button" aria-label="Xóa sản phẩm"onClick={() => {
-                const itemToRemove = cart.find(row => row.variant.id === item.variant.id);
-                if (itemToRemove) {
-                    setVariants(oldVars => oldVars.map(v =>
-                        String(v.id) === String(itemToRemove.variant.id)
-                            ? { ...v, soLuongTon: Number(v.soLuongTon || 0) + itemToRemove.quantity }
-                            : v
-                    ));
-                }
-                setCart(old => old.filter(row => row.variant.id !== item.variant.id));
-            }} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
+                    const itemToRemove = cart.find(row => row.variant.id === item.variant.id);
+                    if (itemToRemove) {
+                        setVariants(oldVars => oldVars.map(v =>
+                            String(v.id) === String(itemToRemove.variant.id)
+                                ? { ...v, soLuongTon: Number(v.soLuongTon || 0) + itemToRemove.quantity }
+                                : v
+                        ));
+                    }
+                    setCart(old => old.filter(row => row.variant.id !== item.variant.id));
+                }} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
                 <div style={{ borderTop: "1px dashed #ddd", marginTop: 12, paddingTop: 14, display: "grid", gap: 10 }}><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Tạm tính</span><strong>{money(total)}</strong></div><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Giảm giá</span><strong>0đ</strong></div><div style={{ display: "flex", justifyContent: "space-between", fontSize: 19 }}><strong>Tổng tiền</strong><strong style={{ color: "#ed4b2e" }}>{money(total)}</strong></div></div>
                 <div style={{ borderTop: "1px solid #eee", marginTop: 16, paddingTop: 14, display: "grid", gap: 11 }}><strong style={{ fontSize: 15 }}>PHƯƠNG THỨC THANH TOÁN</strong><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{[["TIEN_MAT", "💵", "Tiền mặt"], ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"]].map(([value, icon, label]) => <button type="button" key={value} onClick={() => setPhuongThucThanhToan(value)} style={{ padding: "12px 6px", borderRadius: 9, border: `1px solid ${phuongThucThanhToan === value ? "#ed4b2e" : "#ddd"}`, background: phuongThucThanhToan === value ? "#fff3ef" : "#fff", color: phuongThucThanhToan === value ? "#ed4b2e" : "#555", cursor: "pointer" }}><span style={{ display: "block", fontSize: 20 }}>{icon}</span><small>{label}</small></button>)}</div><label style={{ fontSize: 13 }}>Chọn khách hàng đã lưu
                     <input list="fshop-pos-customers" value={customerSearch} onChange={e => {
@@ -4254,59 +4213,7 @@ export function BanHangTaiQuayContent(taiKhoan) {
                 </label>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><input value={tenKhach} onChange={e => setTenKhach(e.target.value)} placeholder="Tên khách hàng" style={field}/><input value={soDienThoaiKhach} onChange={e => setSoDienThoaiKhach(e.target.value)} placeholder="Số điện thoại" style={field}/></div>
                     <button type="button" onClick={() => setShowNewCustomer(v => !v)} style={{ border: "1px solid #ed4b2e", borderRadius: 9, padding: 10, background: "#fff", color: "#ed4b2e", fontWeight: 700, cursor: "pointer" }}>{showNewCustomer ? "Đóng thêm khách hàng" : "+ Thêm khách hàng mới"}</button>
-                    {showNewCustomer && <div style={{ display: "grid", gap: 8, padding: 10, background: "#fff8f5", borderRadius: 9 }}>
-                        <input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Họ tên khách hàng mới" style={field}/>
-                        <input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Số điện thoại khách hàng mới" style={field}/>
-                        <button type="button" disabled={busy} onClick={saveNewCustomer} style={buttonBase}>{busy ? "Đang lưu..." : "Lưu khách hàng"}</button></div>}
-                    <button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣　Thanh toán　${money(total)}`}</button>
-                    <button
-                        type="button"
-                        aria-label="Xóa sản phẩm"
-                        onClick={async () => {
-                            try {
-                                const res = await fetch(
-                                    `${API}/hoa-don/nha-hang?sanPhamChiTietId=${item.variant.id}&soLuong=${item.quantity}`,
-                                    { method: "POST" }
-                                );
-
-                                if (!res.ok) {
-                                    throw new Error(await res.text() || "Không thể trả hàng về kho");
-                                }
-
-                                // Khôi phục tồn kho trong danh sách biến thể
-                                setVariants(old => old.map(v =>
-                                    String(v.id) === String(item.variant.id)
-                                        ? {
-                                            ...v,
-                                            soLuongTon: Number(v.soLuongTon || 0) + item.quantity
-                                        }
-                                        : v
-                                ));
-
-                                // Cập nhật tồn kho sản phẩm
-                                capNhatTonKhoSanPham(item.variant.id, item.quantity);
-
-                                // Xóa sản phẩm khỏi giỏ
-                                setCart(old => old.filter(
-                                    row => String(row.variant.id) !== String(item.variant.id)
-                                ));
-
-                                setError("");
-                            } catch (err) {
-                                setError(err.message || "Lỗi trả hàng về kho");
-                            }
-                        }}
-                        style={{
-                            border: 0,
-                            background: "transparent",
-                            color: "#b42318",
-                            fontSize: 22,
-                            cursor: "pointer"
-                        }}
-                    >
-                        ×
-                    </button>
-                    <small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
+                    {showNewCustomer && <div style={{ display: "grid", gap: 8, padding: 10, background: "#fff8f5", borderRadius: 9 }}><input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Họ tên khách hàng mới" style={field}/><input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Số điện thoại khách hàng mới" style={field}/><button type="button" disabled={busy} onClick={saveNewCustomer} style={buttonBase}>{busy ? "Đang lưu..." : "Lưu khách hàng"}</button></div>}<button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣ Thanh toán ${money(total)}`}</button><button type="button" disabled={!cart.length} onClick={() => setCart([])} style={{ border: "1px solid #ddd", borderRadius: 9, padding: 11, background: "#fff", color: "#777", cursor: cart.length ? "pointer" : "not-allowed" }}>Xóa giỏ hàng</button><small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
             </aside>
         </div>
         {successBill && <div className="admin-pos-success-backdrop" onClick={() => setSuccessBill(null)} style={{ position: "fixed", inset: 0, zIndex: 12000, background: "rgba(16,24,40,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -4553,7 +4460,7 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
             <div className="admin-main-body">
 
                 {activeMenu ===
-                "dashboard" ? (<DashboardContent onViewAll={() => setActiveMenu("hoa-don")}/>) : activeMenu === "ban-hang" ? (<BanHangTaiQuayContent />) : activeMenu ===
+                "dashboard" ? (<DashboardContent />) : activeMenu === "ban-hang" ? (<BanHangTaiQuayContent />) : activeMenu ===
                 "hoa-don" ? (<HoaDonContent taiKhoan={taiKhoan} />) : activeMenu === "doi-tra" ? (<Returns mode="admin" />) : activeMenu ===
                 "thanh-toan" ? (<ThanhToanContent taiKhoan={taiKhoan} />) : activeMenu === "san-pham" ? (<AdminProducts />) : activeMenu === "danh-muc" ? (<AdminDanhMuc />) : activeMenu === "thuong-hieu" ? (<AdminThuongHieu />) : activeMenu === "kich-co" ? (<AdminKichCo />) : activeMenu === "mau-sac" ? (<AdminMauSac />) : activeMenu === "kho" ? (<AdminKho />) : activeMenu === "voucher" ? (<AdminVoucher />) : activeMenu === "khuyen-mai" ? (<AdminKhuyenMai />) : activeMenu ===
                 "khach-hang" ? (<CustomerContent />) : activeMenu ===

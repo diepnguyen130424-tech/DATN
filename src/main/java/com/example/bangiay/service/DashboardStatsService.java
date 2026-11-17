@@ -11,6 +11,11 @@ import com.example.bangiay.repository.SanPhamChiTietRepository;
 import com.example.bangiay.repository.SanPhamRepository;
 import com.example.bangiay.repository.ThanhToanRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,6 +102,39 @@ public class DashboardStatsService {
                         ? BigDecimal.ZERO : invoice.getTongThanhToan())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        BigDecimal cashRevenue = BigDecimal.ZERO;
+        BigDecimal transferRevenue = BigDecimal.ZERO;
+        BigDecimal counterCashRevenue = BigDecimal.ZERO;
+        BigDecimal counterTransferRevenue = BigDecimal.ZERO;
+        BigDecimal onlineCashRevenue = BigDecimal.ZERO;
+        BigDecimal onlineTransferRevenue = BigDecimal.ZERO;
+        for (HoaDon invoice : revenueInvoices) {
+            ThanhToan payment = paymentByInvoiceId.get(invoice.getId());
+            if (payment == null || payment.getSoTien() == null) continue;
+            String method = normalize(payment.getPhuongThuc());
+            String channel = normalize(invoice.getLoaiHoaDon());
+            BigDecimal amount = payment.getSoTien();
+            boolean cash = "TIEN_MAT".equals(method) || "COD".equals(method);
+            boolean electronic = "CHUYEN_KHOAN".equals(method) || "SEPAY".equals(method)
+                    || "BANK_TRANSFER".equals(method) || "VNPAY".equals(method)
+                    || "MOMO".equals(method);
+            if (cash) {
+                cashRevenue = cashRevenue.add(amount);
+                if ("TAI_QUAY".equals(channel)) counterCashRevenue = counterCashRevenue.add(amount);
+                else if ("ONLINE".equals(channel)) onlineCashRevenue = onlineCashRevenue.add(amount);
+            } else if (electronic) {
+                transferRevenue = transferRevenue.add(amount);
+                if ("TAI_QUAY".equals(channel)) counterTransferRevenue = counterTransferRevenue.add(amount);
+                else if ("ONLINE".equals(channel)) onlineTransferRevenue = onlineTransferRevenue.add(amount);
+            }
+        }
+        long onlineOrderCount = filteredInvoices.stream()
+                .filter(invoice -> "ONLINE".equals(normalize(invoice.getLoaiHoaDon())))
+                .count();
+        long counterOrderCount = filteredInvoices.stream()
+                .filter(invoice -> "TAI_QUAY".equals(normalize(invoice.getLoaiHoaDon())))
+                .count();
+
         Map<String, Long> statusCounts = new LinkedHashMap<>();
         for (String key : List.of(
                 "CHO_XAC_NHAN", "DA_XAC_NHAN", "DANG_CHUAN_BI",
@@ -142,6 +180,33 @@ public class DashboardStatsService {
             aggregate.put("sold", ((Number) aggregate.get("sold")).longValue() + quantity);
             aggregate.put("revenue", ((BigDecimal) aggregate.get("revenue")).add(amount));
         }
+
+        Map<Long, Map<String, Object>> brandSales = new HashMap<>();
+        for (ChiTietHoaDon detail : allInvoiceDetails) {
+            if (detail.getHoaDon() == null || !revenueIds.contains(detail.getHoaDon().getId())) continue;
+            SanPhamChiTiet variant = detail.getSanPhamChiTiet();
+            if (variant == null || variant.getSanPham() == null
+                    || variant.getSanPham().getThuongHieu() == null) continue;
+            var brand = variant.getSanPham().getThuongHieu();
+            if (brand.getId() == null) continue;
+            Map<String, Object> aggregate = brandSales.computeIfAbsent(brand.getId(), ignored -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", brand.getId());
+                row.put("name", brand.getTenThuongHieu());
+                row.put("sold", 0L);
+                row.put("revenue", BigDecimal.ZERO);
+                return row;
+            });
+            long quantity = detail.getSoLuong() == null ? 0L : Math.max(0, detail.getSoLuong());
+            BigDecimal amount = detail.getThanhTien() == null ? BigDecimal.ZERO : detail.getThanhTien();
+            aggregate.put("sold", ((Number) aggregate.get("sold")).longValue() + quantity);
+            aggregate.put("revenue", ((BigDecimal) aggregate.get("revenue")).add(amount));
+        }
+        List<Map<String, Object>> topBrands = brandSales.values().stream()
+                .sorted((a, b) -> Long.compare(
+                        ((Number) b.get("sold")).longValue(),
+                        ((Number) a.get("sold")).longValue()))
+                .toList();
 
         Map<Long, Long> inventory = new HashMap<>();
         for (SanPhamChiTiet variant : sanPhamChiTietRepository.findAll()) {
@@ -229,7 +294,13 @@ public class DashboardStatsService {
                     row.put("revenue", entry.getValue().get("revenue"));
                     return row;
                 })
-                .sorted((a, b) -> ((BigDecimal) b.get("revenue")).compareTo((BigDecimal) a.get("revenue")))
+                .sorted((a, b) -> {
+                    int byOrders = Long.compare(
+                            ((Number) b.get("orderCount")).longValue(),
+                            ((Number) a.get("orderCount")).longValue());
+                    return byOrders != 0 ? byOrders
+                            : ((BigDecimal) b.get("revenue")).compareTo((BigDecimal) a.get("revenue"));
+                })
                 .limit(5)
                 .toList();
 
@@ -238,6 +309,15 @@ public class DashboardStatsService {
         result.put("customerCount", khachHangRepository.count());
         result.put("orderCount", filteredInvoices.size());
         result.put("totalRevenue", totalRevenue);
+        result.put("cashRevenue", cashRevenue);
+        result.put("transferRevenue", transferRevenue);
+        result.put("counterCashRevenue", counterCashRevenue);
+        result.put("counterTransferRevenue", counterTransferRevenue);
+        result.put("onlineCashRevenue", onlineCashRevenue);
+        result.put("onlineTransferRevenue", onlineTransferRevenue);
+        result.put("onlineOrderCount", onlineOrderCount);
+        result.put("counterOrderCount", counterOrderCount);
+        result.put("topBrands", topBrands);
         result.put("statusCounts", statusCounts);
         result.put("revenueByDate", revenueByDate.entrySet().stream().map(entry -> {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -250,6 +330,298 @@ public class DashboardStatsService {
         result.put("topCustomers", topCustomers);
         result.put("revenueOrderCount", revenueInvoices.size());
         return result;
+    }
+
+
+    /**
+     * Dữ liệu dành riêng cho Excel: chỉ truy vấn hóa đơn trong khoảng lọc,
+     * thanh toán và chi tiết thuộc các hóa đơn đó. Không tải toàn bộ dashboard,
+     * sản phẩm, tồn kho hoặc khách hàng.
+     */
+    private Map<String, Object> getOverviewExportData(
+            LocalDate from,
+            LocalDate to,
+            String status,
+            String orderType,
+            String paymentMethod
+    ) {
+        LocalDateTime start = from == null ? null : from.atStartOfDay();
+        LocalDateTime end = to == null ? null : to.plusDays(1).atStartOfDay();
+
+        List<HoaDon> invoices = hoaDonRepository.findForDashboardExport(
+                start, end, normalize(status), normalize(orderType), normalize(paymentMethod)
+        );
+
+        List<Long> invoiceIds = invoices.stream()
+                .map(HoaDon::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, ThanhToan> paymentByInvoiceId = invoiceIds.isEmpty()
+                ? Collections.emptyMap()
+                : thanhToanRepository.findByHoaDon_IdIn(invoiceIds).stream()
+                .filter(p -> p.getHoaDon() != null && p.getHoaDon().getId() != null)
+                .collect(Collectors.toMap(
+                        p -> p.getHoaDon().getId(), p -> p, (first, ignored) -> first
+                ));
+
+        List<HoaDon> revenueInvoices = invoices.stream()
+                .filter(this::isRevenueInvoice)
+                .toList();
+
+        BigDecimal totalRevenue = BigDecimal.ZERO;
+        BigDecimal cashRevenue = BigDecimal.ZERO;
+        BigDecimal transferRevenue = BigDecimal.ZERO;
+        BigDecimal counterCashRevenue = BigDecimal.ZERO;
+        BigDecimal counterTransferRevenue = BigDecimal.ZERO;
+        BigDecimal onlineCashRevenue = BigDecimal.ZERO;
+        BigDecimal onlineTransferRevenue = BigDecimal.ZERO;
+
+        for (HoaDon invoice : revenueInvoices) {
+            totalRevenue = totalRevenue.add(
+                    invoice.getTongThanhToan() == null ? BigDecimal.ZERO : invoice.getTongThanhToan()
+            );
+            ThanhToan payment = paymentByInvoiceId.get(invoice.getId());
+            if (payment == null || payment.getSoTien() == null) continue;
+
+            String method = normalize(payment.getPhuongThuc());
+            String channel = normalize(invoice.getLoaiHoaDon());
+            BigDecimal amount = payment.getSoTien();
+            boolean cash = "TIEN_MAT".equals(method) || "COD".equals(method);
+            boolean electronic = "CHUYEN_KHOAN".equals(method) || "SEPAY".equals(method)
+                    || "BANK_TRANSFER".equals(method) || "VNPAY".equals(method)
+                    || "MOMO".equals(method);
+
+            if (cash) {
+                cashRevenue = cashRevenue.add(amount);
+                if ("TAI_QUAY".equals(channel)) counterCashRevenue = counterCashRevenue.add(amount);
+                else if ("ONLINE".equals(channel)) onlineCashRevenue = onlineCashRevenue.add(amount);
+            } else if (electronic) {
+                transferRevenue = transferRevenue.add(amount);
+                if ("TAI_QUAY".equals(channel)) counterTransferRevenue = counterTransferRevenue.add(amount);
+                else if ("ONLINE".equals(channel)) onlineTransferRevenue = onlineTransferRevenue.add(amount);
+            }
+        }
+
+        Map<Long, Map<String, Object>> brandSales = new HashMap<>();
+        if (!revenueInvoices.isEmpty()) {
+            Set<Long> revenueIds = revenueInvoices.stream().map(HoaDon::getId)
+                    .filter(Objects::nonNull).collect(Collectors.toSet());
+            List<ChiTietHoaDon> details = chiTietHoaDonRepository.findByHoaDon_IdIn(
+                    revenueIds.stream().toList()
+            );
+            for (ChiTietHoaDon detail : details) {
+                if (detail.getHoaDon() == null || !revenueIds.contains(detail.getHoaDon().getId())) continue;
+                SanPhamChiTiet variant = detail.getSanPhamChiTiet();
+                if (variant == null || variant.getSanPham() == null
+                        || variant.getSanPham().getThuongHieu() == null) continue;
+                var brand = variant.getSanPham().getThuongHieu();
+                if (brand.getId() == null) continue;
+
+                Map<String, Object> aggregate = brandSales.computeIfAbsent(brand.getId(), ignored -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", brand.getId());
+                    row.put("name", brand.getTenThuongHieu());
+                    row.put("sold", 0L);
+                    row.put("revenue", BigDecimal.ZERO);
+                    return row;
+                });
+                long quantity = detail.getSoLuong() == null ? 0L : Math.max(0, detail.getSoLuong());
+                BigDecimal amount = detail.getThanhTien() == null ? BigDecimal.ZERO : detail.getThanhTien();
+                aggregate.put("sold", ((Number) aggregate.get("sold")).longValue() + quantity);
+                aggregate.put("revenue", ((BigDecimal) aggregate.get("revenue")).add(amount));
+            }
+        }
+
+        List<Map<String, Object>> topBrands = brandSales.values().stream()
+                .sorted((a, b) -> Long.compare(
+                        ((Number) b.get("sold")).longValue(), ((Number) a.get("sold")).longValue()))
+                .toList();
+
+        Map<String, Map<String, Object>> customerAggregates = new HashMap<>();
+        for (HoaDon invoice : revenueInvoices) {
+            String customerKey;
+            String customerName;
+            if (invoice.getKhachHang() != null && invoice.getKhachHang().getId() != null) {
+                customerKey = "ONLINE-" + invoice.getKhachHang().getId();
+                customerName = invoice.getKhachHang().getHoTen();
+            } else if (invoice.getKhachHangQuay() != null && invoice.getKhachHangQuay().getId() != null) {
+                customerKey = "COUNTER-" + invoice.getKhachHangQuay().getId();
+                customerName = invoice.getKhachHangQuay().getHoTen();
+            } else {
+                String phone = invoice.getSoDienThoaiKhach();
+                customerKey = phone == null || phone.isBlank()
+                        ? "GUEST-" + Objects.toString(invoice.getTenKhach(), "Khách lẻ")
+                        : "GUEST-" + phone.trim();
+                customerName = invoice.getTenKhach() == null || invoice.getTenKhach().isBlank()
+                        ? "Khách lẻ" : invoice.getTenKhach();
+            }
+            Map<String, Object> aggregate = customerAggregates.computeIfAbsent(customerKey, ignored -> {
+                Map<String, Object> row = new HashMap<>();
+                row.put("name", customerName);
+                row.put("orderCount", 0L);
+                row.put("revenue", BigDecimal.ZERO);
+                return row;
+            });
+            aggregate.put("orderCount", ((Number) aggregate.get("orderCount")).longValue() + 1);
+            aggregate.put("revenue", ((BigDecimal) aggregate.get("revenue")).add(
+                    invoice.getTongThanhToan() == null ? BigDecimal.ZERO : invoice.getTongThanhToan()
+            ));
+        }
+
+        List<Map<String, Object>> topCustomers = customerAggregates.entrySet().stream()
+                .map(entry -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("name", entry.getValue().get("name"));
+                    row.put("orderCount", entry.getValue().get("orderCount"));
+                    row.put("revenue", entry.getValue().get("revenue"));
+                    return row;
+                })
+                .sorted((a, b) -> {
+                    int byOrders = Long.compare(
+                            ((Number) b.get("orderCount")).longValue(),
+                            ((Number) a.get("orderCount")).longValue());
+                    return byOrders != 0 ? byOrders
+                            : ((BigDecimal) b.get("revenue")).compareTo((BigDecimal) a.get("revenue"));
+                })
+                .limit(5)
+                .toList();
+
+        long onlineOrderCount = invoices.stream()
+                .filter(h -> "ONLINE".equals(normalize(h.getLoaiHoaDon()))).count();
+        long counterOrderCount = invoices.stream()
+                .filter(h -> "TAI_QUAY".equals(normalize(h.getLoaiHoaDon()))).count();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("totalRevenue", totalRevenue);
+        result.put("cashRevenue", cashRevenue);
+        result.put("transferRevenue", transferRevenue);
+        result.put("counterCashRevenue", counterCashRevenue);
+        result.put("counterTransferRevenue", counterTransferRevenue);
+        result.put("onlineCashRevenue", onlineCashRevenue);
+        result.put("onlineTransferRevenue", onlineTransferRevenue);
+        result.put("onlineOrderCount", onlineOrderCount);
+        result.put("counterOrderCount", counterOrderCount);
+        result.put("orderCount", invoices.size());
+        result.put("topBrands", topBrands);
+        result.put("topCustomers", topCustomers);
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportOverviewExcel(
+            LocalDate from,
+            LocalDate to,
+            String status,
+            String orderType,
+            String paymentMethod
+    ) {
+        Map<String, Object> data = getOverviewExportData(from, to, status, orderType, paymentMethod);
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Tong quan");
+            sheet.setColumnWidth(0, 9000);
+            sheet.setColumnWidth(1, 6500);
+            sheet.setColumnWidth(2, 5000);
+
+            CellStyle titleStyle = workbook.createCellStyle();
+            Font titleFont = workbook.createFont();
+            titleFont.setBold(true);
+            titleFont.setFontHeightInPoints((short) 16);
+            titleStyle.setFont(titleFont);
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            int rowIndex = 0;
+            Row title = sheet.createRow(rowIndex++);
+            title.createCell(0).setCellValue("BAO CAO TONG QUAN FSHOP");
+            title.getCell(0).setCellStyle(titleStyle);
+
+            Row period = sheet.createRow(rowIndex++);
+            period.createCell(0).setCellValue("Tu ngay");
+            period.createCell(1).setCellValue(from == null ? "Tat ca" : from.toString());
+            Row period2 = sheet.createRow(rowIndex++);
+            period2.createCell(0).setCellValue("Den ngay");
+            period2.createCell(1).setCellValue(to == null ? "Tat ca" : to.toString());
+            Row filterStatusRow = sheet.createRow(rowIndex++);
+            filterStatusRow.createCell(0).setCellValue("Trang thai");
+            filterStatusRow.createCell(1).setCellValue(status == null || status.isBlank() ? "Tat ca" : status);
+            Row filterTypeRow = sheet.createRow(rowIndex++);
+            filterTypeRow.createCell(0).setCellValue("Loai don");
+            filterTypeRow.createCell(1).setCellValue(orderType == null || orderType.isBlank() ? "Tat ca" : orderType);
+            Row filterPaymentRow = sheet.createRow(rowIndex++);
+            filterPaymentRow.createCell(0).setCellValue("Phuong thuc thanh toan");
+            filterPaymentRow.createCell(1).setCellValue(paymentMethod == null || paymentMethod.isBlank() ? "Tat ca" : paymentMethod);
+
+            rowIndex++;
+            Row summaryHeader = sheet.createRow(rowIndex++);
+            summaryHeader.createCell(0).setCellValue("Chi tieu");
+            summaryHeader.createCell(1).setCellValue("Gia tri");
+            summaryHeader.getCell(0).setCellStyle(headerStyle);
+            summaryHeader.getCell(1).setCellStyle(headerStyle);
+
+            String[] labels = {"Tong doanh thu", "Doanh thu tien mat", "Doanh thu chuyen khoan",
+                    "Tien mat tai quay", "Chuyen khoan tai quay", "Tien mat online", "Chuyen khoan online",
+                    "Tong don online", "Tong don tai quay", "Tong so don"};
+            String[] keys = {"totalRevenue", "cashRevenue", "transferRevenue",
+                    "counterCashRevenue", "counterTransferRevenue", "onlineCashRevenue", "onlineTransferRevenue",
+                    "onlineOrderCount", "counterOrderCount", "orderCount"};
+            for (int i = 0; i < labels.length; i++) {
+                Row row = sheet.createRow(rowIndex++);
+                row.createCell(0).setCellValue(labels[i]);
+                Object value = data.get(keys[i]);
+                if (value instanceof Number number) row.createCell(1).setCellValue(number.doubleValue());
+                else row.createCell(1).setCellValue(String.valueOf(value));
+            }
+
+            rowIndex++;
+            Row brandHeader = sheet.createRow(rowIndex++);
+            brandHeader.createCell(0).setCellValue("Thuong hieu");
+            brandHeader.createCell(1).setCellValue("So doi da ban");
+            brandHeader.createCell(2).setCellValue("Doanh thu");
+            for (int i = 0; i < 3; i++) brandHeader.getCell(i).setCellStyle(headerStyle);
+            Object brands = data.get("topBrands");
+            if (brands instanceof List<?> list) {
+                for (Object item : list) {
+                    if (!(item instanceof Map<?, ?> brand)) continue;
+                    Row row = sheet.createRow(rowIndex++);
+                    row.createCell(0).setCellValue(String.valueOf(brand.get("name")));
+                    Object sold = brand.get("sold");
+                    row.createCell(1).setCellValue(sold instanceof Number n ? n.doubleValue() : 0d);
+                    Object revenue = brand.get("revenue");
+                    row.createCell(2).setCellValue(revenue instanceof Number n ? n.doubleValue() : 0d);
+                }
+            }
+
+            rowIndex++;
+            Row customerHeader = sheet.createRow(rowIndex++);
+            customerHeader.createCell(0).setCellValue("Khach hang");
+            customerHeader.createCell(1).setCellValue("So don");
+            customerHeader.createCell(2).setCellValue("Doanh thu");
+            for (int i = 0; i < 3; i++) customerHeader.getCell(i).setCellStyle(headerStyle);
+            Object customers = data.get("topCustomers");
+            if (customers instanceof List<?> list) {
+                for (Object item : list) {
+                    if (!(item instanceof Map<?, ?> customer)) continue;
+                    Row row = sheet.createRow(rowIndex++);
+                    row.createCell(0).setCellValue(String.valueOf(customer.get("name")));
+                    Object orders = customer.get("orderCount");
+                    row.createCell(1).setCellValue(orders instanceof Number n ? n.doubleValue() : 0d);
+                    Object revenue = customer.get("revenue");
+                    row.createCell(2).setCellValue(revenue instanceof Number n ? n.doubleValue() : 0d);
+                }
+            }
+
+            workbook.write(output);
+            return output.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Không thể tạo file Excel thống kê", exception);
+        }
     }
 
     private boolean isRevenueInvoice(HoaDon invoice) {
