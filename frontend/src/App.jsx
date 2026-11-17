@@ -91,6 +91,16 @@ function layTrangTheoVaiTro(tk) {
     return "home";
 }
 
+// Backend chỉ miễn ship khi voucher có loaiGiam = FREESHIP → FE phải xét giống hệt,
+// nếu không (vd mã "FREE50K" là voucher giảm giá) FE hiện ship 0đ nhưng hóa đơn vẫn tính ship.
+function laVoucherFreeshipThat(v) {
+    if (!v) return false;
+    if (v.loaiGiam != null && String(v.loaiGiam).trim() !== "") {
+        return String(v.loaiGiam).trim().toUpperCase() === "FREESHIP";
+    }
+    return isVoucherFreeship(v);
+}
+
 function isVoucherFreeship(v) {
     if (!v) return false;
     if (v.mienPhiVanChuyen === true) return true;
@@ -2209,6 +2219,8 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
     const [newAddress, setNewAddress] = useState({ tenNguoiNhan: "", soDienThoai: "", diaChi: "", macDinh: false, phiShip: PHI_SHIP_MAC_DINH });
     const [shipInfo, setShipInfo] = useState(null);
     const [shipLoading, setShipLoading] = useState(false);
+    // Phí GHN phụ thuộc số lượng (khối lượng) → báo phí phải dùng đúng số lượng như lúc server tạo hóa đơn
+    const tongSoLuongDat = gioHang.reduce((s, it) => s + Number(it.soLuong || 0), 0) || 1;
     const [newShip, setNewShip] = useState(null);
     const [newShipLoading, setNewShipLoading] = useState(false);
     const VN_API = "https://provinces.open-api.vn/api/v2";
@@ -2267,7 +2279,7 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
         setShipLoading(true);
         const t = setTimeout(async () => {
             try {
-                const res = await fetch(`${API}/ship/tinh-phi?diaChi=${encodeURIComponent(addr)}`);
+                const res = await fetch(`${API}/ship/tinh-phi?diaChi=${encodeURIComponent(addr)}&soLuong=${tongSoLuongDat}`);
                 if (!res.ok) throw new Error("ship");
                 const data = await res.json();
                 if (!cancelled) {
@@ -2278,7 +2290,7 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
             finally { if (!cancelled) setShipLoading(false); }
         }, 150);
         return () => { cancelled = true; clearTimeout(t); };
-    }, [diaChi]);
+    }, [diaChi, tongSoLuongDat]);
 
     useEffect(() => {
         const addr = newAddress.diaChi.trim();
@@ -2406,7 +2418,7 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
     const [voucherList, setVoucherList] = useState([]);
     const [loadingVoucherList, setLoadingVoucherList] = useState(false);
     const MAX_VOUCHER = 1;
-    const coVoucherFreeship = vouchers.some(isVoucherFreeship);
+    const coVoucherFreeship = vouchers.some(laVoucherFreeshipThat);
     const diaChiDangChon = addresses.find((a) => String(a.id) === String(selectedAddressId));
     const phiShipDiaChi = Number(shipInfo?.phiShip ?? diaChiDangChon?.phiShip ?? phiShipMoi ?? PHI_SHIP_MAC_DINH);
     const phiVanChuyen = coVoucherFreeship ? 0 : phiShipDiaChi;
@@ -2616,14 +2628,14 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
                 body: JSON.stringify({
                     hoTen: hoTen.trim(), soDienThoai: soDienThoai.trim(), diaChi: diaChi.trim(),
                     ghiChu: ghiChu.trim(), phuongThuc,
-                    voucherId: vouchers[0]?.id || null,
+                    voucherId: vouchers.find((v) => !laVoucherFreeshipThat(v))?.id || null,
                     maVoucher: vouchers.map((v) => v.maVoucher).filter(Boolean).join("+") || null,
                     tienGiam,
                     danhSachVoucherId: vouchers.map((v) => v.id).filter((x) => x != null),
                     tongTienHang: tongTienSale,
                     chiTietGioHangIds: chiTietGioHangIdsDat,
                     phiVanChuyen: Number(phiShipMoi) || PHI_SHIP_MAC_DINH,
-                    voucherFreeshipId: vouchers.find((v) => v.loaiGiam === "FREESHIP")?.id || null,
+                    voucherFreeshipId: vouchers.find(laVoucherFreeshipThat)?.id || null,
                 }),
             });
             const rt = await res.text();
@@ -2679,9 +2691,10 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
                 diaChi: diaChi.trim(), ghiChu: ghiChu.trim(), phuongThuc,
                 items: itemsForBill,
                 tamTinh: Number(tongTienSale),
-                phiVanChuyen, tienGiam,
+                phiVanChuyen: hoaDon?.phiVanChuyen != null ? Number(hoaDon.phiVanChuyen) : phiVanChuyen,
+                tienGiam: hoaDon?.tienGiam != null ? Number(hoaDon.tienGiam) : tienGiam,
                 maVoucher: vouchers.map((v) => v.maVoucher).filter(Boolean).join(" + ") || null,
-                tongThanhToan,
+                tongThanhToan: hoaDon?.tongThanhToan != null ? Number(hoaDon.tongThanhToan) : tongThanhToan,
             });
             setGioHang((o) => o.filter((i) => !variantIdsDat.includes(i.variantId)));
             if (setSelectedVariantIds) setSelectedVariantIds((p) => p.filter((id) => !variantIdsDat.includes(id)));

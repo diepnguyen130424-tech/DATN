@@ -211,6 +211,50 @@ async function docLoi(response) {
 }
 
 /*
+ * Bảng tổng kết tiền của hóa đơn: tạm tính − giảm giá + phí ship = tổng thanh toán.
+ * Dùng dữ liệu đã lưu trong hóa đơn (tongTienHang / tienGiam / phiVanChuyen / tongThanhToan)
+ * để admin & nhân viên đối chiếu được phí ship; nếu lưu lệch sẽ có cảnh báo.
+ */
+export function TongKetTienHoaDon({ order, formatMoney }) {
+    if (!order) return null;
+    const fmt = formatMoney || ((v) => `${Number(v || 0).toLocaleString("vi-VN")}đ`);
+    const hang = Number(order.tongTienHang || 0);
+    const giam = Number(order.tienGiam || 0);
+    const ship = Number(order.phiVanChuyen || 0);
+    const tong = Number(order.tongThanhToan || 0);
+    const tinhLai = Math.max(0, hang - giam + ship);
+    const lech = Math.abs(tinhLai - tong) > 0.5;
+    const online = String(order.loaiHoaDon || "").toUpperCase() === "ONLINE";
+    const dong = { display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderBottom: "1px solid #f0f1f3" };
+
+    return (
+        <section className="hd-section">
+            <div className="hd-section-head"><h3>Tổng kết tiền</h3></div>
+            <div style={{ maxWidth: 420, fontSize: 14 }}>
+                <div style={dong}><span>Tạm tính (tiền hàng)</span><strong>{fmt(hang)}</strong></div>
+                <div style={dong}><span>Giảm giá</span><strong style={{ color: giam > 0 ? "#159447" : undefined }}>{giam > 0 ? `-${fmt(giam)}` : fmt(0)}</strong></div>
+                {online && (
+                    <div style={dong}>
+                        <span>Phí vận chuyển{order.voucherFreeship ? " (voucher FREESHIP)" : ""}</span>
+                        <strong>{ship === 0 ? "Miễn phí" : fmt(ship)}</strong>
+                    </div>
+                )}
+                <div style={{ ...dong, borderBottom: "none", paddingTop: 10 }}>
+                    <span style={{ fontWeight: 700 }}>Tổng thanh toán</span>
+                    <strong style={{ color: "#e53935", fontSize: 16 }}>{fmt(tong)}</strong>
+                </div>
+            </div>
+            {lech && (
+                <div className="hd-error" style={{ marginTop: 10 }}>
+                    ⚠ Tổng thanh toán đã lưu ({fmt(tong)}) không khớp tạm tính − giảm giá + phí ship ({fmt(tinhLai)}).
+                    Đơn này bị lưu sai phí ship/giảm giá — hãy kiểm tra lại với khách trước khi giao.
+                </div>
+            )}
+        </section>
+    );
+}
+
+/*
  * order     : hóa đơn đang xem
  * actor     : { nhanVienId, nguoiThucHien, vaiTro } — người đang thao tác
  * onSaved   : (hoaDonMoi) => void

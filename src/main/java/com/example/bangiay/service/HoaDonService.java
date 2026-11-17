@@ -398,7 +398,17 @@ public class HoaDonService {
                                             "Không tìm thấy voucher"
                                     )
                             );
+            // FE có thể gửi voucher FREESHIP vào ô voucher chính → chuyển sang ô FREESHIP,
+            // KHÔNG được tính như voucher giảm giá (trước đây bị trừ tiền sai + miễn ship).
+            if ("FREESHIP".equalsIgnoreCase(voucher.getLoaiGiam())) {
+                if (voucherFreeshipId == null) {
+                    voucherFreeshipId = voucher.getId();
+                }
+                voucher = null;
+            }
+        }
 
+        if (voucher != null) {
             if ("PHAN_TRAM".equalsIgnoreCase(voucher.getLoaiGiam())) {
 
                 tienGiam = tongTienHang
@@ -416,7 +426,9 @@ public class HoaDonService {
 
             } else {
                 // SO_TIEN
-                tienGiam = voucher.getGiaTriGiam();
+                tienGiam = voucher.getGiaTriGiam() != null
+                        ? voucher.getGiaTriGiam()
+                        : BigDecimal.ZERO;
             }
 
             // Không giảm quá tổng tiền

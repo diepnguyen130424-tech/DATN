@@ -18,6 +18,7 @@ import {
     DateRangeFilter,
     LichSuHoaDonList,
     ThongTinGiaoHang,
+    TongKetTienHoaDon,
     layThongTinKhach,
     trongKhoangNgay,
 } from "./HoaDonShared.jsx";
@@ -556,6 +557,8 @@ function OrderDetailModal({order, actor, onClose, onOrderChanged}) {
                     <div><span>Loại</span><strong>{HD_LOAI_LABEL[order.loaiHoaDon] || order.loaiHoaDon || "-"}</strong></div>
                     <div><span>Tổng tiền</span><strong style={{color: "#e53935"}}>{formatMoney(order.tongThanhToan)}</strong></div>
                 </div>
+
+                <TongKetTienHoaDon order={order} formatMoney={formatMoney} />
 
                 <ThongTinGiaoHang
                     order={order}

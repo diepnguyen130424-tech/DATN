@@ -15,6 +15,7 @@ import {
     DateRangeFilter,
     LichSuHoaDonList,
     ThongTinGiaoHang,
+    TongKetTienHoaDon,
     layThongTinKhach,
     trongKhoangNgay,
 } from "./HoaDonShared.jsx";
@@ -1377,6 +1378,8 @@ function HoaDonContent({ taiKhoan }) {
                     <div><span>Loại</span><strong>{tenLoaiHoaDon(selectedHoaDon.loaiHoaDon)}</strong></div>
                     <div><span>Tổng tiền</span><strong style={{ color: "#e53935" }}>{formatTien(selectedHoaDon.tongThanhToan)}</strong></div>
                 </div>
+
+                <TongKetTienHoaDon order={selectedHoaDon} formatMoney={formatTien} />
 
                 <ThongTinGiaoHang
                     order={selectedHoaDon}
