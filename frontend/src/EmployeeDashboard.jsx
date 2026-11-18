@@ -17,8 +17,11 @@ import {
     CompactPager,
     DateRangeFilter,
     LichSuHoaDonList,
+    NguoiTaoHoaDon,
     ThongTinGiaoHang,
     TongKetTienHoaDon,
+    VoucherApDungHoaDon,
+    XuLyHoaDon,
     layThongTinKhach,
     trongKhoangNgay,
 } from "./HoaDonShared.jsx";
@@ -492,7 +495,7 @@ function HoaDonPage({orders, onOpenDetail, onRefresh, refreshing}) {
     );
 }
 
-function OrderDetailModal({order, actor, onClose, onOrderChanged}) {
+function OrderDetailModal({order, actor, onClose, onOrderChanged, onUpdateStatus}) {
     const [detail, setDetail] = useState([]);
     const [payment, setPayment] = useState(null);
     const [history, setHistory] = useState([]);
@@ -570,6 +573,16 @@ function OrderDetailModal({order, actor, onClose, onOrderChanged}) {
                     }}
                 />
 
+                {/* Đơn ONLINE: xử lý đơn. Đơn tại quầy: hiện tài khoản đã tạo hóa đơn */}
+                <XuLyHoaDon
+                    order={order}
+                    onChange={async (trangThaiMoi) => {
+                        await onUpdateStatus?.(order, trangThaiMoi);
+                        await loadHistory();
+                    }}
+                />
+                <NguoiTaoHoaDon order={order} history={history} formatNgay={formatDate} />
+
                 <section className="hd-section">
                     <div className="hd-section-head"><h3>Chi tiết sản phẩm</h3></div>
                     {loading ? (
@@ -628,6 +641,8 @@ function OrderDetailModal({order, actor, onClose, onOrderChanged}) {
                         <div className="hd-muted">Chưa có thông tin thanh toán.</div>
                     )}
                 </section>
+
+                <VoucherApDungHoaDon order={order} formatMoney={formatMoney} />
 
                 <section className="hd-section" style={{marginBottom: 0}}>
                     <div className="hd-section-head"><h3>Lịch sử hóa đơn</h3></div>
@@ -919,6 +934,7 @@ export default function EmployeeDashboard({
                     actor={actor}
                     onClose={() => setSelectedOrder(null)}
                     onOrderChanged={onOrderChanged}
+                    onUpdateStatus={updateOrderStatus}
                 />
             )}
         </div>

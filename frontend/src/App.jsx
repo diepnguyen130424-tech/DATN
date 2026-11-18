@@ -17,6 +17,9 @@ import { anhUrl, isActive } from "./CatalogCrud";
 const API = "http://localhost:8080/api";
 const PHI_SHIP_MAC_DINH = 30000;
 const isHoatDong = (t) => t === "HOAT_DONG" || t === "ACTIVE";
+// Ảnh dự phòng khi URL ảnh sản phẩm lỗi / file đã mất (thẻ sản phẩm đã dùng sẵn, giỏ hàng trước đây thì không)
+const ANH_DU_PHONG = "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1000&q=90";
+const anhLoi = (e) => { e.currentTarget.onerror = null; e.currentTarget.src = ANH_DU_PHONG; };
 const isVariantHoatDong = (i) => isHoatDong(i?.mauSac?.trangThai) && isHoatDong(i?.kichCo?.trangThai);
 
 const danhMuc = [
@@ -628,7 +631,19 @@ function App() {
         } catch (e) { console.error(e); alert(e.message || "Lỗi"); return false; }
     };
 
+    const dangDoiBienTheRef = useRef(false);
     const capNhatBienThe = async (vIdCu, ctMoi, slMoi) => {
+        // Bấm "Lưu thay đổi" 2 lần liên tiếp làm 2 request cùng thêm 1 biến thể → trùng khóa DB
+        if (dangDoiBienTheRef.current) return false;
+        dangDoiBienTheRef.current = true;
+        try {
+            return await capNhatBienTheCore(vIdCu, ctMoi, slMoi);
+        } finally {
+            dangDoiBienTheRef.current = false;
+        }
+    };
+
+    const capNhatBienTheCore = async (vIdCu, ctMoi, slMoi) => {
         const itCu = gioHang.find((i) => i.variantId === vIdCu);
         if (!itCu) return false;
         // ⭐ CHẶN CẬP NHẬT BIẾN THỂ NẾU SẢN PHẨM NGỪNG HOẠT ĐỘNG
@@ -674,10 +689,19 @@ function App() {
             }
             showToast("Đã cập nhật SP");
             return true;
-        } catch (e) { console.error(e); alert(e.message || "Lỗi"); return false; }
+        } catch (e) {
+            console.error(e);
+            alert(e.message || "Lỗi");
+            // Có thể dòng cũ đã bị xóa trên server → tải lại giỏ để giao diện khớp dữ liệu thật
+            await taiGioHang(taiKhoan, sanPhams);
+            return false;
+        }
     };
 
     const tongSoLuong = gioHang.reduce((t, i) => t + i.soLuong, 0);
+    // Sản phẩm ngừng kinh doanh không hiển thị ở trang chủ / danh sách / yêu thích.
+    // Vẫn giữ `sanPhams` đầy đủ để giỏ hàng cũ còn map được thông tin sản phẩm.
+    const sanPhamsHienThi = sanPhams.filter((sp) => isHoatDong(sp.trangThai));
     if (sepayReturn) {
         return <SePayPaymentReturn
             hoaDonId={sepayReturn.hoaDonId}
@@ -718,12 +742,12 @@ function App() {
                     chonThuongHieu={chonThuongHieu} chonDanhMuc={chonDanhMuc}
                     yeuThichCount={yeuThichIds.length} moTrangYeuThich={moTrangYeuThich} />
 
-            {page === "home" && <Home sanPhams={sanPhams} loading={loading} xemSanPham={xemSanPham}
+            {page === "home" && <Home sanPhams={sanPhamsHienThi} loading={loading} xemSanPham={xemSanPham}
                                       themVaoGio={themVaoGio} setPage={setPage} thuongHieuList={thuongHieuList}
                                       danhMucList={danhMucList} chonThuongHieu={chonThuongHieu} chonDanhMuc={chonDanhMuc}
                                       yeuThichIds={yeuThichIds} toggleYeuThich={toggleYeuThich} khuyenMaiActive={khuyenMaiActive} />}
 
-            {page === "products" && <ProductList sanPhams={sanPhams} loading={loading} search={search}
+            {page === "products" && <ProductList sanPhams={sanPhamsHienThi} loading={loading} search={search}
                                                  setSearch={setSearch} xemSanPham={xemSanPham} themVaoGio={themVaoGio}
                                                  thuongHieuList={thuongHieuList} danhMucList={danhMucList}
                                                  brand={locBrand} setBrand={setLocBrand} danhMucLoc={locDanhMuc} setDanhMucLoc={setLocDanhMuc}
@@ -755,7 +779,7 @@ function App() {
                 />
             )}
 
-            {page === "favorites" && <FavoriteProducts sanPhams={sanPhams} yeuThichIds={yeuThichIds}
+            {page === "favorites" && <FavoriteProducts sanPhams={sanPhamsHienThi} yeuThichIds={yeuThichIds}
                                                        loading={loading} xemSanPham={xemSanPham} themVaoGio={themVaoGio}
                                                        toggleYeuThich={toggleYeuThich} xoaTatCaYeuThich={xoaTatCaYeuThich}
                                                        setPage={setPage} khuyenMaiActive={khuyenMaiActive} />}
@@ -1505,7 +1529,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                     <div className="detail-layout">
                         <div className="detail-gallery">
                             <div className="detail-main-image">
-                                <img src={anh} alt={sanPham.tenSanPham} />
+                                <img src={anh} alt={sanPham.tenSanPham} onError={anhLoi} />
                                 {!isSoldOut && <span className="detail-sale">-20%</span>}
                                 {isSoldOut && <div className="sold-out-overlay" style={{ fontSize: '20px', padding: '12px 24px' }}>{isNgungHoatDong ? "NGỪNG KINH DOANH" : "HẾT HÀNG"}</div>}
                             </div>
@@ -1515,7 +1539,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                                             className={selectedColor === color ? "thumbnail active" : "thumbnail"}
                                             title={`Xem màu ${color}`}
                                             onClick={() => chonMau(color)}>
-                                        <img src={layAnhTheoMau(sanPham, color)} alt={`${sanPham.tenSanPham} màu ${color}`} />
+                                        <img src={layAnhTheoMau(sanPham, color)} alt={`${sanPham.tenSanPham} màu ${color}`} onError={anhLoi} />
                                     </button>
                                 ))}
                             </div>
@@ -1861,7 +1885,7 @@ function Cart({ gioHang, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage, taiKhoan
                                                    onChange={() => toggleSelect(item.variantId)}
                                                    onClick={(e) => e.stopPropagation()} />
                                             <img src={layAnhTheoMau(item.sanPham, item.chiTiet?.mauSac?.tenMau)}
-                                                 alt={item.sanPham.tenSanPham} className="cart-product-image" style={{ filter: isNgungHoatDong ? "grayscale(100%)" : "none" }} />
+                                                 alt={item.sanPham.tenSanPham} onError={anhLoi} className="cart-product-image" style={{ filter: isNgungHoatDong ? "grayscale(100%)" : "none" }} />
                                             <div className="cart-product-info">
                                                 <strong className="cart-product-name">{item.sanPham.tenSanPham}</strong>
                                                 {isNgungHoatDong && <span style={{ color: "#e53935", fontSize: 11, fontWeight: "bold", marginTop: 4, display: "block" }}>(Ngừng kinh doanh)</span>}
@@ -1930,7 +1954,7 @@ function Cart({ gioHang, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage, taiKhoan
                             <h2>Tóm tắt đơn hàng</h2>
                             <div className="summary-line"><span>Sản phẩm đã chọn</span><strong>{selectedItems.length}/{gioHang.length}</strong></div>
                             <div className="summary-line"><span>Tạm tính</span><strong>{formatGia(tongTienSelected)}</strong></div>
-                            <div className="summary-line"><span>Phí vận chuyển</span><strong className="ship-fee">{formatGia(phiVanChuyen)}</strong></div>
+                            <div className="summary-line"><span>Phí vận chuyển (tạm tính)</span><strong className="ship-fee">{formatGia(phiVanChuyen)}</strong></div>
                             <div className="summary-divider"></div>
                             <div className="summary-total"><span>Tổng thanh toán</span><strong>{formatGia(tongThanhToan)}</strong></div>
                             <button className="checkout-button" onClick={handleCheckout} disabled={selectedVariantIds.length === 0}>
@@ -1949,7 +1973,7 @@ function Cart({ gioHang, tangSoLuong, giamSoLuong, xoaKhoiGio, setPage, taiKhoan
                             <button type="button" className="cart-edit-close" onClick={closeEdit}>×</button>
                         </div>
                         <div className="cart-edit-product">
-                            <img src={layAnhTheoMau(editingItem.sanPham, editColor || editingItem.chiTiet?.mauSac?.tenMau)}
+                            <img onError={anhLoi} src={layAnhTheoMau(editingItem.sanPham, editColor || editingItem.chiTiet?.mauSac?.tenMau)}
                                  alt={editingItem.sanPham.tenSanPham} />
                             <div>
                                 <strong>{editingItem.sanPham.tenSanPham}</strong>
@@ -3567,7 +3591,7 @@ ${invoiceHtml.outerHTML}
                                 <strong>🏦 Chuyển khoản</strong>
                             </div>
                         )}
-                        <button className="checkout-button" onClick={datHang} disabled={dangDatHang}
+                        <button className="checkout-button" onClick={datHang} disabled={dangDatHang || shipLoading}
                                 style={{ opacity: dangDatHang ? 0.6 : 1, cursor: dangDatHang ? "not-allowed" : "pointer" }}>
                             {dangDatHang ? "Đang xử lý..." : "Xác nhận đặt hàng →"}
                         </button>
@@ -3585,7 +3609,7 @@ ${invoiceHtml.outerHTML}
                         {addresses.length === 0 && <div style={{ padding: 24, textAlign: "center", color: "#777" }}>Bạn chưa có địa chỉ nào. Hãy thêm địa chỉ mới.</div>}
                         {addresses.map((a) => <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: 14, border: `1px solid ${String(a.id) === String(selectedAddressId) ? "#e65336" : "#e5e5e5"}`, borderRadius: 10, background: String(a.id) === String(selectedAddressId) ? "#fffaf8" : "#fff" }}>
                             <input type="radio" name="selectedAddress" checked={String(a.id) === String(selectedAddressId)} onChange={() => chonDiaChiVaDong(a)} style={{ marginTop: 5, accentColor: "#e65336" }} />
-                            <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontWeight: 700 }}><span>{a.tenNguoiNhan}</span><span style={{ color: "#777", fontWeight: 400 }}>{a.soDienThoai}</span>{a.macDinh && <span style={{ color: "#e65336", border: "1px solid #e65336", padding: "1px 5px", borderRadius: 3, fontSize: 11 }}>Mặc định</span>}</div><div style={{ marginTop: 6, color: "#555", lineHeight: 1.5, overflowWrap: "anywhere" }}>{a.diaChi}</div><div style={{ color: "#777", fontSize: 12, marginTop: 5 }}>Phí ship: {formatGia(Number(a.phiShip ?? PHI_SHIP_MAC_DINH))}</div></div>
+                            <div style={{ flex: 1, minWidth: 0 }}><div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontWeight: 700 }}><span>{a.tenNguoiNhan}</span><span style={{ color: "#777", fontWeight: 400 }}>{a.soDienThoai}</span>{a.macDinh && <span style={{ color: "#e65336", border: "1px solid #e65336", padding: "1px 5px", borderRadius: 3, fontSize: 11 }}>Mặc định</span>}</div><div style={{ marginTop: 6, color: "#555", lineHeight: 1.5, overflowWrap: "anywhere" }}>{a.diaChi}</div><div style={{ color: "#777", fontSize: 12, marginTop: 5 }}>Phí ship tính theo số lượng sản phẩm khi đặt hàng</div></div>
                             <button type="button" onClick={() => chonDiaChiVaDong(a)} style={{ border: "1px solid #e65336", color: "#e65336", background: "#fff", borderRadius: 6, padding: "7px 12px", whiteSpace: "nowrap" }}>Chọn</button>
                         </div>)}
                     </div><footer style={{ padding: 16, borderTop: "1px solid #eee", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><button type="button" onClick={moThemDiaChi} style={{ padding: "11px 16px", border: "1px solid #e65336", borderRadius: 7, color: "#e65336", background: "#fff", fontWeight: 700 }}>＋ Thêm địa chỉ mới</button><button type="button" onClick={() => setAddressModalOpen(false)} style={{ padding: "11px 20px", border: 0, borderRadius: 7, color: "#fff", background: "#e65336", fontWeight: 700 }}>Xong</button></footer></> : <div style={{ padding: 20, display: "grid", gap: 14 }}>
@@ -4171,7 +4195,7 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
                                                             return (
                                                                 <div className="order-item-row" key={item?.id || index}>
                                                                     <div className="order-item-image">
-                                                                        {sp?.hinhAnh ? <img src={anhUrl(sp.hinhAnh)} alt={sp.tenSanPham || "Sản phẩm"} /> : <span>👟</span>}
+                                                                        {sp?.hinhAnh ? <img src={anhUrl(sp.hinhAnh)} alt={sp.tenSanPham || "Sản phẩm"} onError={anhLoi} /> : <span>👟</span>}
                                                                     </div>
                                                                     <div className="order-item-main">
                                                                         <strong>{sp?.tenSanPham || spct?.maSku || "Sản phẩm"}</strong>

@@ -1787,6 +1787,19 @@ public class HoaDonService {
         String moi = trangThai == null ? "" : trangThai.trim().toUpperCase();
 
         // -----------------------------------------------------
+        // 🔒 Nhân viên chỉ được xử lý đơn ONLINE.
+        //    Đơn tại quầy đã thanh toán ngay → không đổi trạng thái.
+        // -----------------------------------------------------
+        if ("NHAN_VIEN".equalsIgnoreCase(vaiTro == null ? "" : vaiTro.trim())
+                && !"ONLINE".equalsIgnoreCase(
+                        hoaDon.getLoaiHoaDon() == null ? "" : hoaDon.getLoaiHoaDon().trim())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Nhân viên chỉ được xử lý đơn online. Đơn tại quầy không thể đổi trạng thái"
+            );
+        }
+
+        // -----------------------------------------------------
         // 🔒 Đơn đã hủy / đã thanh toán → không được đổi nữa
         // -----------------------------------------------------
         if ("DA_HUY".equals(cu) || "DA_THANH_TOAN".equals(cu)) {
