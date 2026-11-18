@@ -329,21 +329,9 @@ public class HoaDonService {
                 );
             }
 
-            // Đơn online trừ kho một lần khi đặt hàng thành công
-            spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
-            sanPhamChiTietRepository.save(spct);
-
-            // -------------------------------------------------
-            // KIỂM TRA VÀ TRỪ TỒN KHO
-            // -------------------------------------------------
-            if (spct.getSoLuongTon() == null
-                    || spct.getSoLuongTon() < soLuong) {
-                throw new RuntimeException(
-                        "Sản phẩm chỉ còn " + spct.getSoLuongTon() + " sản phẩm. Không thể bán!"
-                );
-            }
-
-            // Trừ kho trực tiếp
+            // Kiểm tra và trừ kho đúng một lần cho đơn online.
+            // Không kiểm tra lại sau khi đã trừ vì tồn kho có thể vừa về 0
+            // khi khách mua hết số lượng còn lại.
             spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
             sanPhamChiTietRepository.save(spct);
 
@@ -1524,8 +1512,8 @@ public class HoaDonService {
                 hoaDonCapNhat.getKhachHang() != null
                         ? String.valueOf(hoaDonCapNhat.getKhachHang().getId())
                         : hoaDonCapNhat.getKhachHangQuay() != null
-                        ? String.valueOf(hoaDonCapNhat.getKhachHangQuay().getId())
-                        : null
+                          ? String.valueOf(hoaDonCapNhat.getKhachHangQuay().getId())
+                          : null
         );
 
 
@@ -1792,7 +1780,7 @@ public class HoaDonService {
         // -----------------------------------------------------
         if ("NHAN_VIEN".equalsIgnoreCase(vaiTro == null ? "" : vaiTro.trim())
                 && !"ONLINE".equalsIgnoreCase(
-                        hoaDon.getLoaiHoaDon() == null ? "" : hoaDon.getLoaiHoaDon().trim())) {
+                hoaDon.getLoaiHoaDon() == null ? "" : hoaDon.getLoaiHoaDon().trim())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Nhân viên chỉ được xử lý đơn online. Đơn tại quầy không thể đổi trạng thái"
@@ -2397,10 +2385,6 @@ public class HoaDonService {
             );
         }
 
-        // =====================================================
-        // 10. XÁC NHẬN THANH TOÁN - CHỐNG IPN GỬI LẶP
-        // =====================================================
-
         boolean daThanhToan =
                 "DA_THANH_TOAN".equalsIgnoreCase(
                         thanhToan.getTrangThai()
@@ -2436,10 +2420,6 @@ public class HoaDonService {
             );
         }
 
-        // =====================================================
-        // 11. TỰ ĐỘNG XÁC NHẬN ĐƠN HÀNG
-        // =====================================================
-
         if ("CHO_XAC_NHAN".equalsIgnoreCase(
                 hoaDon.getTrangThai())) {
 
@@ -2451,7 +2431,6 @@ public class HoaDonService {
             HoaDon hoaDonDaLuu =
                     hoaDonRepository.save(hoaDon);
 
-            // Ghi lịch sử thay đổi trạng thái
             LichSuHoaDon lichSu = new LichSuHoaDon();
 
             lichSu.setHoaDon(hoaDonDaLuu);
@@ -2481,9 +2460,6 @@ public class HoaDonService {
             );
         }
     }
-    // =========================================================
-// GIỮ HÀNG - TRỪ KHO KHI THÊM SẢN PHẨM VÀO GIỎ POS
-// =========================================================
 
     @Transactional
     public void giuHang(Long sanPhamChiTietId, int soLuong) {
@@ -2520,11 +2496,6 @@ public class HoaDonService {
 
         sanPhamChiTietRepository.save(spct);
     }
-
-
-// =========================================================
-// NHẢ HÀNG - CỘNG KHO KHI XÓA SẢN PHẨM KHỎI GIỎ POS
-// =========================================================
 
     @Transactional
     public void nhaHang(Long sanPhamChiTietId, int soLuong) {

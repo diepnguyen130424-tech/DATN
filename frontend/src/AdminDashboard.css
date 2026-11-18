@@ -2992,3 +2992,7 @@
     font-size: 11px;
     line-height: 1.5;
 }
+
+.admin-sidebar-footer {
+    margin-top: 12px !important;
+}
