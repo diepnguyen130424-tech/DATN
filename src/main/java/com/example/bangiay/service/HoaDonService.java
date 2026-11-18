@@ -1201,19 +1201,8 @@ public class HoaDonService {
                 throw new RuntimeException("Biến thể sản phẩm đang không hoạt động");
             }
 
-            // -------------------------------------------------
-            // KIỂM TRA VÀ TRỪ TỒN KHO
-            // -------------------------------------------------
-            if (spct.getSoLuongTon() == null
-                    || spct.getSoLuongTon() < soLuong) {
-                throw new RuntimeException(
-                        "Sản phẩm chỉ còn " + spct.getSoLuongTon() + " sản phẩm. Không thể bán!"
-                );
-            }
-
-            // Trừ kho trực tiếp
-            spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
-            sanPhamChiTietRepository.save(spct);
+            // Hàng đã được giữ tạm thời khi nhân viên thêm vào giỏ (API /giu-hang).
+            // Khi tạo hóa đơn chỉ xác nhận số lượng đã giữ, tuyệt đối không trừ kho lần hai.
 
 
             // -------------------------------------------------
@@ -2467,16 +2456,15 @@ public class HoaDonService {
         if (sanPhamChiTietId == null) {
             throw new RuntimeException("Không tìm thấy sản phẩm chi tiết");
         }
-
         if (soLuong <= 0) {
             throw new RuntimeException("Số lượng giữ hàng phải lớn hơn 0");
         }
 
+        // Khóa bản ghi trong lúc kiểm tra và cập nhật để tránh hai nhân viên
+        // cùng đọc một số tồn rồi giữ vượt quá số lượng thực tế.
         SanPhamChiTiet spct = sanPhamChiTietRepository
-                .findById(sanPhamChiTietId)
-                .orElseThrow(() ->
-                        new RuntimeException("Không tìm thấy sản phẩm chi tiết")
-                );
+                .findByIdForUpdate(sanPhamChiTietId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm chi tiết"));
 
         if (spct.getTrangThai() == null
                 || (!"HOAT_DONG".equalsIgnoreCase(spct.getTrangThai())
@@ -2484,16 +2472,12 @@ public class HoaDonService {
             throw new RuntimeException("Sản phẩm đang không hoạt động");
         }
 
-        if (spct.getSoLuongTon() == null
-                || spct.getSoLuongTon() < soLuong) {
-            throw new RuntimeException(
-                    "Không đủ tồn kho. Chỉ còn "
-                            + spct.getSoLuongTon()
-            );
+        int tonKho = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
+        if (tonKho < soLuong) {
+            throw new RuntimeException("Không đủ tồn kho. Chỉ còn " + tonKho);
         }
 
-        spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
-
+        spct.setSoLuongTon(tonKho - soLuong);
         sanPhamChiTietRepository.save(spct);
     }
 
@@ -2503,23 +2487,17 @@ public class HoaDonService {
         if (sanPhamChiTietId == null) {
             throw new RuntimeException("Không tìm thấy sản phẩm chi tiết");
         }
-
         if (soLuong <= 0) {
             throw new RuntimeException("Số lượng nhả hàng phải lớn hơn 0");
         }
 
         SanPhamChiTiet spct = sanPhamChiTietRepository
-                .findById(sanPhamChiTietId)
-                .orElseThrow(() ->
-                        new RuntimeException("Không tìm thấy sản phẩm chi tiết")
-                );
+                .findByIdForUpdate(sanPhamChiTietId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm chi tiết"));
 
-        int tonKho = spct.getSoLuongTon() != null
-                ? spct.getSoLuongTon()
-                : 0;
-
+        int tonKho = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
         spct.setSoLuongTon(tonKho + soLuong);
-
         sanPhamChiTietRepository.save(spct);
     }
+
 }
