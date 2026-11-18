@@ -140,7 +140,7 @@ const menuItems = [
     { id: "dashboard", icon: "▦", label: "Tổng quan" },
     { id: "ban-hang", icon: "🛒", label: "Bán hàng tại quầy" },
     { id: "san-pham", icon: "□", label: "Sản phẩm" },
-    { id: "kho", icon: "▣", label: "Kho hàng" },
+    { id: "kho", icon: "▣", label: "Xuất nhập hàng" },
     { id: "danh-muc", icon: "▤", label: "Danh mục" },
     { id: "thuong-hieu", icon: "◇", label: "Thương hiệu" },
     { id: "kich-co", icon: "↔", label: "Kích cỡ" },
@@ -4057,59 +4057,6 @@ export function BanHangTaiQuayContent(taiKhoan) {
         }
     };
 
-    // Hoàn lại số lượng đã giữ khi xóa sản phẩm khỏi giỏ. Chỉ cập nhật UI
-    // sau khi API hoàn kho thành công để tránh giao diện lệch với database.
-    const releaseHeldStock = async (variantId, quantity) => {
-        if (!quantity || quantity <= 0) return;
-        const res = await fetch(`${API}/hoa-don/nha-hang?sanPhamChiTietId=${variantId}&soLuong=${quantity}`, {
-            method: "POST"
-        });
-        if (!res.ok) {
-            const message = await res.text();
-            throw new Error(message || "Không thể hoàn lại tồn kho");
-        }
-        setVariants(old => old.map(v =>
-            String(v.id) === String(variantId)
-                ? { ...v, soLuongTon: Number(v.soLuongTon || 0) + quantity }
-                : v
-        ));
-        capNhatTonKhoSanPham(variantId, quantity);
-    };
-
-    const removeCartItem = async (variantId) => {
-        const item = cart.find(row => String(row.variant.id) === String(variantId));
-        if (!item) return;
-        try {
-            setBusy(true);
-            await releaseHeldStock(variantId, item.quantity);
-            setCart(old => old.filter(row => String(row.variant.id) !== String(variantId)));
-            setError("");
-        } catch (err) {
-            setError(err.message || "Không thể xóa sản phẩm và hoàn kho");
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const clearActiveCart = async () => {
-        if (!cart.length) return;
-        try {
-            setBusy(true);
-            // Hoàn từng dòng và gỡ ngay dòng đã hoàn thành. Nếu một API lỗi,
-            // các dòng còn lại vẫn nằm trong giỏ để không hoàn kho trùng lần nữa.
-            for (const item of [...cart]) {
-                await releaseHeldStock(item.variant.id, item.quantity);
-                setCart(old => old.filter(row => String(row.variant.id) !== String(item.variant.id)));
-            }
-            setError("");
-        } catch (err) {
-            setError(err.message || "Không thể hoàn lại toàn bộ hàng trong giỏ");
-            await loadProducts();
-        } finally {
-            setBusy(false);
-        }
-    };
-
     const changeQuantity = async (variantId, delta) => {
         const item = cart.find((i) => i.variant.id === variantId);
         if (!item) return;
@@ -4138,16 +4085,7 @@ export function BanHangTaiQuayContent(taiKhoan) {
             }
 
             setCart(old => old.map(i =>
-                String(i.variant.id) === String(variantId)
-                    ? {
-                        ...i,
-                        quantity: newQty,
-                        variant: {
-                            ...i.variant,
-                            soLuongTon: Number(currentVariant.soLuongTon) - delta
-                        }
-                    }
-                    : i
+                i.variant.id === variantId ? { ...i, quantity: newQty } : i
             ));
 
             setVariants(old => old.map(v =>
@@ -4155,7 +4093,6 @@ export function BanHangTaiQuayContent(taiKhoan) {
                     ? { ...v, soLuongTon: Number(v.soLuongTon) - delta }
                     : v
             ));
-            capNhatTonKhoSanPham(variantId, -delta);
 
             setError("");
         } catch (err) {
@@ -4255,7 +4192,17 @@ export function BanHangTaiQuayContent(taiKhoan) {
                 <div style={{ flex: 1, minHeight: 100, maxHeight: 320, overflowY: "auto" }}>{cart.length ? cart.map(item => <div key={item.variant.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "12px 0", borderBottom: "1px solid #eee" }}><div><strong>{item.product.tenSanPham}</strong>
                     <div style={{ color: "#667085", fontSize: 12, marginTop: 4 }}>Size {item.variant.kichCo?.tenKichCo || item.variant.kichCo?.kichCo || "-"} · {item.variant.mauSac?.tenMau || "-"}</div>
                     <b style={{ display: "block", color: "#ed4b2e", marginTop: 5 }}>{money(priceOf(item.product, item.variant))}</b><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 7 }}>
-                        <button type="button" onClick={() => changeQuantity(item.variant.id, -1)}>−</button><span>{item.quantity}</span><button type="button" onClick={() => changeQuantity(item.variant.id, 1)}>+</button><small style={{ color: "#667085" }}>Còn {item.variant.soLuongTon}</small></div></div><button type="button" aria-label="Xóa sản phẩm" disabled={busy} onClick={() => removeCartItem(item.variant.id)} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
+                        <button type="button" onClick={() => changeQuantity(item.variant.id, -1)}>−</button><span>{item.quantity}</span><button type="button" onClick={() => changeQuantity(item.variant.id, 1)}>+</button><small style={{ color: "#667085" }}>Còn {item.variant.soLuongTon}</small></div></div><button type="button" aria-label="Xóa sản phẩm"onClick={() => {
+                    const itemToRemove = cart.find(row => row.variant.id === item.variant.id);
+                    if (itemToRemove) {
+                        setVariants(oldVars => oldVars.map(v =>
+                            String(v.id) === String(itemToRemove.variant.id)
+                                ? { ...v, soLuongTon: Number(v.soLuongTon || 0) + itemToRemove.quantity }
+                                : v
+                        ));
+                    }
+                    setCart(old => old.filter(row => row.variant.id !== item.variant.id));
+                }} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
                 <div style={{ borderTop: "1px dashed #ddd", marginTop: 12, paddingTop: 14, display: "grid", gap: 10 }}><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Tạm tính</span><strong>{money(total)}</strong></div><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Giảm giá</span><strong>0đ</strong></div><div style={{ display: "flex", justifyContent: "space-between", fontSize: 19 }}><strong>Tổng tiền</strong><strong style={{ color: "#ed4b2e" }}>{money(total)}</strong></div></div>
                 <div style={{ borderTop: "1px solid #eee", marginTop: 16, paddingTop: 14, display: "grid", gap: 11 }}><strong style={{ fontSize: 15 }}>PHƯƠNG THỨC THANH TOÁN</strong><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{[["TIEN_MAT", "💵", "Tiền mặt"], ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"]].map(([value, icon, label]) => <button type="button" key={value} onClick={() => setPhuongThucThanhToan(value)} style={{ padding: "12px 6px", borderRadius: 9, border: `1px solid ${phuongThucThanhToan === value ? "#ed4b2e" : "#ddd"}`, background: phuongThucThanhToan === value ? "#fff3ef" : "#fff", color: phuongThucThanhToan === value ? "#ed4b2e" : "#555", cursor: "pointer" }}><span style={{ display: "block", fontSize: 20 }}>{icon}</span><small>{label}</small></button>)}</div><label style={{ fontSize: 13 }}>Chọn khách hàng đã lưu
                     <input list="fshop-pos-customers" value={customerSearch} onChange={e => {
@@ -4269,7 +4216,7 @@ export function BanHangTaiQuayContent(taiKhoan) {
                 </label>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><input value={tenKhach} onChange={e => setTenKhach(e.target.value)} placeholder="Tên khách hàng" style={field}/><input value={soDienThoaiKhach} onChange={e => setSoDienThoaiKhach(e.target.value)} placeholder="Số điện thoại" style={field}/></div>
                     <button type="button" onClick={() => setShowNewCustomer(v => !v)} style={{ border: "1px solid #ed4b2e", borderRadius: 9, padding: 10, background: "#fff", color: "#ed4b2e", fontWeight: 700, cursor: "pointer" }}>{showNewCustomer ? "Đóng thêm khách hàng" : "+ Thêm khách hàng mới"}</button>
-                    {showNewCustomer && <div style={{ display: "grid", gap: 8, padding: 10, background: "#fff8f5", borderRadius: 9 }}><input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Họ tên khách hàng mới" style={field}/><input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Số điện thoại khách hàng mới" style={field}/><button type="button" disabled={busy} onClick={saveNewCustomer} style={buttonBase}>{busy ? "Đang lưu..." : "Lưu khách hàng"}</button></div>}<button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣ Thanh toán ${money(total)}`}</button><button type="button" disabled={!cart.length || busy} onClick={clearActiveCart} style={{ border: "1px solid #ddd", borderRadius: 9, padding: 11, background: "#fff", color: "#777", cursor: cart.length && !busy ? "pointer" : "not-allowed" }}>Xóa giỏ hàng</button><small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
+                    {showNewCustomer && <div style={{ display: "grid", gap: 8, padding: 10, background: "#fff8f5", borderRadius: 9 }}><input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Họ tên khách hàng mới" style={field}/><input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Số điện thoại khách hàng mới" style={field}/><button type="button" disabled={busy} onClick={saveNewCustomer} style={buttonBase}>{busy ? "Đang lưu..." : "Lưu khách hàng"}</button></div>}<button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣ Thanh toán ${money(total)}`}</button><button type="button" disabled={!cart.length} onClick={() => setCart([])} style={{ border: "1px solid #ddd", borderRadius: 9, padding: 11, background: "#fff", color: "#777", cursor: cart.length ? "pointer" : "not-allowed" }}>Xóa giỏ hàng</button><small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
             </aside>
         </div>
         {successBill && <div className="admin-pos-success-backdrop" onClick={() => setSuccessBill(null)} style={{ position: "fixed", inset: 0, zIndex: 12000, background: "rgba(16,24,40,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>

@@ -32,7 +32,7 @@ const MENU = [
     {id: "dashboard", icon: "▦", label: "Tổng quan"},
     {id: "ban-hang", icon: "🛒", label: "Bán hàng tại quầy"},
     {id: "san-pham", icon: "□", label: "Sản phẩm"},
-    {id: "kho", icon: "▣", label: "Kho hàng"},
+    {id: "kho", icon: "▣", label: "Xuất nhập hàng"},
     {id: "danh-muc", icon: "▤", label: "Danh mục"},
     {id: "thuong-hieu", icon: "◇", label: "Thương hiệu"},
     // {id: "kich-co", icon: "↔", label: "Kích cỡ"},

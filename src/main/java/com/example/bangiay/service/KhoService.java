@@ -126,9 +126,14 @@ public class KhoService {
 
         List<ChiTietPhieuKho> chiTietList = new ArrayList<>();
 
+        java.util.Set<Long> daGap = new java.util.HashSet<>();
         for (KhoPhieuRequest.ChiTietRequest item : request.chiTiet()) {
             if (item.sanPhamChiTietId() == null || item.soLuong() == null || item.soLuong() == 0) {
                 throw new RuntimeException("Chi tiết phiếu không hợp lệ");
+            }
+
+            if (!daGap.add(item.sanPhamChiTietId())) {
+                throw new RuntimeException("SKU bị lặp trong phiếu. Vui lòng gộp số lượng vào một dòng.");
             }
 
             SanPhamChiTiet spct = sanPhamChiTietRepository.findById(item.sanPhamChiTietId())
@@ -150,7 +155,9 @@ public class KhoService {
                             .ngayCapNhat(now)
                             .build());
 
-            int tonTruoc = safe(tonKho.getSoLuongTon());
+            // Lấy tồn thực tế từ biến thể vì luồng bán hàng hiện cập nhật trường này.
+            int tonTruoc = safe(spct.getSoLuongTon());
+            tonKho.setSoLuongTon(tonTruoc);
             int tonSau = tonTruoc + delta;
 
             if (tonSau < 0) {
@@ -345,7 +352,7 @@ public class KhoService {
 
     private TonKhoResponse toTonKhoResponse(TonKho t) {
         SanPhamChiTiet spct = t.getSanPhamChiTiet();
-        int ton = safe(t.getSoLuongTon());
+        int ton = safe(spct.getSoLuongTon());
         int min = safe(t.getMucTonToiThieu());
 
         String status = ton == 0 ? "HET_HANG" : ton <= min ? "SAP_HET" : "CON_HANG";
@@ -363,7 +370,7 @@ public class KhoService {
                 spct.getSanPham().getHinhAnh(),
                 ton,
                 safe(t.getSoLuongDat()),
-                safe(t.getSoLuongKhaDung()),
+                Math.max(0, ton - safe(t.getSoLuongDat())),
                 min,
                 safe(t.getMucTonToiDa()),
                 status

@@ -50,6 +50,9 @@ export default function AdminKho() {
 
     const [keyword, setKeyword] = useState("");
     const [stockStatus, setStockStatus] = useState("");
+    const [phieuKeyword, setPhieuKeyword] = useState("");
+    const [phieuType, setPhieuType] = useState("");
+    const [selectedPhieu, setSelectedPhieu] = useState(null);
 
     const [showPhieuModal, setShowPhieuModal] = useState(false);
     const [showNccModal, setShowNccModal] = useState(false);
@@ -119,6 +122,28 @@ export default function AdminKho() {
         });
     }, [tonKho, keyword, stockStatus]);
 
+    const filteredPhieu = useMemo(() => {
+        const key = phieuKeyword.trim().toLowerCase();
+        return phieuKho.filter((item) => {
+            const matchType = !phieuType || item.loaiPhieu === phieuType;
+            const matchKey = !key || [item.maPhieu, item.kho, item.nhaCungCap, item.lyDo]
+                .some((value) => String(value || "").toLowerCase().includes(key));
+            return matchType && matchKey;
+        });
+    }, [phieuKho, phieuKeyword, phieuType]);
+
+    const viewPhieu = async (id) => {
+        try {
+            const response = await fetch(`${API}/kho/phieu/${id}`);
+            const data = await response.json().catch(() => null);
+            if (!response.ok) throw new Error(data?.message || "Không tải được chi tiết phiếu");
+            setSelectedPhieu(data);
+        } catch (e) {
+            alert(e.message || "Không tải được chi tiết phiếu");
+        } finally {
+        }
+    };
+
     const openPhieu = (type) => {
         setPhieuForm({
             ...emptyPhieu,
@@ -165,8 +190,17 @@ export default function AdminKho() {
             return;
         }
 
-        if (phieuForm.chiTiet.some((x) => !x.sanPhamChiTietId || Number(x.soLuong) === 0)) {
-            alert("Vui lòng chọn sản phẩm và nhập số lượng hợp lệ");
+        if (phieuForm.chiTiet.some((x) => !x.sanPhamChiTietId || !Number.isInteger(Number(x.soLuong)) || Number(x.soLuong) === 0)) {
+            alert("Vui lòng chọn sản phẩm và nhập số lượng nguyên khác 0");
+            return;
+        }
+        const skuIds = phieuForm.chiTiet.map((x) => String(x.sanPhamChiTietId));
+        if (new Set(skuIds).size !== skuIds.length) {
+            alert("Một SKU chỉ được xuất hiện một lần trong mỗi phiếu. Vui lòng gộp số lượng vào cùng một dòng.");
+            return;
+        }
+        if (phieuForm.loaiPhieu !== "DIEU_CHINH" && phieuForm.chiTiet.some((x) => Number(x.soLuong) < 1)) {
+            alert("Phiếu nhập/xuất phải có số lượng lớn hơn 0");
             return;
         }
 
@@ -251,8 +285,8 @@ export default function AdminKho() {
             <div className="kho-heading">
                 <div>
                     <div className="kho-eyebrow">FSHOP ADMIN</div>
-                    <h1>Quản lý kho</h1>
-                    <p>Quản lý tồn kho, nhập hàng, xuất hàng và lịch sử biến động.</p>
+                    <h1>Xuất – nhập hàng</h1>
+                    <p>Quản lý nhập hàng từ nhà cung cấp, xuất hàng, tồn theo size/màu và lịch sử giao dịch kho.</p>
                 </div>
 
                 <div className="kho-heading-actions">
@@ -295,10 +329,10 @@ export default function AdminKho() {
                     Tổng quan
                 </button>
                 <button className={tab === "ton" ? "active" : ""} onClick={() => setTab("ton")}>
-                    Tồn kho
+                    Tồn hiện tại
                 </button>
                 <button className={tab === "phieu" ? "active" : ""} onClick={() => setTab("phieu")}>
-                    Phiếu kho
+                    Phiếu xuất – nhập
                 </button>
                 <button className={tab === "lich-su" ? "active" : ""} onClick={() => setTab("lich-su")}>
                     Lịch sử biến động
@@ -376,10 +410,10 @@ export default function AdminKho() {
                 <section className="kho-card">
                     <div className="kho-card-title">
                         <div>
-                            <h2>Tồn kho theo SKU</h2>
-                            <p>Tồn được quản lý theo từng size và màu.</p>
+                            <h2>Tồn hiện tại theo SKU</h2>
+                            <p>Số lượng thực tế được theo dõi riêng theo từng mẫu, size và màu.</p>
                         </div>
-                        <button className="kho-btn kho-btn-primary" onClick={() => openPhieu("NHAP")}>+ Nhập kho</button>
+                        <button className="kho-btn kho-btn-primary" onClick={() => openPhieu("NHAP")}>+ Tạo phiếu nhập</button>
                     </div>
 
                     <div className="kho-filter">
@@ -436,15 +470,26 @@ export default function AdminKho() {
                 <section className="kho-card">
                     <div className="kho-card-title">
                         <div>
-                            <h2>Phiếu kho</h2>
-                            <p>Nhập, xuất và điều chỉnh hàng hóa.</p>
+                            <h2>Danh sách phiếu xuất – nhập</h2>
+                            <p>Mỗi phiếu được lưu cùng người lập, lý do và chi tiết số lượng thay đổi.</p>
                         </div>
                         <div className="kho-heading-actions">
-                            <button className="kho-btn kho-btn-light" onClick={() => openPhieu("DIEU_CHINH")}>Điều chỉnh</button>
-                            <button className="kho-btn kho-btn-primary" onClick={() => openPhieu("NHAP")}>+ Tạo phiếu</button>
+                            <button className="kho-btn kho-btn-light" onClick={() => openPhieu("DIEU_CHINH")}>Kiểm kê / điều chỉnh</button>
+                            <button className="kho-btn kho-btn-light" onClick={() => openPhieu("XUAT")}>+ Xuất hàng</button>
+                            <button className="kho-btn kho-btn-primary" onClick={() => openPhieu("NHAP")}>+ Nhập hàng</button>
                         </div>
                     </div>
 
+                    <div className="kho-filter">
+                        <input value={phieuKeyword} onChange={(e) => setPhieuKeyword(e.target.value)} placeholder="Tìm mã phiếu, nhà cung cấp, lý do..." />
+                        <select value={phieuType} onChange={(e) => setPhieuType(e.target.value)}>
+                            <option value="">Tất cả loại phiếu</option>
+                            <option value="NHAP">Phiếu nhập</option>
+                            <option value="XUAT">Phiếu xuất</option>
+                            <option value="DIEU_CHINH">Điều chỉnh</option>
+                        </select>
+                        <button onClick={() => { setPhieuKeyword(""); setPhieuType(""); }}>Đặt lại</button>
+                    </div>
                     <div className="kho-table-wrap">
                         <table className="kho-table">
                             <thead>
@@ -456,12 +501,13 @@ export default function AdminKho() {
                                 <th>Lý do</th>
                                 <th>Trạng thái</th>
                                 <th>Ngày tạo</th>
+                                <th>Thao tác</th>
                             </tr>
                             </thead>
                             <tbody>
-                            {phieuKho.length === 0 ? (
-                                <tr><td colSpan="7" className="kho-empty">Chưa có phiếu kho.</td></tr>
-                            ) : phieuKho.map((item) => (
+                            {filteredPhieu.length === 0 ? (
+                                <tr><td colSpan="8" className="kho-empty">Không tìm thấy phiếu phù hợp.</td></tr>
+                            ) : filteredPhieu.map((item) => (
                                 <tr key={item.id}>
                                     <td><strong>{item.maPhieu}</strong></td>
                                     <td><span className={`type-badge ${item.loaiPhieu.toLowerCase()}`}>{item.loaiPhieu}</span></td>
@@ -470,6 +516,7 @@ export default function AdminKho() {
                                     <td>{item.lyDo || "-"}</td>
                                     <td><span className="kho-badge con_hang">{item.trangThai}</span></td>
                                     <td>{dateTime(item.ngayTao)}</td>
+                                    <td><button className="kho-view-btn" onClick={() => viewPhieu(item.id)}>Chi tiết</button></td>
                                 </tr>
                             ))}
                             </tbody>
@@ -571,9 +618,9 @@ export default function AdminKho() {
                         <div className="kho-modal-header">
                             <div>
                                 <h2>
-                                    {phieuForm.loaiPhieu === "NHAP" ? "Tạo phiếu nhập kho" :
-                                        phieuForm.loaiPhieu === "XUAT" ? "Tạo phiếu xuất kho" :
-                                            "Điều chỉnh tồn kho"}
+                                    {phieuForm.loaiPhieu === "NHAP" ? "Tạo phiếu nhập hàng" :
+                                        phieuForm.loaiPhieu === "XUAT" ? "Tạo phiếu xuất hàng" :
+                                            "Kiểm kê / điều chỉnh tồn"}
                                 </h2>
                                 <p>Thay đổi tồn kho sẽ được ghi vào lịch sử.</p>
                             </div>
@@ -585,8 +632,8 @@ export default function AdminKho() {
                                 <label>
                                     Loại phiếu
                                     <select value={phieuForm.loaiPhieu} onChange={(e) => setPhieuForm({ ...phieuForm, loaiPhieu: e.target.value })}>
-                                        <option value="NHAP">Nhập kho</option>
-                                        <option value="XUAT">Xuất kho</option>
+                                        <option value="NHAP">Nhập hàng</option>
+                                        <option value="XUAT">Xuất hàng</option>
                                         <option value="DIEU_CHINH">Điều chỉnh</option>
                                     </select>
                                 </label>
@@ -632,7 +679,7 @@ export default function AdminKho() {
                                             <option value="">Chọn SKU</option>
                                             {spcts.map((spct) => (
                                                 <option key={spct.id} value={spct.id}>
-                                                    {spct.maSku} - {spct.sanPham?.tenSanPham || "Sản phẩm"} - Size {spct.kichCo?.tenKichCo || "-"} - {spct.mauSac?.tenMau || "-"}
+                                                    {spct.maSku} - {spct.sanPham?.tenSanPham || "Sản phẩm"} - Size {spct.kichCo?.tenKichCo || "-"} - {spct.mauSac?.tenMau || "-"} (tồn: {spct.soLuongTon ?? 0})
                                                 </option>
                                             ))}
                                         </select>
@@ -674,6 +721,30 @@ export default function AdminKho() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {selectedPhieu && (
+                <div className="kho-modal-overlay" onMouseDown={() => setSelectedPhieu(null)}>
+                    <div className="kho-modal" onMouseDown={(e) => e.stopPropagation()}>
+                        <div className="kho-modal-header">
+                            <div><h2>Chi tiết phiếu {selectedPhieu.maPhieu}</h2><p>{selectedPhieu.loaiPhieu === "NHAP" ? "Phiếu nhập hàng" : selectedPhieu.loaiPhieu === "XUAT" ? "Phiếu xuất hàng" : "Phiếu điều chỉnh tồn"} · {dateTime(selectedPhieu.ngayTao)}</p></div>
+                            <button onClick={() => setSelectedPhieu(null)}>×</button>
+                        </div>
+                        <div className="kho-detail-summary">
+                            <div><small>Kho</small><strong>{selectedPhieu.kho || "-"}</strong></div>
+                            <div><small>Nhà cung cấp</small><strong>{selectedPhieu.nhaCungCap || "-"}</strong></div>
+                            <div><small>Trạng thái</small><strong>{selectedPhieu.trangThai || "-"}</strong></div>
+                            <div><small>Lý do</small><strong>{selectedPhieu.lyDo || "-"}</strong></div>
+                        </div>
+                        <div className="kho-table-wrap">
+                            <table className="kho-table"><thead><tr><th>SKU</th><th>Sản phẩm</th><th>Size</th><th>Màu</th><th>Số lượng</th></tr></thead>
+                                <tbody>{(selectedPhieu.chiTiet || []).map((ct) => <tr key={ct.id}><td><strong>{ct.maSku}</strong></td><td>{ct.tenSanPham}</td><td>{ct.kichCo}</td><td>{ct.mauSac}</td><td className="stock-number">{ct.soLuong}</td></tr>)}</tbody>
+                            </table>
+                        </div>
+                        {selectedPhieu.ghiChu && <p className="kho-detail-note">Ghi chú: {selectedPhieu.ghiChu}</p>}
+                        <div className="kho-modal-actions"><button className="kho-btn kho-btn-light" onClick={() => setSelectedPhieu(null)}>Đóng</button></div>
                     </div>
                 </div>
             )}
