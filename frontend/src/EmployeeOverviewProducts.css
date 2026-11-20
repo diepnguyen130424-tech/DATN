@@ -1,5 +1,3 @@
-/* Tổng quan + Sản phẩm (nhân viên) — mọi class đều có tiền tố ev- / ep- nên không đụng CSS cũ */
-
 .ev-page {
     --ev-ink: #1d1d1f;
     --ev-muted: #6b6b73;

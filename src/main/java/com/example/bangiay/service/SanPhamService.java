@@ -139,7 +139,7 @@ public class SanPhamService {
     }
 
     public List<SanPhamChiTiet> getAllChiTiet() {
-        return sanPhamChiTietRepository.findAll();
+        return sanPhamChiTietRepository.findAllWithRelations();
     }
 
     public List<SanPhamChiTiet> getChiTietBySanPhamId(Long sanPhamId) {

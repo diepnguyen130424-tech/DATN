@@ -1588,6 +1588,52 @@ public class HoaDonService {
         return thanhToanRepository.findByHoaDon_Id(hoaDonId).orElse(null);
     }
 
+    /**
+     * Hủy đơn chuyển khoản đang chờ thanh toán từ màn hình QR demo.
+     * Dùng chung luồng hủy hóa đơn hiện có để hoàn kho và ghi lịch sử.
+     */
+    @Transactional
+    public HoaDon huyThanhToanChuyenKhoanDemo(Long hoaDonId) {
+        HoaDon hoaDon = hoaDonRepository.findById(hoaDonId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng"));
+
+        ThanhToan thanhToan = thanhToanRepository.findByHoaDon_Id(hoaDonId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Không tìm thấy thông tin thanh toán"));
+
+        if (!"ONLINE".equalsIgnoreCase(hoaDon.getLoaiHoaDon())
+                || !"CHUYEN_KHOAN".equalsIgnoreCase(thanhToan.getPhuongThuc())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Chỉ hỗ trợ hủy đơn chuyển khoản online");
+        }
+
+        if ("DA_HUY".equalsIgnoreCase(hoaDon.getTrangThai())) {
+            return hoaDon; // Idempotent: không hoàn kho lần thứ hai.
+        }
+
+        if (!"CHO_XAC_NHAN".equalsIgnoreCase(hoaDon.getTrangThai())
+                || "DA_THANH_TOAN".equalsIgnoreCase(thanhToan.getTrangThai())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Đơn đã thanh toán hoặc đã được xác nhận, không thể hủy tại màn hình QR");
+        }
+
+        HoaDon daHuy = capNhatTrangThai(
+                hoaDonId,
+                "DA_HUY",
+                "Khách hàng hủy thanh toán tại màn hình QR demo. Hệ thống hoàn lại tồn kho.",
+                null,
+                "Khách hàng",
+                null,
+                null
+        );
+
+        thanhToan.setTrangThai("DA_HUY");
+        thanhToanRepository.save(thanhToan);
+        return daHuy;
+    }
+
 
     public ThanhToan saveThanhToan(
             ThanhToan thanhToan

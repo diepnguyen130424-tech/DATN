@@ -1,5 +1,3 @@
-/* Bổ sung cho trang Danh mục / Thương hiệu — dùng chung style với AdminProducts.css */
-
 .admin-catalog .products-filter.catalog-filter {
     grid-template-columns: 2fr 1fr auto;
 }

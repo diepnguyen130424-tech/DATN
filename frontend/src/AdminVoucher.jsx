@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect, no-empty */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_voucher_cache";
@@ -117,6 +117,18 @@ function writeCache(data) {
     } catch {}
 }
 
+function SortIcon({ columnKey, sortConfig }) {
+    const isActive = sortConfig.key === columnKey;
+
+    return (
+        <span style={{ marginLeft: 4, opacity: isActive ? 1 : 0.3 }}>
+            {isActive
+                ? (sortConfig.direction === "asc" ? "↑" : "↓")
+                : "↕"}
+        </span>
+    );
+}
+
 export default function AdminVoucher() {
     const [danhSach, setDanhSach] = useState(() => readCache() || []);
     const [loading, setLoading] = useState(() => !readCache());
@@ -149,11 +161,12 @@ export default function AdminVoucher() {
         };
     }, []);
 
-    const loadDanhSach = async (background = false) => {
+    const loadDanhSach = useCallback(async (background = false) => {
         if (abortRef.current) abortRef.current.abort();
         const controller = new AbortController();
         abortRef.current = controller;
 
+        let timeoutId;
         try {
             if (!background) {
                 const cached = readCache();
@@ -161,9 +174,8 @@ export default function AdminVoucher() {
                 setError("");
             }
 
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            timeoutId = setTimeout(() => controller.abort(), 12000);
             const res = await fetch(`${API}/ma-giam-gia`, { signal: controller.signal });
-            clearTimeout(timeoutId);
 
             if (!isMountedRef.current) return;
             if (!res.ok) throw new Error(`Lỗi ${res.status}: Không tải được danh sách`);
@@ -191,11 +203,14 @@ export default function AdminVoucher() {
                 }
             }
         } finally {
+            if (timeoutId) clearTimeout(timeoutId);
             if (isMountedRef.current) setLoading(false);
         }
-    };
+    }, []);
 
-    useEffect(() => { loadDanhSach(); }, []);
+    useEffect(() => {
+        void loadDanhSach();
+    }, [loadDanhSach]);
 
     const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setFormError(""); setShowModal(true); };
 
@@ -346,7 +361,6 @@ export default function AdminVoucher() {
 
     const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const showSkeleton = loading && danhSach.length === 0;
-    const SortIcon = ({ columnKey }) => sortConfig.key !== columnKey ? <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span> : <span style={{ marginLeft: 4 }}>{sortConfig.direction === "asc" ? "↑" : "↓"}</span>;
 
     const TOTAL_COLS = 8;
     const tableStyle = { minWidth: "1100px", borderCollapse: "separate", borderSpacing: "0" };
@@ -423,8 +437,8 @@ export default function AdminVoucher() {
                     <table className="admin-table" style={tableStyle}>
                         <thead>
                         <tr>
-                            <th onClick={() => requestSort("id")} style={{ cursor: "pointer" }}>ID <SortIcon columnKey="id" /></th>
-                            <th onClick={() => requestSort("maVoucher")} style={{ cursor: "pointer" }}>Mã <SortIcon columnKey="maVoucher" /></th>
+                            <th onClick={() => requestSort("id")} style={{ cursor: "pointer" }}>ID <SortIcon columnKey="id" sortConfig={sortConfig} /></th>
+                            <th onClick={() => requestSort("maVoucher")} style={{ cursor: "pointer" }}>Mã <SortIcon columnKey="maVoucher" sortConfig={sortConfig} /></th>
                             <th>Tên</th>
                             <th>Mức giảm</th>
                             <th>Điều kiện</th>

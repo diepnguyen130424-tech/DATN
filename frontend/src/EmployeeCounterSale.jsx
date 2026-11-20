@@ -40,19 +40,19 @@ function formatDateTime(value) {
 async function readJson(url, options) {
     const response = await fetch(url, options);
     const text = await response.text();
-    let data = null;
-
-    try {
-        data = text ? JSON.parse(text) : null;
-    } catch {
-        data = null;
-    }
+    const parsedData = (() => {
+        try {
+            return text ? JSON.parse(text) : null;
+        } catch {
+            return null;
+        }
+    })();
 
     if (!response.ok) {
-        throw new Error(data?.message || data?.error || text || "Không thể kết nối máy chủ");
+        throw new Error(parsedData?.message || parsedData?.error || text || "Không thể kết nối máy chủ");
     }
 
-    return data;
+    return parsedData;
 }
 
 function PageHeading({eyebrow = "FSHOP NHÂN VIÊN", title, description, action}) {
@@ -371,16 +371,7 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
     const [cashReceived, setCashReceived] = useState("");
     const [note, setNote] = useState("");
     const [paidConfirmed, setPaidConfirmed] = useState(false);
-    const [payCode, setPayCode] = useState("");
-
-    useEffect(() => {
-        if (open) {
-            setCashReceived("");
-            setNote("");
-            setPaidConfirmed(false);
-            setPayCode(`POS${Date.now().toString().slice(-6)}`);
-        }
-    }, [open, method]);
+    const [payCode] = useState(() => `POS${Date.now().toString().slice(-6)}`);
 
     const received = parseMoneyInput(cashReceived);
     const change = received - total;
@@ -505,8 +496,14 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
 }
 
 function VariantPickerModal({open, product, variants, onClose, onConfirm}) {
-    const [selectedColor, setSelectedColor] = useState(null);
-    const [selectedSize, setSelectedSize] = useState(null);
+    const [selectedColor, setSelectedColor] = useState(() => {
+        const available = variants.find(v => Number(v.soLuongTon) > 0);
+        return available?.mauSac?.tenMau || variants[0]?.mauSac?.tenMau || null;
+    });
+    const [selectedSize, setSelectedSize] = useState(() => {
+        const available = variants.find(v => Number(v.soLuongTon) > 0);
+        return available?.kichCo?.tenKichCo || variants[0]?.kichCo?.tenKichCo || null;
+    });
 
     const colors = useMemo(() => {
         const order = ["Đen", "Trắng"];
@@ -543,26 +540,6 @@ function VariantPickerModal({open, product, variants, onClose, onConfirm}) {
             v => v.mauSac?.tenMau === selectedColor && v.kichCo?.tenKichCo === selectedSize
         );
     }, [variants, selectedColor, selectedSize]);
-
-    useEffect(() => {
-        if (!open || !variants.length) {
-            setSelectedColor(null);
-            setSelectedSize(null);
-            return;
-        }
-        const firstColor = colors.find(c =>
-            variants.some(v => v.mauSac?.tenMau === c && Number(v.soLuongTon) > 0)
-        ) || colors[0];
-
-        const firstSize = variants
-                .filter(v => v.mauSac?.tenMau === firstColor)
-                .find(v => Number(v.soLuongTon) > 0)?.kichCo?.tenKichCo
-            || variants.find(v => v.mauSac?.tenMau === firstColor)?.kichCo?.tenKichCo
-            || null;
-
-        setSelectedColor(firstColor);
-        setSelectedSize(firstSize);
-    }, [open, variants, colors]);
 
     const handleSelectColor = (color) => {
         setSelectedColor(color);
@@ -815,10 +792,6 @@ export default function EmployeeCounterSale({products = [], onRefresh, actor = n
 
     // ⭐ State cho thông tin khách hàng (giống Admin)
     const [customers, setCustomers] = useState([]);
-    const [customerSearch, setCustomerSearch] = useState("");
-    const [showNewCustomer, setShowNewCustomer] = useState(false);
-    const [newCustomerName, setNewCustomerName] = useState("");
-    const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
     const searchRef = useRef(null);
     const toastTimer = useRef(null);
@@ -1526,6 +1499,7 @@ export default function EmployeeCounterSale({products = [], onRefresh, actor = n
             )}
 
             <PaymentModal
+                key={`${showPayment ? "open" : "closed"}-${paymentMethod}`}
                 open={showPayment}
                 onClose={() => !loadingCheckout && setShowPayment(false)}
                 method={paymentMethod}
@@ -1537,6 +1511,7 @@ export default function EmployeeCounterSale({products = [], onRefresh, actor = n
             <InvoiceModal invoice={invoice} onClose={closeInvoice} />
 
             <VariantPickerModal
+                key={variantModal.open ? `open-${variantModal.product?.id ?? "product"}` : "closed"}
                 open={variantModal.open}
                 product={variantModal.product}
                 variants={variantModal.variants}

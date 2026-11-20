@@ -15,6 +15,21 @@ import Contact from "./Contact";
 import { anhUrl, isActive } from "./CatalogCrud";
 
 const API = "http://localhost:8080/api";
+
+// Cache phiên làm việc: dữ liệu có sẵn ngay sau F5, API chỉ chạy nền để cập nhật.
+function readAppCache(key) {
+    try {
+        const raw = sessionStorage.getItem(`fshop:${key}`);
+        if (!raw) return null;
+        const entry = JSON.parse(raw);
+        if (!entry) return null; // Hiển thị cache ngay cả khi cũ; API bên dưới luôn cập nhật dữ liệu mới.
+        return entry.data ?? null;
+    } catch { return null; }
+}
+function writeAppCache(key, data) {
+    try { sessionStorage.setItem(`fshop:${key}`, JSON.stringify({ time: Date.now(), data })); }
+    catch (error) { console.warn("Không thể lưu cache phiên:", error); }
+}
 const PHI_SHIP_MAC_DINH = 30000;
 const isHoatDong = (t) => t === "HOAT_DONG" || t === "ACTIVE";
 // Ảnh dự phòng khi URL ảnh sản phẩm lỗi / file đã mất (thẻ sản phẩm đã dùng sẵn, giỏ hàng trước đây thì không)
@@ -287,8 +302,8 @@ function App() {
         return { ketQua, hoaDonId };
     });
     const [hoaDonCanTra, setHoaDonCanTra] = useState(null);
-    const [sanPhams, setSanPhams] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [sanPhams, setSanPhams] = useState(() => readAppCache("products") || []);
+    const [loading, setLoading] = useState(() => !readAppCache("products"));
     const [search, setSearch] = useState("");
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [gioHang, setGioHang] = useState([]);
@@ -296,18 +311,18 @@ function App() {
     const [selectedVariantIds, setSelectedVariantIds] = useState([]);
     const [yeuThichIds, setYeuThichIds] = useState([]);
     const [toast, setToast] = useState("");
-    const [thuongHieuList, setThuongHieuList] = useState([]);
-    const [danhMucList, setDanhMucList] = useState([]);
-    const [khuyenMaiActive, setKhuyenMaiActive] = useState(null);
+    const [thuongHieuList, setThuongHieuList] = useState(() => readAppCache("brands") || []);
+    const [danhMucList, setDanhMucList] = useState(() => readAppCache("categories") || []);
+    const [khuyenMaiActive, setKhuyenMaiActive] = useState(() => readAppCache("promotions"));
     const [locBrand, setLocBrand] = useState("Tất cả");
     const [locDanhMuc, setLocDanhMuc] = useState("Tất cả");
     const trangTruoc = useRef(page);
 
     const taiDanhMucThuongHieu = async () => {
         try {
-            const [thRes, dmRes] = await Promise.all([fetch(`${API}/thuong-hieu`), fetch(`${API}/danh-muc`)]);
-            if (thRes.ok) { const d = await thRes.json(); setThuongHieuList(Array.isArray(d) ? d.filter((x) => isActive(x.trangThai)) : []); }
-            if (dmRes.ok) { const d = await dmRes.json(); setDanhMucList(Array.isArray(d) ? d.filter((x) => isActive(x.trangThai)) : []); }
+            const [thRes, dmRes] = await Promise.all([fetch(`${API}/thuong-hieu`, { cache: "no-store" }), fetch(`${API}/danh-muc`, { cache: "no-store" })]);
+            if (thRes.ok) { const d = await thRes.json(); const list = Array.isArray(d) ? d.filter((x) => isActive(x.trangThai)) : []; setThuongHieuList(list); writeAppCache("brands", list); }
+            if (dmRes.ok) { const d = await dmRes.json(); const list = Array.isArray(d) ? d.filter((x) => isActive(x.trangThai)) : []; setDanhMucList(list); writeAppCache("categories", list); }
         } catch (e) { console.error("Lỗi tải DM/TH:", e); }
     };
 
@@ -328,6 +343,7 @@ function App() {
             });
 
             setKhuyenMaiActive(list.length > 0 ? list : null);
+            writeAppCache("promotions", list.length > 0 ? list : null);
         } catch (e) {
             console.error("Lỗi KM:", e);
             setKhuyenMaiActive(null);
@@ -466,58 +482,79 @@ function App() {
         setPage("home");
     };
 
-    const taiSanPham = async () => {
-        try {
+    const taiSanPham = async ({ force = false } = {}) => {
+        const cached = readAppCache("products");
+        if (cached) {
+            setSanPhams(cached);
+            setLoading(false);
+        } else {
             setLoading(true);
-            const r = await fetch(`${API}/san-pham`);
-            if (!r.ok) throw new Error("Lỗi SP");
-            const d = await r.json();
-            const ds = Array.isArray(d) ? d : [];
-            const spGia = await Promise.all(ds.map(async (sp) => {
-                try {
-                    const r2 = await fetch(`${API}/san-pham/${sp.id}/chi-tiet`);
-                    if (!r2.ok) return { ...sp, chiTiets: [], giaBan: null };
-                    const dt = await r2.json();
-                    return { ...sp, chiTiets: Array.isArray(dt) ? dt : [], giaBan: Array.isArray(dt) && dt.length > 0 ? dt[0].giaBan : null };
-                } catch { return { ...sp, chiTiets: [], giaBan: null }; }
-            }));
-            setSanPhams(spGia);
-        } catch (e) { console.error(e); setSanPhams([]); }
-        finally { setLoading(false); }
+        }
+        try {
+            // Lấy danh sách sản phẩm và toàn bộ biến thể trong 2 request, thay vì 1 + N request.
+            const [productResponse, variantResponse] = await Promise.all([
+                fetch(`${API}/san-pham`, { cache: "no-store" }),
+                fetch(`${API}/san-pham-chi-tiet`, { cache: "no-store" }),
+            ]);
+            if (!productResponse.ok) throw new Error("Không thể tải danh sách sản phẩm");
+            const products = await productResponse.json();
+            const variants = variantResponse.ok ? await variantResponse.json() : [];
+            const variantsByProduct = new Map();
+            (Array.isArray(variants) ? variants : []).forEach((variant) => {
+                const productId = variant?.sanPham?.id;
+                if (productId == null) return;
+                const key = String(productId);
+                if (!variantsByProduct.has(key)) variantsByProduct.set(key, []);
+                variantsByProduct.get(key).push(variant);
+            });
+            const list = (Array.isArray(products) ? products : []).map((product) => {
+                const chiTiets = variantsByProduct.get(String(product.id)) || [];
+                return {
+                    ...product,
+                    chiTiets,
+                    giaBan: chiTiets.length ? chiTiets[0].giaBan : (product.giaBan ?? null),
+                };
+            });
+            setSanPhams(list);
+            writeAppCache("products", list);
+        } catch (error) {
+            console.error("Lỗi tải sản phẩm:", error);
+            // Không xóa dữ liệu đã cache nếu server tạm thời không phản hồi.
+            if (!cached) setSanPhams([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    useEffect(() => { taiSanPham(); }, []);
-
     useEffect(() => {
+        taiSanPham();
         taiDanhMucThuongHieu();
         taiKhuyenMaiActive();
-        const truoc = trangTruoc.current;
-        if ((truoc === "admin" || truoc === "employee") && page !== "admin" && page !== "employee") taiSanPham();
+        // Chỉ tải ban đầu; không gắn focus listener và không tải lại theo từng lần đổi trang.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+
+    useEffect(() => {
+        const previous = trangTruoc.current;
+        const leavingAdmin = (previous === "admin" || previous === "employee") && page !== "admin" && page !== "employee";
         trangTruoc.current = page;
-        const onFocus = () => {
+        if (leavingAdmin) {
+            // Hiện cache trước, cập nhật dữ liệu nền sau khi quản trị viên thay đổi dữ liệu.
+            taiSanPham({ force: true });
             taiDanhMucThuongHieu();
             taiKhuyenMaiActive();
-            if (page !== "admin" && page !== "employee") taiSanPham();
-        };
-        window.addEventListener("focus", onFocus);
-        return () => window.removeEventListener("focus", onFocus);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page]);
 
     const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2000); };
 
-    const xemSanPham = async (sp) => {
-        try {
-            const r = await fetch(`${API}/san-pham/${sp.id}/chi-tiet`);
-            let ct = [];
-            if (r.ok) { const d = await r.json(); ct = Array.isArray(d) ? d : []; }
-            setSelectedProduct({ ...sp, chiTiets: ct });
-            setPage("detail");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        } catch (e) {
-            console.error(e);
-            setSelectedProduct({ ...sp, chiTiets: sp.chiTiets || [] });
-            setPage("detail");
-        }
+    const xemSanPham = (sp) => {
+        // Biến thể đã được preload cùng danh sách sản phẩm; mở chi tiết ngay lập tức.
+        setSelectedProduct({ ...sp, chiTiets: Array.isArray(sp?.chiTiets) ? sp.chiTiets : [] });
+        setPage("detail");
+        window.scrollTo({ top: 0, behavior: "smooth" });
     };
 
     const themVaoGio = async (sp, ct = null, sl = 1) => {
@@ -2432,6 +2469,7 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
     const [phuongThuc, setPhuongThuc] = useState("TIEN_MAT");
     const [dangDatHang, setDangDatHang] = useState(false);
     const [bill, setBill] = useState(null);
+    const [demoPayment, setDemoPayment] = useState(null);
     const [vouchers, setVouchers] = useState([]);
     const [voucherError, setVoucherError] = useState("");
     const [, setCheckingVoucher] = useState(false);
@@ -2678,33 +2716,17 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
                 );
             }
 
-            // Chuyển khoản: yêu cầu backend tạo chữ ký, sau đó POST form sang SePay Sandbox.
+            // Chế độ demo: không chuyển sang cổng SePay thật, hiển thị QR minh họa.
             if (phuongThuc === "CHUYEN_KHOAN") {
-                const checkoutRes = await fetch(`${API}/sepay/checkout/${hoaDonId}`, {
-                    method: "POST",
-                    headers: { "Accept": "application/json" },
-                });
-                const checkoutText = await checkoutRes.text();
-                let checkoutData = null;
-                try { checkoutData = checkoutText ? JSON.parse(checkoutText) : null; }
-                catch { checkoutData = null; }
-
-                if (!checkoutRes.ok) {
-                    // Đơn đã tồn tại trên server. Đồng bộ giỏ phía giao diện và ngăn khách đặt trùng.
-                    setGioHang((o) => o.filter((i) => !variantIdsDat.includes(i.variantId)));
-                    if (setSelectedVariantIds) setSelectedVariantIds((p) => p.filter((id) => !variantIdsDat.includes(id)));
-                    throw new Error(
-                        `Đơn ${maHoaDon} đã được tạo nhưng chưa khởi tạo được thanh toán SePay. Không đặt lại đơn này. Chi tiết: ${checkoutData?.message || checkoutData?.error || checkoutText || "Không nhận được phản hồi hợp lệ từ backend."}`
-                    );
-                }
-
-                // Đồng bộ giỏ hàng rồi chuyển thẳng sang cổng SePay.
-                // Không hiển thị màn hình trung gian và không báo thành công ở bước này.
                 setGioHang((o) => o.filter((i) => !variantIdsDat.includes(i.variantId)));
                 if (setSelectedVariantIds) {
                     setSelectedVariantIds((p) => p.filter((id) => !variantIdsDat.includes(id)));
                 }
-                guiFormSePay(checkoutData);
+                setDemoPayment({
+                    hoaDonId,
+                    maHoaDon,
+                    soTien: Number(hoaDon?.tongThanhToan ?? tongThanhToan),
+                });
                 return;
             }
 
@@ -3095,6 +3117,20 @@ ${invoiceHtml.outerHTML}
             }
         }, 500);
     };
+
+    // QR demo phải được ưu tiên hiển thị trước hóa đơn và kiểm tra giỏ hàng rỗng.
+    // Khi đặt hàng chuyển khoản, giỏ hàng đã được xóa sau khi backend tạo hóa đơn,
+    // vì vậy nếu kiểm tra gioHang trước thì màn hình sẽ báo giỏ hàng trống thay vì hiện QR.
+    if (demoPayment) {
+        return (
+            <SePayDemoPayment
+                hoaDonId={demoPayment.hoaDonId}
+                maHoaDon={demoPayment.maHoaDon}
+                soTien={demoPayment.soTien}
+                onHome={() => setPage("home")}
+            />
+        );
+    }
 
     if (bill) {
         return (
@@ -3639,6 +3675,270 @@ ${invoiceHtml.outerHTML}
                     </div>}
                 </section>
             </div>}
+        </main>
+    );
+}
+
+
+function SePayDemoPayment({ hoaDonId, maHoaDon, soTien, onHome }) {
+    const [dangXacNhan, setDangXacNhan] = useState(false);
+    const [daThanhToan, setDaThanhToan] = useState(false);
+    const [daHuy, setDaHuy] = useState(false);
+    const [dangHuy, setDangHuy] = useState(false);
+    const [loi, setLoi] = useState("");
+    const [thoiGianConLai, setThoiGianConLai] = useState(15 * 60);
+
+    // Bộ đếm 15 phút tính từ lúc mở màn hình thanh toán.
+    useEffect(() => {
+        if (daThanhToan || daHuy || thoiGianConLai <= 0) return undefined;
+        const timer = window.setInterval(() => {
+            setThoiGianConLai((current) => Math.max(0, current - 1));
+        }, 1000);
+        return () => window.clearInterval(timer);
+    }, [daThanhToan, daHuy, thoiGianConLai <= 0]);
+
+    const phutConLai = String(Math.floor(thoiGianConLai / 60)).padStart(2, "0");
+    const giayConLai = String(thoiGianConLai % 60).padStart(2, "0");
+
+    // QR hoa văn chỉ để minh họa giao diện, không phải QR ngân hàng.
+    const qrMatrix = Array.from({ length: 29 }, (_, row) =>
+        Array.from({ length: 29 }, (_, col) => {
+            const finderAt = (top, left) => {
+                const y = row - top, x = col - left;
+                if (x < 0 || x > 6 || y < 0 || y > 6) return null;
+                return x === 0 || x === 6 || y === 0 || y === 6 ||
+                    (x >= 2 && x <= 4 && y >= 2 && y <= 4);
+            };
+            const a = finderAt(1, 1), b = finderAt(1, 21), c = finderAt(21, 1);
+            if (a !== null) return a;
+            if (b !== null) return b;
+            if (c !== null) return c;
+            return ((row * 17 + col * 31 + row * col * 7) % 13) < 6;
+        })
+    );
+
+    const xacNhanThanhToanDemo = async () => {
+        if (dangXacNhan || dangHuy || daThanhToan || daHuy) return;
+        setDangXacNhan(true);
+        setLoi("");
+        try {
+            const response = await fetch(`${API}/sepay/demo-confirm/${hoaDonId}`, {
+                method: "POST", headers: { Accept: "application/json" }, cache: "no-store",
+            });
+            const raw = await response.text();
+            let data = null;
+            try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+            if (!response.ok) throw new Error(data?.message || data?.error || raw || `Lỗi máy chủ HTTP ${response.status}`);
+            if (data?.success === false) throw new Error(data?.message || "Không thể xác nhận thanh toán demo.");
+            setDaThanhToan(true);
+        } catch (error) {
+            setLoi(error.message || "Không thể giả lập thanh toán. Vui lòng thử lại.");
+        } finally {
+            setDangXacNhan(false);
+        }
+    };
+
+    const huyDonHangDemo = async () => {
+        if (dangHuy || dangXacNhan || daThanhToan || daHuy) return;
+        if (!window.confirm("Bạn có chắc muốn hủy thanh toán và đơn hàng này không?")) return;
+        setDangHuy(true);
+        setLoi("");
+        try {
+            const response = await fetch(`${API}/sepay/demo-cancel/${hoaDonId}`, {
+                method: "POST", headers: { Accept: "application/json" }, cache: "no-store",
+            });
+            const raw = await response.text();
+            let data = null;
+            try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+            if (!response.ok || data?.success === false) {
+                throw new Error(data?.message || data?.error || raw || `Lỗi máy chủ HTTP ${response.status}`);
+            }
+            setDaHuy(true);
+        } catch (error) {
+            setLoi(error.message || "Không thể hủy đơn hàng. Vui lòng thử lại.");
+        } finally {
+            setDangHuy(false);
+        }
+    };
+
+    const maHienThi = maHoaDon || `#${hoaDonId}`;
+    const noiDung = `F SHOP ${maHoaDon || hoaDonId}`;
+
+    return (
+        <main className="sepay-page">
+            <div className="sepay-deco sepay-deco-left" aria-hidden="true" />
+            <div className="sepay-deco sepay-deco-right" aria-hidden="true" />
+            <div className="sepay-watermark" aria-hidden="true">FShop</div>
+
+            <div className="sepay-shell">
+                <header className="sepay-heading">
+                    <div className="sepay-heading-rule">
+                        <span />
+                        <b className="sepay-shield" aria-hidden="true">✓</b>
+                        <span />
+                    </div>
+                    {(daThanhToan || daHuy) && (
+                        <div className={`sepay-status ${daThanhToan ? "is-success" : "is-cancelled"}`}>
+                            <i />
+                            {daThanhToan ? "THANH TOÁN THÀNH CÔNG" : "ĐƠN HÀNG ĐÃ HỦY"}
+                        </div>
+                    )}
+                    <h1>{daThanhToan ? "Thanh toán thành công!" : daHuy ? "Đã hủy đơn hàng" : <>Thanh toán <em>chuyển khoản</em></>}</h1>
+                    <p>
+                        {daThanhToan
+                            ? "Đơn hàng của bạn đã được xác nhận. Cảm ơn bạn đã mua sắm tại FShop!"
+                            : daHuy
+                                ? "Đơn hàng đã được hủy và số lượng sản phẩm đã được hoàn lại kho."
+                                : "Vui lòng quét mã QR bên dưới để hoàn tất đơn hàng"}
+                    </p>
+                </header>
+
+                {!daThanhToan && !daHuy ? (
+                    <>
+                        <section className="sepay-main-card">
+                            <div className="sepay-qr-panel">
+                                <div className="sepay-panel-ribbon"><span className="sepay-ribbon-icon">▦</span>MÃ QR THANH TOÁN</div>
+                                <div className="sepay-qr-frame">
+                                    <span className="sepay-corner corner-tl" />
+                                    <span className="sepay-corner corner-tr" />
+                                    <span className="sepay-corner corner-bl" />
+                                    <span className="sepay-corner corner-br" />
+                                    <svg viewBox="0 0 29 29" role="img" aria-label="QR minh họa, không thể quét thanh toán thật" className="sepay-qr-svg" shapeRendering="crispEdges">
+                                        <rect width="29" height="29" fill="#fff" />
+                                        {qrMatrix.flatMap((row, r) => row.map((on, c) => on ? <rect key={`${r}-${c}`} x={c} y={r} width="1" height="1" fill="#10131b" /> : null))}
+                                    </svg>
+                                </div>
+                                <div className={`sepay-qr-expiry ${thoiGianConLai === 0 ? "is-expired" : ""}`}>
+                                    <span>◷</span>
+                                    {thoiGianConLai > 0
+                                        ? <>Mã QR hết hạn sau <strong>{phutConLai}:{giayConLai}</strong></>
+                                        : <strong>Mã QR đã hết hạn</strong>}
+                                </div>
+                                <div className="sepay-safe-note"><b>✓</b> An toàn <i>•</i> Nhanh chóng <i>•</i> Bảo mật</div>
+                            </div>
+
+                            <div className="sepay-detail-panel">
+                                <div className="sepay-panel-ribbon"><span className="sepay-ribbon-icon">▤</span>THÔNG TIN THANH TOÁN</div>
+                                <div className="sepay-detail-body">
+                                    <div className="sepay-detail-row">
+                                        <span><b>⌂</b> Ngân hàng</span>
+                                        <strong>Giày FbShop</strong>
+                                    </div>
+                                    <div className="sepay-detail-row">
+                                        <span><b>▣</b> Mã đơn hàng</span>
+                                        <strong>{maHienThi}</strong>
+                                    </div>
+                                    <div className="sepay-detail-row">
+                                        <span><b>♙</b> Nội dung chuyển khoản</span>
+                                        <strong>{noiDung}</strong>
+                                    </div>
+                                    <div className="sepay-amount-box">
+                                        <span>💰 &nbsp;Tổng thanh toán</span>
+                                        <strong>{formatGia(soTien)}</strong>
+                                    </div>
+                                    <div className="sepay-actions">
+                                        <button type="button" onClick={xacNhanThanhToanDemo} disabled={dangXacNhan || dangHuy} className="sepay-confirm-btn">
+                                            {dangXacNhan ? <><span className="sepay-spinner" /> Đang xác nhận...</> : <>▣ &nbsp; Thanh Toán <span>→</span></>}
+                                        </button>
+                                        <button type="button" onClick={huyDonHangDemo} disabled={dangXacNhan || dangHuy} className="sepay-cancel-btn">
+                                            {dangHuy ? "Đang hủy đơn..." : <>⊗ &nbsp; Hủy thanh toán</>}
+                                        </button>
+                                    </div>
+                                    {loi && <div role="alert" className="sepay-error">{loi}</div>}
+                                </div>
+                            </div>
+                        </section>
+                    </>
+                ) : (
+                    <section className={`sepay-result ${daThanhToan ? "result-success" : "result-cancel"}`}>
+                        <div className="sepay-result-icon">{daThanhToan ? "✓" : "×"}</div>
+                        <h2>{daThanhToan ? "Đơn hàng đã được xác nhận" : "Đơn hàng đã được hủy"}</h2>
+                        <p>{daThanhToan ? "Trạng thái thanh toán đã cập nhật thành công." : "Kho hàng đã được hoàn lại theo số lượng của đơn hàng."}</p>
+                        <div className="sepay-result-summary">
+                            <span>Mã đơn hàng</span><strong>{maHienThi}</strong>
+                            <span>Số tiền</span><strong>{formatGia(soTien)}</strong>
+                        </div>
+                    </section>
+                )}
+
+                <footer className="sepay-footer">
+                    <button type="button" onClick={onHome} className="sepay-home-btn">← &nbsp; Về trang chủ</button>
+                    <span>FShop · Bước đi cùng phong cách của bạn</span>
+                </footer>
+            </div>
+
+            <style>{`
+                .sepay-page{position:relative;isolation:isolate;min-height:calc(100vh - 166px);overflow:hidden;padding:22px 22px 34px;background:radial-gradient(ellipse at 50% 42%,#fff 0%,#f8f8fb 55%,#ececf2 100%);color:#111827}
+                .sepay-shell{position:relative;z-index:2;width:min(1120px,100%);margin:0 auto}
+                .sepay-deco{position:absolute;z-index:-1;pointer-events:none}
+                .sepay-deco-left{left:-105px;top:100px;width:310px;height:540px;border:34px solid #ed1c24;border-left:0;border-radius:0 55% 55% 0;transform:rotate(-13deg);opacity:.94;filter:drop-shadow(0 8px 10px #c8c8d0)}
+                .sepay-deco-right{right:-145px;bottom:20px;width:380px;height:280px;border:28px solid #ed1c24;border-right:0;border-radius:60% 0 0 60%;transform:rotate(-22deg);opacity:.92}
+                .sepay-watermark{position:absolute;z-index:-1;right:2.5%;top:35%;font-size:clamp(75px,12vw,170px);font-weight:1000;font-style:italic;letter-spacing:-9px;color:rgba(104,108,126,.10);transform:rotate(-10deg);pointer-events:none}
+                .sepay-heading{text-align:center;padding:0 12px 22px}
+                .sepay-heading-rule{display:flex;align-items:center;justify-content:center;gap:15px;width:min(600px,80%);margin:0 auto 8px}
+                .sepay-heading-rule>span{height:2px;flex:1;background:linear-gradient(90deg,transparent,#ed1c24)}
+                .sepay-heading-rule>span:last-child{background:linear-gradient(90deg,#ed1c24,transparent)}
+                .sepay-shield{display:grid;place-items:center;width:52px;height:56px;background:linear-gradient(145deg,#ff4b54,#d90016);clip-path:polygon(50% 0,91% 15%,87% 67%,50% 100%,13% 67%,9% 15%);color:#fff;font-size:29px;text-shadow:0 2px 4px #a90012;filter:drop-shadow(0 5px 6px #e9a0a5)}
+                .sepay-status{display:inline-flex;align-items:center;gap:8px;margin-top:0;padding:7px 13px;border-radius:999px;background:#fff2d9;color:#9b5700;font-size:10px;font-weight:950;letter-spacing:.55px}
+                .sepay-status i{width:7px;height:7px;border-radius:50%;background:#e99a1b}
+                .sepay-status.is-success{background:#e8f8ed;color:#167343}.sepay-status.is-success i{background:#16a05a}
+                .sepay-status.is-cancelled{background:#fff0ef;color:#b42318}.sepay-status.is-cancelled i{background:#d92d20}
+                .sepay-heading h1{margin:10px 0 5px;color:#101827;font-size:clamp(27px,3.1vw,39px);line-height:1.16;font-weight:950;letter-spacing:-1.1px}
+                .sepay-heading h1 em{color:#ed1c24;font-style:normal}
+                .sepay-heading p{max-width:760px;margin:0 auto;color:#4e596b;font-size:15px;line-height:1.55}
+                .sepay-main-card{display:grid;grid-template-columns:minmax(0,.98fr) minmax(0,1.02fr);gap:0;overflow:hidden;border:1px solid rgba(255,255,255,.9);border-radius:28px;background:rgba(255,255,255,.86);box-shadow:0 18px 48px rgba(35,38,56,.16);backdrop-filter:blur(12px)}
+                .sepay-qr-panel,.sepay-detail-panel{min-width:0;padding:20px 24px 22px}
+                .sepay-qr-panel{display:flex;flex-direction:column;align-items:center;border-right:1px solid #ececf1}
+                .sepay-panel-ribbon{position:relative;display:flex;align-items:center;gap:12px;align-self:stretch;min-height:52px;padding:0 18px;border-radius:13px 13px 22px 13px;background:linear-gradient(105deg,#ed1c24,#c90017);box-shadow:0 6px 15px rgba(237,28,36,.2);color:#fff;font-size:16px;font-weight:950;letter-spacing:.1px}
+                .sepay-ribbon-icon{display:grid;place-items:center;width:37px;height:37px;border-radius:10px;background:rgba(120,0,10,.2);font-size:25px}
+                .sepay-qr-frame{position:relative;width:min(300px,100%);margin:17px auto 12px;padding:13px;border:1px solid #f2dfe1;border-radius:18px;background:#fff;box-shadow:0 8px 25px rgba(226,25,39,.12)}
+                .sepay-qr-svg{display:block;width:100%;height:auto}
+                .sepay-corner{position:absolute;width:25px;height:25px;border-color:#ed1c24;border-style:solid}
+                .corner-tl{top:-4px;left:-4px;border-width:4px 0 0 4px;border-radius:9px 0 0}
+                .corner-tr{top:-4px;right:-4px;border-width:4px 4px 0 0;border-radius:0 9px 0 0}
+                .corner-bl{bottom:-4px;left:-4px;border-width:0 0 4px 4px;border-radius:0 0 0 9px}
+                .corner-br{bottom:-4px;right:-4px;border-width:0 4px 4px 0;border-radius:0 0 9px}
+                .sepay-qr-expiry{display:flex;align-items:center;gap:7px;color:#ed1c24;font-size:13px;font-weight:950}
+                .sepay-qr-expiry span{font-size:20px}
+                .sepay-qr-expiry strong{font-variant-numeric:tabular-nums;color:#ed1c24;font-size:16px;font-weight:1000}
+                .sepay-qr-expiry.is-expired{color:#b42318}
+                .sepay-qr-expiry.is-expired strong{color:#b42318}
+                .sepay-safe-note{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:auto;padding:12px 8px;border-radius:12px;background:linear-gradient(90deg,#fff0f2,#ffe6e9);color:#d71920;font-size:13px;font-weight:900}
+                .sepay-safe-note b{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#ed1c24;color:white}
+                .sepay-safe-note i{font-style:normal;color:#f15a61}
+                .sepay-detail-panel{display:flex;flex-direction:column}
+                .sepay-detail-body{padding:11px 8px 0}
+                .sepay-detail-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:14px 4px;border-bottom:1px solid #e8e9ee;font-size:14px}
+                .sepay-detail-row span{display:flex;align-items:center;gap:10px;color:#263143;line-height:1.45}
+                .sepay-detail-row span b{display:inline-grid;place-items:center;width:22px;color:#111827;font-size:21px}
+                .sepay-detail-row strong{max-width:58%;color:#111827;text-align:right;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+                .sepay-amount-box{display:flex;flex-direction:column;gap:5px;margin:15px 0 3px}
+                .sepay-amount-box span{align-self:flex-start;padding:5px 12px;border-radius:9px;background:#f1f1f5;color:#293345;font-size:13px;font-weight:800}
+                .sepay-amount-box strong{color:#ed1c24;font-size:clamp(34px,4vw,49px);font-weight:1000;line-height:1.1;letter-spacing:-1.5px}
+                .sepay-actions{display:grid;gap:9px;margin-top:16px}
+                .sepay-confirm-btn,.sepay-cancel-btn,.sepay-home-btn{min-height:49px;border-radius:13px;font-weight:900;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
+                .sepay-confirm-btn{display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid #df0018;background:linear-gradient(100deg,#ed1c24,#c90017);color:#fff;font-size:17px;box-shadow:0 7px 17px rgba(237,28,36,.23)}
+                .sepay-confirm-btn>span:last-child{margin-left:5px;font-size:24px}
+                .sepay-confirm-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 11px 22px rgba(237,28,36,.28)}
+                .sepay-cancel-btn{border:1.5px solid #ed1c24;background:#fff;color:#e01822;font-size:14px}
+                .sepay-cancel-btn:hover:not(:disabled){background:#fff1f2}
+                .sepay-confirm-btn:disabled,.sepay-cancel-btn:disabled{opacity:.58;cursor:wait}
+                .sepay-spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:sepay-spin .7s linear infinite}
+                @keyframes sepay-spin{to{transform:rotate(360deg)}}
+                .sepay-error{margin-top:12px;padding:11px 12px;border:1px solid #f3c5c2;border-radius:9px;background:#fff2f1;color:#b42318;font-size:12px;line-height:1.5}
+                .sepay-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 3px 0}
+                .sepay-home-btn{padding:0 18px;border:1px solid #d8dce5;background:#fff;color:#263143;font-size:13px}
+                .sepay-home-btn:hover{background:#f7f7f8}
+                .sepay-footer>span{color:#8b91a0;font-size:11px;font-style:italic}
+                .sepay-result{max-width:650px;margin:20px auto;padding:38px 28px;text-align:center;border:1px solid;border-radius:22px;background:#fff;box-shadow:0 15px 40px rgba(20,24,35,.08)}
+                .result-success{border-color:#b7e4c7;color:#176b3b}.result-cancel{border-color:#f0c6c3;color:#a52a22}
+                .sepay-result-icon{display:grid;place-items:center;width:66px;height:66px;margin:0 auto 15px;border-radius:50%;background:#f0fff4;font-size:36px;font-weight:950}
+                .result-cancel .sepay-result-icon{background:#fff1f0}
+                .sepay-result h2{margin:0 0 8px;font-size:23px;font-weight:950}
+                .sepay-result p{margin:0;color:#687080;font-size:14px;line-height:1.6}
+                .sepay-result-summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px;padding:16px;border-radius:12px;background:#f7f8fa;text-align:left;font-size:13px}
+                .sepay-result-summary span{color:#7a8290}.sepay-result-summary strong{text-align:right;color:#252a34}
+            `}</style>
         </main>
     );
 }

@@ -20,6 +20,18 @@ import {
     trongKhoangNgay,
 } from "./HoaDonShared.jsx";
 const API = "http://localhost:8080/api";
+function readDashboardCache(key = "last") {
+    try {
+        const raw = sessionStorage.getItem(`fshop:dashboard:${key}`);
+        if (!raw) return null;
+        const entry = JSON.parse(raw);
+        return entry ? entry.data : null; // Ưu tiên hiển thị cache ngay; request bên dưới luôn lấy số liệu mới.
+    } catch { return null; }
+}
+function writeDashboardCache(key, data) {
+    try { sessionStorage.setItem(`fshop:dashboard:${key}`, JSON.stringify({ time: Date.now(), data })); }
+    catch (error) { console.warn("Không thể lưu cache dashboard:", error); }
+}
 const adminDataCache = {
     hoaDons: null,
     hoaDonsPromise: null,
@@ -121,19 +133,6 @@ async function getThanhToanByHoaDonId(id, force = false) {
         });
     adminDataCache.thanhToanPromises[id] = promise;
     return promise;
-}
-async function prefetchAdminData() {
-    // Chỉ preload danh sách hóa đơn/khách hàng dùng chung cho các màn quản lý.
-    // Không gọi API thanh toán lặp lại cho từng hóa đơn khi vừa mở Admin.
-    const results = await Promise.allSettled([getHoaDons(), getKhachHangs()]);
-    results.forEach((result, index) => {
-        if (result.status === "rejected") {
-            console.error(
-                index === 0 ? "Lỗi preload hóa đơn:" : "Lỗi preload khách hàng:",
-                result.reason
-            );
-        }
-    });
 }
 
 const menuItems = [
@@ -358,8 +357,8 @@ function DashboardContent({ eyebrow = "FSHOP ADMIN" }) {
         return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
     });
     const [dateTo, setDateTo] = useState(() => toDateInputValue(new Date()));
-    const [dashboardStats, setDashboardStats] = useState(null);
-    const [loadingDashboardStats, setLoadingDashboardStats] = useState(true);
+    const [dashboardStats, setDashboardStats] = useState(() => readDashboardCache("last"));
+    const [loadingDashboardStats, setLoadingDashboardStats] = useState(() => !readDashboardCache("last"));
     const [exportingExcel, setExportingExcel] = useState(false);
     const [filterStatus, setFilterStatus] = useState("");
     const [filterOrderType, setFilterOrderType] = useState("");
@@ -374,8 +373,16 @@ function DashboardContent({ eyebrow = "FSHOP ADMIN" }) {
         if (filterStatus) params.set("trangThai", filterStatus);
         if (filterOrderType) params.set("loaiHoaDon", filterOrderType);
         if (filterPaymentMethod) params.set("phuongThucThanhToan", filterPaymentMethod);
+        const cacheKey = params.toString() || "default";
+        const cachedStats = readDashboardCache(cacheKey);
+        if (cachedStats) {
+            setDashboardStats(cachedStats);
+            setLoadingDashboardStats(false);
+        } else if (!dashboardStats) {
+            setLoadingDashboardStats(true);
+        }
 
-        fetch(`${API}/admin/dashboard/thong-ke?${params.toString()}`)
+        fetch(`${API}/admin/dashboard/thong-ke?${params.toString()}`, { cache: "no-store" })
             .then(async (response) => {
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) throw new Error(data?.message || "Không thể tải thống kê tổng quan");
@@ -385,6 +392,8 @@ function DashboardContent({ eyebrow = "FSHOP ADMIN" }) {
                 if (mounted) {
                     setDashboardError("");
                     setDashboardStats(data);
+                    writeDashboardCache(cacheKey, data);
+                    writeDashboardCache("last", data);
                 }
             })
             .catch((err) => {
@@ -989,7 +998,7 @@ function HoaDonContent({ taiKhoan }) {
     useEffect(() => {
         // Luôn tải danh sách mới nhất khi mở mục Hóa đơn, bỏ qua cache cũ.
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        taiHoaDon(true);
+        taiHoaDon(false);
     }, []);
     const taiLichSu = async (id) => {
         const response = await fetch(`${API}/hoa-don/${id}/lich-su`);
@@ -4320,15 +4329,16 @@ function ComingSoon({ title, }) {
 }
 export default function AdminDashboard({ dangXuat, taiKhoan, }) {
     const [activeMenu, setActiveMenu] = useState("dashboard");
+    const [visitedMenus, setVisitedMenus] = useState(() => new Set(["dashboard"]));
+    const chonMenu = (menuId) => {
+        setVisitedMenus((previous) => { const next = new Set(previous); next.add(menuId); return next; });
+        setActiveMenu(menuId);
+    };
     const activeLabel =
         activeMenu === "cai-dat"
             ? "Cài đặt"
             : menuItems.find((item) => item.id === activeMenu)?.label ||
             "Tổng quan";
-    useEffect(() => {
-        // Preload ngay khi mở Admin để click vào 3 màn này hiện dữ liệu gần như tức thì.
-        prefetchAdminData();
-    }, []);
     return (<div className="admin-layout">
 
         {/* SIDEBAR */}
@@ -4364,7 +4374,7 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
                 {menuItems.map((item) => (<button type="button" key={item.id} className={activeMenu ===
                 item.id
                     ? "active"
-                    : ""} onClick={() => setActiveMenu(item.id)}>
+                    : ""} onClick={() => chonMenu(item.id)}>
 
                                 <span className="admin-nav-icon">
                                     {item.icon}
@@ -4383,7 +4393,7 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
                 <button
                     type="button"
                     className={activeMenu === "cai-dat" ? "active" : ""}
-                    onClick={() => setActiveMenu("cai-dat")}
+                    onClick={() => chonMenu("cai-dat")}
                 >
                         <span>
                             ⚙
@@ -4461,15 +4471,22 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
             </header>
 
             <div className="admin-main-body">
-
-                {activeMenu ===
-                "dashboard" ? (<DashboardContent />) : activeMenu === "ban-hang" ? (<BanHangTaiQuayContent />) : activeMenu ===
-                "hoa-don" ? (<HoaDonContent taiKhoan={taiKhoan} />) : activeMenu === "doi-tra" ? (<Returns mode="admin" />) : activeMenu ===
-                "thanh-toan" ? (<ThanhToanContent taiKhoan={taiKhoan} />) : activeMenu === "san-pham" ? (<AdminProducts />) : activeMenu === "danh-muc" ? (<AdminDanhMuc />) : activeMenu === "thuong-hieu" ? (<AdminThuongHieu />) : activeMenu === "kich-co" ? (<AdminKichCo />) : activeMenu === "mau-sac" ? (<AdminMauSac />) : activeMenu === "kho" ? (<AdminKho />) : activeMenu === "voucher" ? (<AdminVoucher />) : activeMenu === "khuyen-mai" ? (<AdminKhuyenMai />) : activeMenu ===
-                "khach-hang" ? (<CustomerContent />) : activeMenu ===
-                "nhan-vien" ? (<EmployeeContent />) : activeMenu ===
-                "cai-dat" ? (<AdminSettings />) : (<ComingSoon title={activeLabel}/>)}
-
+                {visitedMenus.has("dashboard") && <section style={{ display: activeMenu === "dashboard" ? "block" : "none" }}><DashboardContent /></section>}
+                {visitedMenus.has("ban-hang") && <section style={{ display: activeMenu === "ban-hang" ? "block" : "none" }}><BanHangTaiQuayContent /></section>}
+                {visitedMenus.has("hoa-don") && <section style={{ display: activeMenu === "hoa-don" ? "block" : "none" }}><HoaDonContent taiKhoan={taiKhoan} /></section>}
+                {visitedMenus.has("doi-tra") && <section style={{ display: activeMenu === "doi-tra" ? "block" : "none" }}><Returns mode="admin" /></section>}
+                {visitedMenus.has("thanh-toan") && <section style={{ display: activeMenu === "thanh-toan" ? "block" : "none" }}><ThanhToanContent taiKhoan={taiKhoan} /></section>}
+                {visitedMenus.has("san-pham") && <section style={{ display: activeMenu === "san-pham" ? "block" : "none" }}><AdminProducts /></section>}
+                {visitedMenus.has("danh-muc") && <section style={{ display: activeMenu === "danh-muc" ? "block" : "none" }}><AdminDanhMuc /></section>}
+                {visitedMenus.has("thuong-hieu") && <section style={{ display: activeMenu === "thuong-hieu" ? "block" : "none" }}><AdminThuongHieu /></section>}
+                {visitedMenus.has("kich-co") && <section style={{ display: activeMenu === "kich-co" ? "block" : "none" }}><AdminKichCo /></section>}
+                {visitedMenus.has("mau-sac") && <section style={{ display: activeMenu === "mau-sac" ? "block" : "none" }}><AdminMauSac /></section>}
+                {visitedMenus.has("kho") && <section style={{ display: activeMenu === "kho" ? "block" : "none" }}><AdminKho /></section>}
+                {visitedMenus.has("voucher") && <section style={{ display: activeMenu === "voucher" ? "block" : "none" }}><AdminVoucher /></section>}
+                {visitedMenus.has("khuyen-mai") && <section style={{ display: activeMenu === "khuyen-mai" ? "block" : "none" }}><AdminKhuyenMai /></section>}
+                {visitedMenus.has("khach-hang") && <section style={{ display: activeMenu === "khach-hang" ? "block" : "none" }}><CustomerContent /></section>}
+                {visitedMenus.has("nhan-vien") && <section style={{ display: activeMenu === "nhan-vien" ? "block" : "none" }}><EmployeeContent /></section>}
+                {visitedMenus.has("cai-dat") && <section style={{ display: activeMenu === "cai-dat" ? "block" : "none" }}><AdminSettings onLogout={dangXuat} /></section>}
             </div>
 
         </main>

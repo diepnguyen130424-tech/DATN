@@ -16,18 +16,26 @@ function formatDate(str) {
     }
 }
 
-/* ⭐ Mô tả phạm vi áp dụng */
+/* Mô tả phạm vi áp dụng */
 function moTaPhamVi(ct) {
     const pv = ct?.phamViApDung || "TAT_CA";
-    if (pv === "THUONG_HIEU") return ct.tenThuongHieu ? `Hãng ${ct.tenThuongHieu}` : "Theo hãng";
-    if (pv === "SAN_PHAM") return `${(ct.sanPhams || []).length} sản phẩm`;
-    if (pv === "BIEN_THE") return `${(ct.bienThes || []).length} size/màu`;
+
+    if (pv === "THUONG_HIEU")
+        return ct.tenThuongHieu ? `Hãng ${ct.tenThuongHieu}` : "Theo hãng";
+
+    if (pv === "SAN_PHAM")
+        return `${(ct.sanPhams || []).length} sản phẩm`;
+
+    if (pv === "BIEN_THE")
+        return `${(ct.bienThes || []).length} size/màu`;
+
     return "Toàn bộ sản phẩm";
 }
 
-/* ⭐ Kiểm tra còn hiệu lực */
+/* Kiểm tra còn hiệu lực */
 function isConHieuLuc(item) {
     const trangThai = String(item?.trangThai || "HOAT_DONG").toUpperCase();
+
     if (trangThai === "NGUNG_HOAT_DONG") return false;
 
     const now = new Date();
@@ -39,12 +47,15 @@ function isConHieuLuc(item) {
 
     if (item?.ngayKetThuc) {
         const ketThuc = new Date(item.ngayKetThuc);
+
         if (!Number.isNaN(ketThuc.getTime())) {
             const hetHan = new Date(ketThuc);
             hetHan.setHours(23, 59, 59, 999);
+
             if (now > hetHan) return false;
         }
     }
+
     return true;
 }
 
@@ -57,7 +68,7 @@ export default function KhuyenMai({ setPage }) {
     const [chuongTrinhs, setChuongTrinhs] = useState([]);
     const [loadingCT, setLoadingCT] = useState(true);
 
-    // Danh sách mã đã LƯU
+    // Danh sách mã đã lưu
     const [savedList, setSavedList] = useState([]);
     const [thongBao, setThongBao] = useState("");
 
@@ -65,6 +76,7 @@ export default function KhuyenMai({ setPage }) {
         try {
             const raw = localStorage.getItem("taiKhoan");
             if (!raw) return "guest";
+
             const tk = JSON.parse(raw);
             return tk?.tenDangNhap || "guest";
         } catch {
@@ -75,29 +87,39 @@ export default function KhuyenMai({ setPage }) {
     // Dùng chung key với trang Thanh toán
     const getCacheKey = () => `saved_vouchers_${getTenDangNhap()}`;
 
+    // Đọc mã đã lưu từ localStorage
     useEffect(() => {
         const timer = setTimeout(() => {
             try {
                 const raw = localStorage.getItem(getCacheKey());
+
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     setSavedList(Array.isArray(parsed) ? parsed : []);
+                } else {
+                    setSavedList([]);
                 }
             } catch {
                 setSavedList([]);
             }
         }, 0);
+
         return () => clearTimeout(timer);
     }, []);
 
+    // Tải voucher
     useEffect(() => {
         const load = async () => {
             try {
                 setLoadingVoucher(true);
+
                 const res = await fetch(`${API}/ma-giam-gia/dang-hoat-dong`);
+
                 if (!res.ok) throw new Error("Không tải được voucher");
+
                 const data = await res.json();
                 const raw = Array.isArray(data) ? data : [];
+
                 setVouchers(raw.filter(isConHieuLuc));
             } catch (err) {
                 console.error(err);
@@ -106,20 +128,26 @@ export default function KhuyenMai({ setPage }) {
                 setLoadingVoucher(false);
             }
         };
+
         const timer = setTimeout(load, 0);
         return () => clearTimeout(timer);
     }, []);
 
+    // Tải chương trình giảm giá
     useEffect(() => {
         const load = async () => {
             try {
                 setLoadingCT(true);
+
                 const res = await fetch(
                     `${API}/chuong-trinh-giam-gia/dang-hoat-dong`
                 );
+
                 if (!res.ok) throw new Error("Không tải được chương trình");
+
                 const data = await res.json();
                 const raw = Array.isArray(data) ? data : [];
+
                 setChuongTrinhs(raw.filter(isConHieuLuc));
             } catch (err) {
                 console.error(err);
@@ -128,27 +156,27 @@ export default function KhuyenMai({ setPage }) {
                 setLoadingCT(false);
             }
         };
+
         const timer = setTimeout(load, 0);
         return () => clearTimeout(timer);
     }, []);
 
-    // ⭐ Hàm Lưu / Bỏ lưu mã
+    // Lưu / Bỏ lưu mã
     const luuMa = (ma) => {
         const daLuu = savedList.includes(ma);
-        let newList = [];
 
-        if (daLuu) {
-            // Đã lưu -> Bỏ lưu
-            newList = savedList.filter((item) => item !== ma);
-            setThongBao(`Đã bỏ lưu mã ${ma}`);
-        } else {
-            // Chưa lưu -> Lưu vào mảng
-            newList = [...savedList, ma];
-            setThongBao(`✓ Đã lưu mã ${ma}`);
-        }
+        const newList = daLuu
+            ? savedList.filter((item) => item !== ma)
+            : [...savedList, ma];
 
         setSavedList(newList);
+
+        setThongBao(
+            daLuu ? `Đã bỏ lưu mã ${ma}` : `✓ Đã lưu mã ${ma}`
+        );
+
         localStorage.setItem(getCacheKey(), JSON.stringify(newList));
+
         setTimeout(() => setThongBao(""), 1800);
     };
 
@@ -171,6 +199,7 @@ export default function KhuyenMai({ setPage }) {
                     >
                         🏷️ Mã giảm giá
                     </button>
+
                     <button
                         type="button"
                         className={activeTab === "chuong-trinh" ? "active" : ""}
@@ -196,7 +225,7 @@ export default function KhuyenMai({ setPage }) {
                     </div>
                 )}
 
-                {/* ===== TAB 1: VOUCHER ===== */}
+                {/* TAB 1: VOUCHER */}
                 {activeTab === "voucher" && (
                     <>
                         {loadingVoucher && (
@@ -210,6 +239,7 @@ export default function KhuyenMai({ setPage }) {
                                 <div className="empty-cart-icon">🎁</div>
                                 <h2>Chưa có mã giảm giá nào</h2>
                                 <p>Hãy quay lại sau để xem ưu đãi mới nhất.</p>
+
                                 <button onClick={() => setPage("products")}>
                                     Tiếp tục mua hàng →
                                 </button>
@@ -220,8 +250,12 @@ export default function KhuyenMai({ setPage }) {
                             <div className="khuyen-mai-grid">
                                 {vouchers.map((v) => {
                                     const daLuu = savedList.includes(v.maVoucher);
+
                                     return (
-                                        <div className="khuyen-mai-card" key={v.id}>
+                                        <div
+                                            className="khuyen-mai-card"
+                                            key={v.id}
+                                        >
                                             <div className="khuyen-mai-badge">
                                                 {v.loaiGiam === "PHAN_TRAM"
                                                     ? `-${v.giaTriGiam}%`
@@ -232,31 +266,51 @@ export default function KhuyenMai({ setPage }) {
                                                 <div className="khuyen-mai-code">
                                                     {v.maVoucher}
                                                 </div>
+
                                                 <h3>{v.tenVoucher}</h3>
 
                                                 <ul className="khuyen-mai-info">
                                                     {v.donToiThieu && (
                                                         <li>
                                                             Đơn tối thiểu:{" "}
-                                                            <strong>{formatGia(v.donToiThieu)}</strong>
+                                                            <strong>
+                                                                {formatGia(
+                                                                    v.donToiThieu
+                                                                )}
+                                                            </strong>
                                                         </li>
                                                     )}
-                                                    {v.loaiGiam === "PHAN_TRAM" && v.giamToiDa && (
-                                                        <li>
-                                                            Giảm tối đa:{" "}
-                                                            <strong>{formatGia(v.giamToiDa)}</strong>
-                                                        </li>
-                                                    )}
+
+                                                    {v.loaiGiam ===
+                                                        "PHAN_TRAM" &&
+                                                        v.giamToiDa && (
+                                                            <li>
+                                                                Giảm tối đa:{" "}
+                                                                <strong>
+                                                                    {formatGia(
+                                                                        v.giamToiDa
+                                                                    )}
+                                                                </strong>
+                                                            </li>
+                                                        )}
+
                                                     <li>
                                                         Hạn dùng:{" "}
-                                                        <strong>{formatDate(v.ngayKetThuc)}</strong>
+                                                        <strong>
+                                                            {formatDate(
+                                                                v.ngayKetThuc
+                                                            )}
+                                                        </strong>
                                                     </li>
+
                                                     <li>
                                                         Còn lại:{" "}
                                                         <strong>
                                                             {Math.max(
                                                                 0,
-                                                                (v.soLuong ?? 0) - (v.soLuongDaDung ?? 0)
+                                                                (v.soLuong ?? 0) -
+                                                                    (v.soLuongDaDung ??
+                                                                        0)
                                                             )}{" "}
                                                             lượt
                                                         </strong>
@@ -266,14 +320,24 @@ export default function KhuyenMai({ setPage }) {
                                                 <button
                                                     type="button"
                                                     className="khuyen-mai-copy"
-                                                    onClick={() => luuMa(v.maVoucher)}
+                                                    onClick={() =>
+                                                        luuMa(v.maVoucher)
+                                                    }
                                                     style={{
-                                                        background: daLuu ? "#f1f8f2" : "#111",
-                                                        color: daLuu ? "#2e7d32" : "#fff",
-                                                        border: daLuu ? "1px solid #2e7d32" : "none"
+                                                        background: daLuu
+                                                            ? "#f1f8f2"
+                                                            : "#111",
+                                                        color: daLuu
+                                                            ? "#2e7d32"
+                                                            : "#fff",
+                                                        border: daLuu
+                                                            ? "1px solid #2e7d32"
+                                                            : "none",
                                                     }}
                                                 >
-                                                    {daLuu ? "✓ Đã lưu (Bấm để bỏ)" : "🔖 Lưu mã"}
+                                                    {daLuu
+                                                        ? "✓ Đã lưu (Bấm để bỏ)"
+                                                        : "🔖 Lưu mã"}
                                                 </button>
                                             </div>
                                         </div>
@@ -284,7 +348,7 @@ export default function KhuyenMai({ setPage }) {
                     </>
                 )}
 
-                {/* ===== TAB 2: CHƯƠNG TRÌNH ===== */}
+                {/* TAB 2: CHƯƠNG TRÌNH */}
                 {activeTab === "chuong-trinh" && (
                     <>
                         {loadingCT && (
@@ -298,6 +362,7 @@ export default function KhuyenMai({ setPage }) {
                                 <div className="empty-cart-icon">🔥</div>
                                 <h2>Chưa có chương trình nào</h2>
                                 <p>Hãy quay lại sau để xem ưu đãi mới nhất.</p>
+
                                 <button onClick={() => setPage("products")}>
                                     Tiếp tục mua hàng →
                                 </button>
@@ -307,7 +372,10 @@ export default function KhuyenMai({ setPage }) {
                         {!loadingCT && chuongTrinhs.length > 0 && (
                             <div className="khuyen-mai-grid">
                                 {chuongTrinhs.map((ct) => (
-                                    <div className="khuyen-mai-card ct-card" key={ct.id}>
+                                    <div
+                                        className="khuyen-mai-card ct-card"
+                                        key={ct.id}
+                                    >
                                         <div className="khuyen-mai-badge ct-badge">
                                             {ct.loaiGiam === "PHAN_TRAM"
                                                 ? `-${ct.giaTriGiam}%`
@@ -316,45 +384,70 @@ export default function KhuyenMai({ setPage }) {
 
                                         <div className="khuyen-mai-body">
                                             <div className="ct-icon">🔥</div>
-                                            <h3 className="ct-title">{ct.tenChuongTrinh}</h3>
+
+                                            <h3 className="ct-title">
+                                                {ct.tenChuongTrinh}
+                                            </h3>
 
                                             <ul className="khuyen-mai-info">
                                                 <li>
                                                     Loại giảm:{" "}
                                                     <strong>
-                                                        {ct.loaiGiam === "PHAN_TRAM"
+                                                        {ct.loaiGiam ===
+                                                        "PHAN_TRAM"
                                                             ? "Phần trăm"
                                                             : "Số tiền"}
                                                     </strong>
                                                 </li>
+
                                                 <li>
                                                     Giá trị:{" "}
                                                     <strong>
-                                                        {ct.loaiGiam === "PHAN_TRAM"
+                                                        {ct.loaiGiam ===
+                                                        "PHAN_TRAM"
                                                             ? `${ct.giaTriGiam}%`
-                                                            : formatGia(ct.giaTriGiam)}
+                                                            : formatGia(
+                                                                  ct.giaTriGiam
+                                                              )}
                                                     </strong>
                                                 </li>
+
                                                 <li>
                                                     Áp dụng:{" "}
-                                                    <strong style={{ color: "#e53935" }}>
+                                                    <strong
+                                                        style={{
+                                                            color: "#e53935",
+                                                        }}
+                                                    >
                                                         {moTaPhamVi(ct)}
                                                     </strong>
                                                 </li>
+
                                                 <li>
                                                     Bắt đầu:{" "}
-                                                    <strong>{formatDate(ct.ngayBatDau)}</strong>
+                                                    <strong>
+                                                        {formatDate(
+                                                            ct.ngayBatDau
+                                                        )}
+                                                    </strong>
                                                 </li>
+
                                                 <li>
                                                     Kết thúc:{" "}
-                                                    <strong>{formatDate(ct.ngayKetThuc)}</strong>
+                                                    <strong>
+                                                        {formatDate(
+                                                            ct.ngayKetThuc
+                                                        )}
+                                                    </strong>
                                                 </li>
                                             </ul>
 
                                             <button
                                                 type="button"
                                                 className="khuyen-mai-copy ct-view-btn"
-                                                onClick={() => setPage("products")}
+                                                onClick={() =>
+                                                    setPage("products")
+                                                }
                                             >
                                                 🛍️ Xem sản phẩm →
                                             </button>
@@ -367,7 +460,8 @@ export default function KhuyenMai({ setPage }) {
                 )}
 
                 <div className="khuyen-mai-note">
-                    💡 Mã đã lưu sẽ tự động hiển thị ở đầu danh sách khi bạn thanh toán đơn hàng.
+                    💡 Mã đã lưu sẽ tự động hiển thị ở đầu danh sách khi bạn
+                    thanh toán đơn hàng.
                 </div>
             </div>
         </main>

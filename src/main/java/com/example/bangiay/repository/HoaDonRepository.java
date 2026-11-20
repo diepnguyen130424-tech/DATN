@@ -50,7 +50,7 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Long>, JpaSpecif
      * tránh truy vấn lặp khi tạo Excel.
      */
     @Override
-    @EntityGraph(attributePaths = {"khachHang", "khachHangQuay"})
+    @EntityGraph(attributePaths = {"khachHang", "khachHangQuay", "diaChi"})
     List<HoaDon> findAll(Specification<HoaDon> specification, Sort sort);
 
     /**
@@ -76,6 +76,7 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Long>, JpaSpecif
                     root.<LocalDateTime>get("ngayLap"),
                     root.<LocalDateTime>get("ngayCapNhat")
             );
+            query.orderBy(cb.desc(orderDate));
 
             if (start != null) {
                 predicates.add(cb.greaterThanOrEqualTo(orderDate, start));

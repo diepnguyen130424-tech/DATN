@@ -1,14 +1,10 @@
-import {useEffect, useMemo, useState} from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./EmployeeOverviewProducts.css";
 
 const API = "http://localhost:8080/api";
-const LOW_STOCK = 5; // cùng ngưỡng với màn Bán hàng tại quầy
+const LOW_STOCK = 5;
 const PAGE_SIZE = 5;
 const PLACEHOLDER_IMG = "";
-
-/* ------------------------------------------------------------------ */
-/* Helpers                                                              */
-/* ------------------------------------------------------------------ */
 
 function formatMoney(value) {
     return `${Number(value || 0).toLocaleString("vi-VN")}đ`;
@@ -37,13 +33,18 @@ function timeAgo(value) {
 async function readJson(url) {
     const response = await fetch(url);
     const text = await response.text();
+
     let data;
     try {
         data = text ? JSON.parse(text) : null;
     } catch {
         data = null;
     }
-    if (!response.ok) throw new Error(data?.message || text || "Không thể kết nối máy chủ");
+
+    if (!response.ok) {
+        throw new Error(data?.message || text || "Không thể kết nối máy chủ");
+    }
+
     return data;
 }
 
@@ -69,8 +70,7 @@ const STATUS_CLASS = {
     DA_HUY: "cancelled",
 };
 
-// dùng lại class .employee-status đã có trong EmployeeDashboard.css
-function StatusBadge({value}) {
+function StatusBadge({ value }) {
     return (
         <span className={`employee-status ${STATUS_CLASS[value] || ""}`}>
             {STATUS_LABEL[value] || value || "-"}
@@ -86,17 +86,22 @@ function customerName(order) {
     return order.khachHang?.hoTen || order.diaChi?.tenNguoiNhan || "Khách lẻ";
 }
 
-/* ------------------------------------------------------------------ */
-/* Tổng quan                                                            */
-/* ------------------------------------------------------------------ */
+/* =========================================================
+   TỔNG QUAN
+========================================================= */
 
 const RANGES = [
-    {id: "today", label: "Hôm nay", days: 1, prev: "hôm qua"},
-    {id: "7d", label: "7 ngày", days: 7, prev: "7 ngày trước"},
-    {id: "30d", label: "30 ngày", days: 30, prev: "30 ngày trước"},
+    { id: "today", label: "Hôm nay", days: 1, prev: "hôm qua" },
+    { id: "7d", label: "7 ngày", days: 7, prev: "7 ngày trước" },
+    { id: "30d", label: "30 ngày", days: 30, prev: "30 ngày trước" },
 ];
 
-const NOT_REVENUE = new Set(["DA_HUY", "CHO_XAC_NHAN", "CHO_THANH_TOAN"]);
+const NOT_REVENUE = new Set([
+    "DA_HUY",
+    "CHO_XAC_NHAN",
+    "CHO_THANH_TOAN",
+]);
+
 const DONE_STATUS = new Set(["DA_THANH_TOAN", "DA_GIAO"]);
 const WAITING_STATUS = new Set(["CHO_XAC_NHAN", "CHO_THANH_TOAN"]);
 
@@ -104,8 +109,10 @@ function rangeBounds(days, offset = 0) {
     const end = new Date();
     end.setHours(0, 0, 0, 0);
     end.setDate(end.getDate() + 1 - offset * days);
+
     const start = new Date(end);
     start.setDate(start.getDate() - days);
+
     return [start.getTime(), end.getTime()];
 }
 
@@ -118,19 +125,38 @@ function pickRange(orders, [from, to]) {
 
 function summarize(list) {
     const valid = list.filter((o) => o.trangThai !== "DA_HUY");
+
     const revenue = list
         .filter((o) => !NOT_REVENUE.has(o.trangThai))
         .reduce((sum, o) => sum + Number(o.tongThanhToan || 0), 0);
-    const customers = new Set(valid.map((o) => o.khachHang?.id).filter(Boolean));
-    return {count: valid.length, revenue, customers: customers.size, valid};
+
+    const customers = new Set(
+        valid.map((o) => o.khachHang?.id).filter(Boolean)
+    );
+
+    return {
+        count: valid.length,
+        revenue,
+        customers: customers.size,
+        valid,
+    };
 }
 
-function Delta({current, previous, label}) {
+function Delta({ current, previous, label }) {
     if (!previous) {
-        return <span className="ev-delta ev-delta-flat">Chưa có dữ liệu {label}</span>;
+        return (
+            <span className="ev-delta ev-delta-flat">
+                Chưa có dữ liệu {label}
+            </span>
+        );
     }
+
     const pct = Math.round(((current - previous) / previous) * 100);
-    if (pct === 0) return <span className="ev-delta ev-delta-flat">Bằng {label}</span>;
+
+    if (pct === 0) {
+        return <span className="ev-delta ev-delta-flat">Bằng {label}</span>;
+    }
+
     return (
         <span className={`ev-delta ${pct > 0 ? "ev-delta-up" : "ev-delta-down"}`}>
             {pct > 0 ? "▲" : "▼"} {Math.abs(pct)}% so với {label}
@@ -157,36 +183,50 @@ export function EmployeeOverview({
         () => summarize(pickRange(orders, rangeBounds(range.days))),
         [orders, range]
     );
+
     const previous = useMemo(
         () => summarize(pickRange(orders, rangeBounds(range.days, 1))),
         [orders, range]
     );
 
-    // Số sản phẩm đã bán = tổng số lượng trong chi tiết hóa đơn của khoảng đang xem
+    // Tổng số sản phẩm đã bán trong khoảng thời gian đang xem
     useEffect(() => {
         let cancelled = false;
+
         const targets = current.valid.slice(0, 60);
+
         if (!targets.length) {
-            Promise.resolve().then(() => !cancelled && setSold(0));
+            Promise.resolve().then(() => {
+                if (!cancelled) setSold(0);
+            });
+
             return () => {
                 cancelled = true;
             };
         }
+
         Promise.all(
-            targets.map((o) => readJson(`${API}/hoa-don/${o.id}/chi-tiet`).catch(() => []))
+            targets.map((o) =>
+                readJson(`${API}/hoa-don/${o.id}/chi-tiet`).catch(() => [])
+            )
         ).then((lists) => {
             if (cancelled) return;
+
             setSold(
                 lists.reduce(
                     (sum, list) =>
                         sum +
                         (Array.isArray(list)
-                            ? list.reduce((n, row) => n + Number(row.soLuong || 0), 0)
+                            ? list.reduce(
+                                (n, row) => n + Number(row.soLuong || 0),
+                                0
+                            )
                             : 0),
                     0
                 )
             );
         });
+
         return () => {
             cancelled = true;
         };
@@ -195,8 +235,15 @@ export function EmployeeOverview({
     const pendingOnline = useMemo(
         () =>
             orders
-                .filter((o) => o.loaiHoaDon === "ONLINE" && o.trangThai === "CHO_XAC_NHAN")
-                .sort((a, b) => new Date(orderTime(b)) - new Date(orderTime(a))),
+                .filter(
+                    (o) =>
+                        o.loaiHoaDon === "ONLINE" &&
+                        o.trangThai === "CHO_XAC_NHAN"
+                )
+                .sort(
+                    (a, b) =>
+                        new Date(orderTime(b)) - new Date(orderTime(a))
+                ),
         [orders]
     );
 
@@ -204,12 +251,17 @@ export function EmployeeOverview({
         () =>
             variants
                 .filter((v) => Number(v.soLuongTon || 0) <= LOW_STOCK)
-                .sort((a, b) => Number(a.soLuongTon || 0) - Number(b.soLuongTon || 0)),
+                .sort(
+                    (a, b) =>
+                        Number(a.soLuongTon || 0) -
+                        Number(b.soLuongTon || 0)
+                ),
         [variants]
     );
 
     const breakdown = useMemo(() => {
         const list = pickRange(orders, rangeBounds(range.days));
+
         return {
             done: list.filter((o) => DONE_STATUS.has(o.trangThai)).length,
             waiting: list.filter((o) => WAITING_STATUS.has(o.trangThai)).length,
@@ -227,13 +279,17 @@ export function EmployeeOverview({
     const recent = useMemo(
         () =>
             [...orders]
-                .sort((a, b) => new Date(orderTime(b)) - new Date(orderTime(a)))
+                .sort(
+                    (a, b) =>
+                        new Date(orderTime(b)) - new Date(orderTime(a))
+                )
                 .slice(0, 6),
         [orders]
     );
 
     const confirmOrder = async (order) => {
         setBusyId(order.id);
+
         try {
             await onUpdateOrder(order, "DA_XAC_NHAN");
         } finally {
@@ -255,6 +311,7 @@ export function EmployeeOverview({
                     <h1>Tổng quan</h1>
                     <p>{todayLabel}</p>
                 </div>
+
                 <div className="ev-head-tools">
                     <div className="ev-segment" role="tablist" aria-label="Khoảng thời gian">
                         {RANGES.map((item) => (
@@ -270,6 +327,7 @@ export function EmployeeOverview({
                             </button>
                         ))}
                     </div>
+
                     <button type="button" className="ev-btn" onClick={onRefresh}>
                         Làm mới
                     </button>
@@ -280,18 +338,29 @@ export function EmployeeOverview({
                 <div className="ev-kpi">
                     <span>Doanh thu</span>
                     <strong>{formatMoney(current.revenue)}</strong>
-                    <Delta current={current.revenue} previous={previous.revenue} label={range.prev}/>
+                    <Delta
+                        current={current.revenue}
+                        previous={previous.revenue}
+                        label={range.prev}
+                    />
                 </div>
+
                 <div className="ev-kpi">
                     <span>Đơn hàng</span>
                     <strong>{current.count}</strong>
-                    <Delta current={current.count} previous={previous.count} label={range.prev}/>
+                    <Delta
+                        current={current.count}
+                        previous={previous.count}
+                        label={range.prev}
+                    />
                 </div>
+
                 <div className="ev-kpi">
                     <span>Khách có tài khoản</span>
                     <strong>{current.customers}</strong>
                     <small>Không tính khách lẻ</small>
                 </div>
+
                 <div className="ev-kpi">
                     <span>Sản phẩm đã bán</span>
                     <strong>{sold === null ? "…" : sold}</strong>
@@ -310,7 +379,12 @@ export function EmployeeOverview({
                                     : "Không có đơn nào đang chờ"}
                             </p>
                         </div>
-                        <button type="button" className="ev-link" onClick={() => onMenu("don-online")}>
+
+                        <button
+                            type="button"
+                            className="ev-link"
+                            onClick={() => onMenu("don-online")}
+                        >
                             Mở danh sách đơn
                         </button>
                     </div>
@@ -320,23 +394,37 @@ export function EmployeeOverview({
                             {pendingOnline.slice(0, 4).map((order) => (
                                 <li key={order.id}>
                                     <div className="ev-list-main">
-                                        <strong>{order.maHoaDon || `HD${order.id}`}</strong>
+                                        <strong>
+                                            {order.maHoaDon || `HD${order.id}`}
+                                        </strong>
                                         <span>
-                                            {customerName(order)} · {timeAgo(orderTime(order))}
+                                            {customerName(order)} ·{" "}
+                                            {timeAgo(orderTime(order))}
                                         </span>
                                     </div>
-                                    <b className="ev-money">{formatMoney(order.tongThanhToan)}</b>
+
+                                    <b className="ev-money">
+                                        {formatMoney(order.tongThanhToan)}
+                                    </b>
+
                                     <div className="ev-list-actions">
-                                        <button type="button" className="ev-btn" onClick={() => onOpenDetail(order)}>
+                                        <button
+                                            type="button"
+                                            className="ev-btn"
+                                            onClick={() => onOpenDetail(order)}
+                                        >
                                             Xem
                                         </button>
+
                                         <button
                                             type="button"
                                             className="ev-btn ev-btn-primary"
                                             disabled={busyId === order.id}
                                             onClick={() => confirmOrder(order)}
                                         >
-                                            {busyId === order.id ? "Đang xác nhận…" : "Xác nhận"}
+                                            {busyId === order.id
+                                                ? "Đang xác nhận…"
+                                                : "Xác nhận"}
                                         </button>
                                     </div>
                                 </li>
@@ -360,8 +448,13 @@ export function EmployeeOverview({
                                     : "Tồn kho đang ổn"}
                             </p>
                         </div>
+
                         {lowStock.length > 0 && (
-                            <button type="button" className="ev-link" onClick={() => onMenu("san-pham", "low")}>
+                            <button
+                                type="button"
+                                className="ev-link"
+                                onClick={() => onMenu("san-pham", "low")}
+                            >
                                 Xem trong Sản phẩm
                             </button>
                         )}
@@ -372,17 +465,28 @@ export function EmployeeOverview({
                             {lowStock.slice(0, 5).map((v) => {
                                 const qty = Number(v.soLuongTon || 0);
                                 const product =
-                                    products.find((p) => p.id === v.sanPham?.id) || v.sanPham;
+                                    products.find(
+                                        (p) => p.id === v.sanPham?.id
+                                    ) || v.sanPham;
+
                                 return (
                                     <li key={v.id}>
                                         <div className="ev-list-main">
-                                            <strong>{product?.tenSanPham || "Sản phẩm"}</strong>
+                                            <strong>
+                                                {product?.tenSanPham || "Sản phẩm"}
+                                            </strong>
                                             <span>
-                                                Size {v.kichCo?.tenKichCo || "-"} · {v.mauSac?.tenMau || "-"}
+                                                Size {v.kichCo?.tenKichCo || "-"} ·{" "}
+                                                {v.mauSac?.tenMau || "-"}
                                                 {v.maSku ? ` · ${v.maSku}` : ""}
                                             </span>
                                         </div>
-                                        <span className={`ep-stock ${qty <= 0 ? "out" : "low"}`}>
+
+                                        <span
+                                            className={`ep-stock ${
+                                                qty <= 0 ? "out" : "low"
+                                            }`}
+                                        >
                                             {qty <= 0 ? "Hết hàng" : `Còn ${qty}`}
                                         </span>
                                     </li>
@@ -392,7 +496,9 @@ export function EmployeeOverview({
                     ) : (
                         <div className="ev-empty">
                             <strong>Chưa có biến thể nào sắp hết</strong>
-                            <span>Cảnh báo sẽ hiện khi tồn kho xuống mức thấp.</span>
+                            <span>
+                                Cảnh báo sẽ hiện khi tồn kho xuống mức thấp.
+                            </span>
                         </div>
                     )}
                 </section>
@@ -405,7 +511,12 @@ export function EmployeeOverview({
                             <h2>Hóa đơn gần đây</h2>
                             <p>Bấm vào một dòng để xem chi tiết</p>
                         </div>
-                        <button type="button" className="ev-link" onClick={() => onMenu("hoa-don")}>
+
+                        <button
+                            type="button"
+                            className="ev-link"
+                            onClick={() => onMenu("hoa-don")}
+                        >
                             Xem tất cả
                         </button>
                     </div>
@@ -422,6 +533,7 @@ export function EmployeeOverview({
                                 <th>Thời gian</th>
                             </tr>
                             </thead>
+
                             <tbody>
                             {recent.length ? (
                                 recent.map((order) => (
@@ -429,24 +541,56 @@ export function EmployeeOverview({
                                         key={order.id}
                                         tabIndex={0}
                                         onClick={() => onOpenDetail(order)}
-                                        onKeyDown={(e) => e.key === "Enter" && onOpenDetail(order)}
+                                        onKeyDown={(e) =>
+                                            e.key === "Enter" &&
+                                            onOpenDetail(order)
+                                        }
                                     >
-                                        <td><strong>{order.maHoaDon || `HD${order.id}`}</strong></td>
-                                        <td>{customerName(order)}</td>
                                         <td>
-                                            <span className="ev-tag">
-                                                {order.loaiHoaDon === "TAI_QUAY" ? "Tại quầy" : "Online"}
-                                            </span>
+                                            <strong>
+                                                {order.maHoaDon ||
+                                                    `HD${order.id}`}
+                                            </strong>
                                         </td>
-                                        <td className="num"><strong>{formatMoney(order.tongThanhToan)}</strong></td>
-                                        <td><StatusBadge value={order.trangThai}/></td>
-                                        <td className="muted">{formatDateTime(orderTime(order))}</td>
+
+                                        <td>{customerName(order)}</td>
+
+                                        <td>
+                                                <span className="ev-tag">
+                                                    {order.loaiHoaDon ===
+                                                    "TAI_QUAY"
+                                                        ? "Tại quầy"
+                                                        : "Online"}
+                                                </span>
+                                        </td>
+
+                                        <td className="num">
+                                            <strong>
+                                                {formatMoney(
+                                                    order.tongThanhToan
+                                                )}
+                                            </strong>
+                                        </td>
+
+                                        <td>
+                                            <StatusBadge
+                                                value={order.trangThai}
+                                            />
+                                        </td>
+
+                                        <td className="muted">
+                                            {formatDateTime(orderTime(order))}
+                                        </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="ev-table-empty">
-                                        Chưa có hóa đơn nào. Bắt đầu bằng một đơn bán tại quầy.
+                                    <td
+                                        colSpan="6"
+                                        className="ev-table-empty"
+                                    >
+                                        Chưa có hóa đơn nào. Bắt đầu bằng
+                                        một đơn bán tại quầy.
                                     </td>
                                 </tr>
                             )}
@@ -460,24 +604,59 @@ export function EmployeeOverview({
                         <div className="ev-panel-head">
                             <div>
                                 <h2>Tình trạng đơn</h2>
-                                <p>{range.label.toLowerCase()} · {breakdown.total} đơn</p>
+                                <p>
+                                    {range.label.toLowerCase()} ·{" "}
+                                    {breakdown.total} đơn
+                                </p>
                             </div>
                         </div>
 
                         {breakdown.total ? (
                             <>
-                                <div className="ev-bar" role="img"
-                                     aria-label={`Hoàn tất ${breakdown.done}, đang xử lý ${breakdown.progress}, chờ ${breakdown.waiting}, hủy ${breakdown.cancelled}`}>
-                                    <span className="done" style={{flex: breakdown.done}}/>
-                                    <span className="progress" style={{flex: breakdown.progress}}/>
-                                    <span className="waiting" style={{flex: breakdown.waiting}}/>
-                                    <span className="cancelled" style={{flex: breakdown.cancelled}}/>
+                                <div
+                                    className="ev-bar"
+                                    role="img"
+                                    aria-label={`Hoàn tất ${breakdown.done}, đang xử lý ${breakdown.progress}, chờ ${breakdown.waiting}, hủy ${breakdown.cancelled}`}
+                                >
+                                    <span
+                                        className="done"
+                                        style={{ flex: breakdown.done }}
+                                    />
+                                    <span
+                                        className="progress"
+                                        style={{ flex: breakdown.progress }}
+                                    />
+                                    <span
+                                        className="waiting"
+                                        style={{ flex: breakdown.waiting }}
+                                    />
+                                    <span
+                                        className="cancelled"
+                                        style={{ flex: breakdown.cancelled }}
+                                    />
                                 </div>
+
                                 <ul className="ev-legend">
-                                    <li><i className="done"/>Hoàn tất<b>{breakdown.done}</b></li>
-                                    <li><i className="progress"/>Đang xử lý<b>{breakdown.progress}</b></li>
-                                    <li><i className="waiting"/>Chờ xác nhận<b>{breakdown.waiting}</b></li>
-                                    <li><i className="cancelled"/>Đã hủy<b>{breakdown.cancelled}</b></li>
+                                    <li>
+                                        <i className="done" />
+                                        Hoàn tất
+                                        <b>{breakdown.done}</b>
+                                    </li>
+                                    <li>
+                                        <i className="progress" />
+                                        Đang xử lý
+                                        <b>{breakdown.progress}</b>
+                                    </li>
+                                    <li>
+                                        <i className="waiting" />
+                                        Chờ xác nhận
+                                        <b>{breakdown.waiting}</b>
+                                    </li>
+                                    <li>
+                                        <i className="cancelled" />
+                                        Đã hủy
+                                        <b>{breakdown.cancelled}</b>
+                                    </li>
                                 </ul>
                             </>
                         ) : (
@@ -494,14 +673,27 @@ export function EmployeeOverview({
                                 <h2>Lối tắt</h2>
                             </div>
                         </div>
+
                         <div className="ev-shortcuts">
-                            <button type="button" className="primary" onClick={() => onMenu("ban-hang")}>
+                            <button
+                                type="button"
+                                className="primary"
+                                onClick={() => onMenu("ban-hang")}
+                            >
                                 Tạo hóa đơn tại quầy
                             </button>
-                            <button type="button" onClick={() => onMenu("khach-hang")}>
+
+                            <button
+                                type="button"
+                                onClick={() => onMenu("khach-hang")}
+                            >
                                 Tra cứu khách hàng
                             </button>
-                            <button type="button" onClick={() => onMenu("san-pham")}>
+
+                            <button
+                                type="button"
+                                onClick={() => onMenu("san-pham")}
+                            >
                                 Xem sản phẩm và tồn kho
                             </button>
                         </div>
@@ -512,22 +704,31 @@ export function EmployeeOverview({
     );
 }
 
-/* ------------------------------------------------------------------ */
-/* Sản phẩm                                                             */
-/* ------------------------------------------------------------------ */
+/* =========================================================
+   SẢN PHẨM
+========================================================= */
 
 function productStatusKey(value) {
     return String(value || "").trim().toUpperCase();
 }
 
-function ProductStatus({value}) {
+function ProductStatus({ value }) {
     const key = productStatusKey(value);
     const active = key === "HOAT_DONG";
     const inactive = key === "NGUNG_HOAT_DONG";
+
     return (
-        <span className={`ep-status ${active ? "active" : inactive ? "inactive" : ""}`}>
-            <i/>
-            {active ? "Hoạt động" : inactive ? "Ngừng hoạt động" : value || "Chưa xác định"}
+        <span
+            className={`ep-status ${
+                active ? "active" : inactive ? "inactive" : ""
+            }`}
+        >
+            <i />
+            {active
+                ? "Hoạt động"
+                : inactive
+                    ? "Ngừng hoạt động"
+                    : value || "Chưa xác định"}
         </span>
     );
 }
@@ -539,37 +740,49 @@ function stockState(info) {
     return "ok";
 }
 
-function StockBadge({info}) {
+function StockBadge({ info }) {
     const state = stockState(info);
+
     const text = {
         none: "Chưa có biến thể",
         out: "Hết hàng",
         low: `Sắp hết · ${info.stock}`,
         ok: `Còn ${info.stock}`,
     }[state];
+
     return <span className={`ep-stock ${state}`}>{text}</span>;
 }
 
 function priceText(info, fallback) {
-    if (!info.count || !info.max) return fallback ? formatMoney(fallback) : "Chưa có giá";
+    if (!info.count || !info.max) {
+        return fallback ? formatMoney(fallback) : "Chưa có giá";
+    }
+
     if (info.min === info.max) return formatMoney(info.min);
+
     return `${formatMoney(info.min)} – ${formatMoney(info.max)}`;
 }
 
-function Thumb({src, name, size = 44}) {
+function Thumb({ src, name, size = 44 }) {
     const [failed, setFailed] = useState(false);
     const initial = String(name || "?").trim().charAt(0).toUpperCase();
+
     if (!src || failed || src === PLACEHOLDER_IMG) {
         return (
-            <span className="ep-thumb ep-thumb-empty" style={{width: size, height: size}} aria-hidden="true">
+            <span
+                className="ep-thumb ep-thumb-empty"
+                style={{ width: size, height: size }}
+                aria-hidden="true"
+            >
                 {initial}
             </span>
         );
     }
+
     return (
         <img
             className="ep-thumb"
-            style={{width: size, height: size}}
+            style={{ width: size, height: size }}
             src={src}
             alt={name}
             loading="lazy"
@@ -579,16 +792,16 @@ function Thumb({src, name, size = 44}) {
 }
 
 const SORTS = [
-    {id: "ma", label: "Mã sản phẩm"},
-    {id: "id", label: "ID sản phẩm"},
-    {id: "ten", label: "Tên A → Z"},
-    {id: "stock-asc", label: "Tồn kho thấp trước"},
-    {id: "stock-desc", label: "Tồn kho cao trước"},
-    {id: "price-asc", label: "Giá thấp trước"},
-    {id: "price-desc", label: "Giá cao trước"},
+    { id: "ma", label: "Mã sản phẩm" },
+    { id: "id", label: "ID sản phẩm" },
+    { id: "ten", label: "Tên A → Z" },
+    { id: "stock-asc", label: "Tồn kho thấp trước" },
+    { id: "stock-desc", label: "Tồn kho cao trước" },
+    { id: "price-asc", label: "Giá thấp trước" },
+    { id: "price-desc", label: "Giá cao trước" },
 ];
 
-export function ProductsPage({products, variants, onMenu, preset}) {
+export function ProductsPage({ products, variants, onMenu, preset }) {
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("all");
     const [brand, setBrand] = useState("all");
@@ -601,90 +814,161 @@ export function ProductsPage({products, variants, onMenu, preset}) {
 
     const infoMap = useMemo(() => {
         const map = new Map();
-        products.forEach((p) => map.set(p.id, {count: 0, stock: 0, min: 0, max: 0, list: []}));
+
+        products.forEach((p) =>
+            map.set(p.id, {
+                count: 0,
+                stock: 0,
+                min: 0,
+                max: 0,
+                list: [],
+            })
+        );
+
         variants.forEach((v) => {
             const info = map.get(v.sanPham?.id);
             if (!info) return;
+
             const price = Number(v.giaBan || 0);
+
             info.count += 1;
             info.stock += Number(v.soLuongTon || 0);
+
             if (price > 0) {
-                info.min = info.min ? Math.min(info.min, price) : price;
+                info.min = info.min
+                    ? Math.min(info.min, price)
+                    : price;
                 info.max = Math.max(info.max, price);
             }
+
             info.list.push(v);
         });
+
         return map;
     }, [products, variants]);
 
     const categories = useMemo(
-        () => [...new Set(products.map((p) => p.danhMuc?.tenDanhMuc).filter(Boolean))].sort(),
+        () =>
+            [
+                ...new Set(
+                    products.map((p) => p.danhMuc?.tenDanhMuc).filter(Boolean)
+                ),
+            ].sort(),
         [products]
     );
+
     const brands = useMemo(
-        () => [...new Set(products.map((p) => p.thuongHieu?.tenThuongHieu).filter(Boolean))].sort(),
+        () =>
+            [
+                ...new Set(
+                    products.map((p) => p.thuongHieu?.tenThuongHieu).filter(Boolean)
+                ),
+            ].sort(),
         [products]
     );
 
     const stockCounts = useMemo(() => {
-        const counts = {all: products.length, ok: 0, low: 0, out: 0};
+        const counts = {
+            all: products.length,
+            ok: 0,
+            low: 0,
+            out: 0,
+        };
+
         products.forEach((p) => {
             const state = stockState(infoMap.get(p.id));
             if (counts[state] !== undefined) counts[state] += 1;
         });
+
         return counts;
     }, [products, infoMap]);
 
     const filtered = useMemo(() => {
         const keyword = search.trim().toLowerCase();
+
         const list = products.filter((p) => {
             const info = infoMap.get(p.id);
+
             const matchText =
                 !keyword ||
                 String(p.id) === keyword ||
                 String(p.tenSanPham || "").toLowerCase().includes(keyword) ||
                 String(p.maSanPham || "").toLowerCase().includes(keyword) ||
-                String(p.thuongHieu?.tenThuongHieu || "").toLowerCase().includes(keyword) ||
-                info.list.some((v) => String(v.maSku || "").toLowerCase().includes(keyword));
+                String(
+                    p.thuongHieu?.tenThuongHieu || ""
+                ).toLowerCase().includes(keyword) ||
+                info.list.some((v) =>
+                    String(v.maSku || "").toLowerCase().includes(keyword)
+                );
+
             return (
                 matchText &&
-                (category === "all" || p.danhMuc?.tenDanhMuc === category) &&
-                (brand === "all" || p.thuongHieu?.tenThuongHieu === brand) &&
-                (status === "all" || productStatusKey(p.trangThai) === status) &&
+                (category === "all" ||
+                    p.danhMuc?.tenDanhMuc === category) &&
+                (brand === "all" ||
+                    p.thuongHieu?.tenThuongHieu === brand) &&
+                (status === "all" ||
+                    productStatusKey(p.trangThai) === status) &&
                 (stock === "all" || stockState(info) === stock)
             );
         });
 
         const stockOf = (p) => infoMap.get(p.id).stock;
         const priceOf = (p) => infoMap.get(p.id).min || 0;
+
         const sorters = {
             id: (a, b) => Number(a.id) - Number(b.id),
+
             ma: (a, b) =>
-                String(a.maSanPham || "").localeCompare(String(b.maSanPham || ""), "vi", {numeric: true}),
-            ten: (a, b) => String(a.tenSanPham || "").localeCompare(String(b.tenSanPham || ""), "vi"),
+                String(a.maSanPham || "").localeCompare(
+                    String(b.maSanPham || ""),
+                    "vi",
+                    { numeric: true }
+                ),
+
+            ten: (a, b) =>
+                String(a.tenSanPham || "").localeCompare(
+                    String(b.tenSanPham || ""),
+                    "vi"
+                ),
+
             "stock-asc": (a, b) => stockOf(a) - stockOf(b),
             "stock-desc": (a, b) => stockOf(b) - stockOf(a),
             "price-asc": (a, b) => priceOf(a) - priceOf(b),
             "price-desc": (a, b) => priceOf(b) - priceOf(a),
         };
+
         return list.sort(sorters[sort]);
-    }, [products, infoMap, search, category, brand, status, stock, sort]);
+    }, [
+        products,
+        infoMap,
+        search,
+        category,
+        brand,
+        status,
+        stock,
+        sort,
+    ]);
 
     const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+    // Tự điều chỉnh trang hiển thị mà không cần setState trong useEffect
     const safePage = Math.min(page, pages);
+
     const rows = filtered.slice(
         (safePage - 1) * PAGE_SIZE,
         safePage * PAGE_SIZE
     );
 
-    useEffect(() => {
-        setPage((current) => Math.min(current, pages));
-    }, [pages]);
+    // ĐÃ BỎ useEffect setPage đồng bộ với pages gây lỗi ESLint
 
     const hasFilter =
-        search || category !== "all" || brand !== "all" || status !== "all" || stock !== "all";
+        search ||
+        category !== "all" ||
+        brand !== "all" ||
+        status !== "all" ||
+        stock !== "all";
 
-    // đổi bộ lọc thì quay về trang 1
     const withReset = (setter) => (value) => {
         setter(value);
         setPage(1);
@@ -711,10 +995,17 @@ export function ProductsPage({products, variants, onMenu, preset}) {
             <header className="ev-head">
                 <div>
                     <h1>Sản phẩm</h1>
-                    <p>Tra cứu sản phẩm, giá và tồn kho theo từng size, màu.</p>
+                    <p>
+                        Tra cứu sản phẩm, giá và tồn kho theo từng size, màu.
+                    </p>
                 </div>
+
                 <div className="ev-head-tools">
-                    <button type="button" className="ev-btn ev-btn-primary" onClick={() => onMenu("ban-hang")}>
+                    <button
+                        type="button"
+                        className="ev-btn ev-btn-primary"
+                        onClick={() => onMenu("ban-hang")}
+                    >
                         Bán tại quầy
                     </button>
                 </div>
@@ -739,43 +1030,100 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                 <div className="ep-toolbar">
                     <label className="ep-search">
                         <span className="sr-only">Tìm sản phẩm</span>
+
                         <input
                             value={search}
-                            onChange={(e) => withReset(setSearch)(e.target.value)}
+                            onChange={(e) =>
+                                withReset(setSearch)(e.target.value)
+                            }
                             placeholder="Tìm theo tên, ID, mã sản phẩm, thương hiệu hoặc SKU"
                         />
+
                         {search && (
-                            <button type="button" aria-label="Xóa tìm kiếm" onClick={() => withReset(setSearch)("")}>
+                            <button
+                                type="button"
+                                aria-label="Xóa tìm kiếm"
+                                onClick={() => withReset(setSearch)("")}
+                            >
                                 ×
                             </button>
                         )}
                     </label>
 
-                    <select aria-label="Danh mục" value={category} onChange={(e) => withReset(setCategory)(e.target.value)}>
+                    <select
+                        aria-label="Danh mục"
+                        value={category}
+                        onChange={(e) =>
+                            withReset(setCategory)(e.target.value)
+                        }
+                    >
                         <option value="all">Mọi danh mục</option>
-                        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                        {categories.map((c) => (
+                            <option key={c} value={c}>
+                                {c}
+                            </option>
+                        ))}
                     </select>
 
-                    <select aria-label="Thương hiệu" value={brand} onChange={(e) => withReset(setBrand)(e.target.value)}>
+                    <select
+                        aria-label="Thương hiệu"
+                        value={brand}
+                        onChange={(e) =>
+                            withReset(setBrand)(e.target.value)
+                        }
+                    >
                         <option value="all">Mọi thương hiệu</option>
-                        {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+                        {brands.map((b) => (
+                            <option key={b} value={b}>
+                                {b}
+                            </option>
+                        ))}
                     </select>
 
-                    <select aria-label="Trạng thái" value={status} onChange={(e) => withReset(setStatus)(e.target.value)}>
+                    <select
+                        aria-label="Trạng thái"
+                        value={status}
+                        onChange={(e) =>
+                            withReset(setStatus)(e.target.value)
+                        }
+                    >
                         <option value="all">Mọi trạng thái</option>
                         <option value="HOAT_DONG">Hoạt động</option>
-                        <option value="NGUNG_HOAT_DONG">Ngừng hoạt động</option>
+                        <option value="NGUNG_HOAT_DONG">
+                            Ngừng hoạt động
+                        </option>
                     </select>
 
-                    <select aria-label="Sắp xếp" value={sort} onChange={(e) => setSort(e.target.value)}>
-                        {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    <select
+                        aria-label="Sắp xếp"
+                        value={sort}
+                        onChange={(e) => setSort(e.target.value)}
+                    >
+                        {SORTS.map((s) => (
+                            <option key={s.id} value={s.id}>
+                                {s.label}
+                            </option>
+                        ))}
                     </select>
 
-                    <div className="ev-segment small" role="group" aria-label="Kiểu hiển thị">
-                        <button type="button" className={view === "table" ? "active" : ""} onClick={() => setView("table")}>
+                    <div
+                        className="ev-segment small"
+                        role="group"
+                        aria-label="Kiểu hiển thị"
+                    >
+                        <button
+                            type="button"
+                            className={view === "table" ? "active" : ""}
+                            onClick={() => setView("table")}
+                        >
                             Bảng
                         </button>
-                        <button type="button" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}>
+
+                        <button
+                            type="button"
+                            className={view === "grid" ? "active" : ""}
+                            onClick={() => setView("grid")}
+                        >
                             Lưới
                         </button>
                     </div>
@@ -785,8 +1133,13 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                     <span>
                         {filtered.length} / {products.length} sản phẩm
                     </span>
+
                     {hasFilter && (
-                        <button type="button" className="ev-link" onClick={resetFilters}>
+                        <button
+                            type="button"
+                            className="ev-link"
+                            onClick={resetFilters}
+                        >
                             Xóa bộ lọc
                         </button>
                     )}
@@ -796,8 +1149,13 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                     <div className="ev-empty">
                         <strong>Không tìm thấy sản phẩm phù hợp</strong>
                         <span>Thử đổi từ khóa hoặc bỏ bớt bộ lọc.</span>
+
                         {hasFilter && (
-                            <button type="button" className="ev-btn" onClick={resetFilters}>
+                            <button
+                                type="button"
+                                className="ev-btn"
+                                onClick={resetFilters}
+                            >
                                 Xóa bộ lọc
                             </button>
                         )}
@@ -816,31 +1174,71 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                                 <th>Trạng thái</th>
                             </tr>
                             </thead>
+
                             <tbody>
                             {rows.map((p) => {
                                 const info = infoMap.get(p.id);
+
                                 return (
                                     <tr
                                         key={p.id}
                                         tabIndex={0}
                                         onClick={() => setSelected(p)}
-                                        onKeyDown={(e) => e.key === "Enter" && setSelected(p)}
+                                        onKeyDown={(e) =>
+                                            e.key === "Enter" &&
+                                            setSelected(p)
+                                        }
                                     >
-                                        <td className="ep-col-id"><span className="ep-id">#{p.id}</span></td>
+                                        <td className="ep-col-id">
+                                                <span className="ep-id">
+                                                    #{p.id}
+                                                </span>
+                                        </td>
+
                                         <td>
                                             <div className="ep-cell-product">
-                                                <Thumb src={p.hinhAnh} name={p.tenSanPham}/>
+                                                <Thumb
+                                                    src={p.hinhAnh}
+                                                    name={p.tenSanPham}
+                                                />
+
                                                 <div>
-                                                    <strong>{p.tenSanPham}</strong>
-                                                    <small>{p.maSanPham || `SP${p.id}`} · {info.count} biến thể</small>
+                                                    <strong>
+                                                        {p.tenSanPham}
+                                                    </strong>
+                                                    <small>
+                                                        {p.maSanPham ||
+                                                            `SP${p.id}`}{" "}
+                                                        · {info.count} biến thể
+                                                    </small>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>{p.thuongHieu?.tenThuongHieu || "-"}</td>
-                                        <td>{p.danhMuc?.tenDanhMuc || "-"}</td>
-                                        <td className="num"><strong>{priceText(info, p.giaBan)}</strong></td>
-                                        <td><StockBadge info={info}/></td>
-                                        <td><ProductStatus value={p.trangThai}/></td>
+
+                                        <td>
+                                            {p.thuongHieu?.tenThuongHieu ||
+                                                "-"}
+                                        </td>
+
+                                        <td>
+                                            {p.danhMuc?.tenDanhMuc || "-"}
+                                        </td>
+
+                                        <td className="num">
+                                            <strong>
+                                                {priceText(info, p.giaBan)}
+                                            </strong>
+                                        </td>
+
+                                        <td>
+                                            <StockBadge info={info} />
+                                        </td>
+
+                                        <td>
+                                            <ProductStatus
+                                                value={p.trangThai}
+                                            />
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -851,16 +1249,39 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                     <div className="ep-grid">
                         {rows.map((p) => {
                             const info = infoMap.get(p.id);
+
                             return (
-                                <button type="button" className="ep-card" key={p.id} onClick={() => setSelected(p)}>
-                                    <Thumb src={p.hinhAnh} name={p.tenSanPham} size={96}/>
-                                    <span className="ep-card-brand">{p.thuongHieu?.tenThuongHieu || "FShop"}</span>
+                                <button
+                                    type="button"
+                                    className="ep-card"
+                                    key={p.id}
+                                    onClick={() => setSelected(p)}
+                                >
+                                    <Thumb
+                                        src={p.hinhAnh}
+                                        name={p.tenSanPham}
+                                        size={96}
+                                    />
+
+                                    <span className="ep-card-brand">
+                                        {p.thuongHieu?.tenThuongHieu ||
+                                            "FShop"}
+                                    </span>
+
                                     <strong>{p.tenSanPham}</strong>
-                                    <small>ID #{p.id} · {p.maSanPham || `SP${p.id}`}</small>
+
+                                    <small>
+                                        ID #{p.id} ·{" "}
+                                        {p.maSanPham || `SP${p.id}`}
+                                    </small>
+
                                     <b>{priceText(info, p.giaBan)}</b>
+
                                     <div className="ep-card-foot">
-                                        <StockBadge info={info}/>
-                                        <ProductStatus value={p.trangThai}/>
+                                        <StockBadge info={info} />
+                                        <ProductStatus
+                                            value={p.trangThai}
+                                        />
                                     </div>
                                 </button>
                             );
@@ -869,7 +1290,10 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                 )}
 
                 {pages > 1 && (
-                    <nav className="employee-pagination" aria-label="Phân trang">
+                    <nav
+                        className="employee-pagination"
+                        aria-label="Phân trang"
+                    >
                         <button
                             type="button"
                             disabled={safePage <= 1}
@@ -879,13 +1303,15 @@ export function ProductsPage({products, variants, onMenu, preset}) {
                         </button>
 
                         {Array.from(
-                            {length: pages},
+                            { length: pages },
                             (_, index) => index + 1
                         ).map((number) => (
                             <button
                                 key={number}
                                 type="button"
-                                className={safePage === number ? "active" : ""}
+                                className={
+                                    safePage === number ? "active" : ""
+                                }
                                 onClick={() => setPage(number)}
                             >
                                 {number}
@@ -915,10 +1341,18 @@ export function ProductsPage({products, variants, onMenu, preset}) {
     );
 }
 
-function ProductDrawer({product, info, onClose, onSell}) {
+/* =========================================================
+   CHI TIẾT SẢN PHẨM
+========================================================= */
+
+function ProductDrawer({ product, info, onClose, onSell }) {
     useEffect(() => {
-        const onKey = (e) => e.key === "Escape" && onClose();
+        const onKey = (e) => {
+            if (e.key === "Escape") onClose();
+        };
+
         window.addEventListener("keydown", onKey);
+
         return () => window.removeEventListener("keydown", onKey);
     }, [onClose]);
 
@@ -932,8 +1366,15 @@ function ProductDrawer({product, info, onClose, onSell}) {
 
     const variantList = [...info.list].sort(
         (a, b) =>
-            String(a.kichCo?.tenKichCo || "").localeCompare(String(b.kichCo?.tenKichCo || ""), "vi", {numeric: true}) ||
-            String(a.mauSac?.tenMau || "").localeCompare(String(b.mauSac?.tenMau || ""), "vi")
+            String(a.kichCo?.tenKichCo || "").localeCompare(
+                String(b.kichCo?.tenKichCo || ""),
+                "vi",
+                { numeric: true }
+            ) ||
+            String(a.mauSac?.tenMau || "").localeCompare(
+                String(b.mauSac?.tenMau || ""),
+                "vi"
+            )
     );
 
     return (
@@ -946,13 +1387,27 @@ function ProductDrawer({product, info, onClose, onSell}) {
                 onClick={(e) => e.stopPropagation()}
             >
                 <header className="ep-drawer-head">
-                    <Thumb src={product.hinhAnh} name={product.tenSanPham} size={72}/>
+                    <Thumb
+                        src={product.hinhAnh}
+                        name={product.tenSanPham}
+                        size={72}
+                    />
+
                     <div>
                         <h2>{product.tenSanPham}</h2>
-                        <p>ID #{product.id} · {product.maSanPham || `SP${product.id}`}</p>
-                        <ProductStatus value={product.trangThai}/>
+                        <p>
+                            ID #{product.id} ·{" "}
+                            {product.maSanPham || `SP${product.id}`}
+                        </p>
+                        <ProductStatus value={product.trangThai} />
                     </div>
-                    <button type="button" className="ep-close" onClick={onClose} aria-label="Đóng">
+
+                    <button
+                        type="button"
+                        className="ep-close"
+                        onClick={onClose}
+                        aria-label="Đóng"
+                    >
                         ×
                     </button>
                 </header>
@@ -961,11 +1416,16 @@ function ProductDrawer({product, info, onClose, onSell}) {
                     <div className="ep-drawer-summary">
                         <div>
                             <span>Giá bán</span>
-                            <strong>{priceText(info, product.giaBan)}</strong>
+                            <strong>
+                                {priceText(info, product.giaBan)}
+                            </strong>
                         </div>
+
                         <div>
                             <span>Tổng tồn kho</span>
-                            <strong>{info.count ? `${info.stock} đôi` : "-"}</strong>
+                            <strong>
+                                {info.count ? `${info.stock} đôi` : "-"}
+                            </strong>
                         </div>
                     </div>
 
@@ -989,6 +1449,7 @@ function ProductDrawer({product, info, onClose, onSell}) {
 
                     <section>
                         <h3>Biến thể ({variantList.length})</h3>
+
                         {variantList.length ? (
                             <div className="ev-table-wrap">
                                 <table className="ev-table ep-variants">
@@ -1001,19 +1462,46 @@ function ProductDrawer({product, info, onClose, onSell}) {
                                         <th className="num">Tồn</th>
                                     </tr>
                                     </thead>
+
                                     <tbody>
                                     {variantList.map((v) => {
-                                        const qty = Number(v.soLuongTon || 0);
+                                        const qty = Number(
+                                            v.soLuongTon || 0
+                                        );
+
                                         return (
                                             <tr key={v.id}>
-                                                <td className="muted">{v.maSku || "-"}</td>
-                                                <td>{v.kichCo?.tenKichCo || "-"}</td>
-                                                <td>{v.mauSac?.tenMau || "-"}</td>
-                                                <td className="num">{formatMoney(v.giaBan)}</td>
+                                                <td className="muted">
+                                                    {v.maSku || "-"}
+                                                </td>
+
+                                                <td>
+                                                    {v.kichCo?.tenKichCo ||
+                                                        "-"}
+                                                </td>
+
+                                                <td>
+                                                    {v.mauSac?.tenMau ||
+                                                        "-"}
+                                                </td>
+
                                                 <td className="num">
-                                                    <span className={`ep-qty ${qty <= 0 ? "out" : qty <= LOW_STOCK ? "low" : ""}`}>
-                                                        {qty}
-                                                    </span>
+                                                    {formatMoney(v.giaBan)}
+                                                </td>
+
+                                                <td className="num">
+                                                        <span
+                                                            className={`ep-qty ${
+                                                                qty <= 0
+                                                                    ? "out"
+                                                                    : qty <=
+                                                                    LOW_STOCK
+                                                                        ? "low"
+                                                                        : ""
+                                                            }`}
+                                                        >
+                                                            {qty}
+                                                        </span>
                                                 </td>
                                             </tr>
                                         );
@@ -1023,19 +1511,36 @@ function ProductDrawer({product, info, onClose, onSell}) {
                             </div>
                         ) : (
                             <div className="ev-empty compact">
-                                <strong>Sản phẩm chưa có biến thể</strong>
-                                <span>Nhờ quản trị viên thêm size và màu để có thể bán.</span>
+                                <strong>
+                                    Sản phẩm chưa có biến thể
+                                </strong>
+                                <span>
+                                    Nhờ quản trị viên thêm size và màu để có
+                                    thể bán.
+                                </span>
                             </div>
                         )}
                     </section>
                 </div>
 
                 <footer className="ep-drawer-foot">
-                    <button type="button" className="ev-btn" onClick={onClose}>Đóng</button>
+                    <button
+                        type="button"
+                        className="ev-btn"
+                        onClick={onClose}
+                    >
+                        Đóng
+                    </button>
+
                     <button
                         type="button"
                         className="ev-btn ev-btn-primary"
-                        disabled={productStatusKey(product.trangThai) !== "HOAT_DONG" || stockState(info) === "out" || !info.count}
+                        disabled={
+                            productStatusKey(product.trangThai) !==
+                            "HOAT_DONG" ||
+                            stockState(info) === "out" ||
+                            !info.count
+                        }
                         onClick={onSell}
                     >
                         Bán tại quầy

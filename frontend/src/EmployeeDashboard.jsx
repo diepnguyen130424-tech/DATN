@@ -80,12 +80,11 @@ function formatDate(value) {
 async function readJson(url, options) {
     const response = await fetch(url, options);
     const text = await response.text();
-    let data = null;
-
+    let data;
     try {
         data = text ? JSON.parse(text) : null;
     } catch {
-        data = null;
+        // Phản hồi không phải JSON: giữ data là undefined.
     }
 
     if (!response.ok) {
@@ -117,42 +116,6 @@ function PageHeading({eyebrow = "FSHOP NHÂN VIÊN", title, description, action}
                 {description && <p>{description}</p>}
             </div>
             {action}
-        </div>
-    );
-}
-
-function Pagination({page, totalPages, onPageChange}) {
-    return (
-        <div className="employee-pagination">
-            <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => onPageChange(page - 1)}
-            >
-                ←
-            </button>
-
-            {Array.from(
-                {length: totalPages},
-                (_, index) => index + 1
-            ).map((number) => (
-                <button
-                    key={number}
-                    type="button"
-                    className={page === number ? "active" : ""}
-                    onClick={() => onPageChange(number)}
-                >
-                    {number}
-                </button>
-            ))}
-
-            <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => onPageChange(page + 1)}
-            >
-                →
-            </button>
         </div>
     );
 }
@@ -193,12 +156,6 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
         (safePage - 1) * PAGINATION_PAGE_SIZE,
         safePage * PAGINATION_PAGE_SIZE
     );
-    useEffect(() => {
-        setPage(1);
-    }, [search, filter, khoang.from, khoang.to]);
-    useEffect(() => {
-        setPage((current) => Math.min(current, totalPages));
-    }, [totalPages]);
     return (
         <div className="employee-content">
             <PageHeading
@@ -214,7 +171,7 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                             className={`order-status-tab ${filter === label ? "active" : ""} ${
                                 value ? `status-${String(value).toLowerCase()}` : "status-all"
                             }`}
-                            onClick={() => setFilter(label)}
+                            onClick={() => { setFilter(label); setPage(1); }}
                         >
                             {label}
                             <span>
@@ -229,10 +186,10 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                     <input
                         className="hd-search"
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                         placeholder="⌕ Tìm mã đơn, tên, SĐT..."
                     />
-                    <DateRangeFilter from={khoang.from} to={khoang.to} onChange={setKhoang}/>
+                    <DateRangeFilter from={khoang.from} to={khoang.to} onChange={(value) => { setKhoang(value); setPage(1); }}/>
                     <button type="button" className="hd-btn ghost" onClick={() => window.location.reload()}>
                         ↻ Làm mới
                     </button>
@@ -388,12 +345,6 @@ function HoaDonPage({orders, onOpenDetail, onRefresh, refreshing}) {
     const totalPages = Math.max(1, Math.ceil(filtered.length / HD_PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const pageItems = filtered.slice((safePage - 1) * HD_PAGE_SIZE, safePage * HD_PAGE_SIZE);
-    useEffect(() => {
-        setPage(1);
-    }, [search, filterLoai, filterTrangThai, khoang.from, khoang.to]);
-    useEffect(() => {
-        setPage((current) => Math.min(current, totalPages));
-    }, [totalPages]);
     return (
         <div className="employee-content hd-staff">
             <div className="hd-page-head">
@@ -413,23 +364,23 @@ function HoaDonPage({orders, onOpenDetail, onRefresh, refreshing}) {
                     <input
                         className="hd-search"
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                         placeholder="Tìm mã hóa đơn, tên, SĐT, ID khách..."
                     />
-                    <select value={filterTrangThai} onChange={(e) => setFilterTrangThai(e.target.value)}>
+                    <select value={filterTrangThai} onChange={(e) => { setFilterTrangThai(e.target.value); setPage(1); }}>
                         <option value="">Tất cả trạng thái</option>
                         {Object.entries(STATUS_LABEL).map(([value, label]) => (
                             <option key={value} value={value}>{label}</option>
                         ))}
                     </select>
-                    <select value={filterLoai} onChange={(e) => setFilterLoai(e.target.value)}>
+                    <select value={filterLoai} onChange={(e) => { setFilterLoai(e.target.value); setPage(1); }}>
                         <option value="">Tất cả loại</option>
                         <option value="ONLINE">Online</option>
                         <option value="TAI_QUAY">Tại quầy</option>
                     </select>
                 </div>
                 <div className="hd-toolbar" style={{marginBottom: 0}}>
-                    <DateRangeFilter from={khoang.from} to={khoang.to} onChange={setKhoang}/>
+                    <DateRangeFilter from={khoang.from} to={khoang.to} onChange={(value) => { setKhoang(value); setPage(1); }}/>
                 </div>
             </section>
 
@@ -508,7 +459,6 @@ function OrderDetailModal({order, actor, onClose, onOrderChanged, onUpdateStatus
     useEffect(() => {
         if (!orderId) return;
         let mounted = true;
-        setLoading(true);
         Promise.all([
             readJson(`${API}/hoa-don/${orderId}/chi-tiet`).catch(() => []),
             readJson(`${API}/hoa-don/${orderId}/thanh-toan`).catch(() => null),
@@ -665,10 +615,6 @@ export default function EmployeeDashboard({
     const [activeMenu, setActiveMenu] = useState("dashboard");
     const [employees, setEmployees] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [customers, setCustomers] = useState([]);
-    const [products, setProducts] = useState([]);
-    const [variants, setVariants] = useState([]);
-    const [productPreset, setProductPreset] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [error, setError] = useState("");
@@ -686,16 +632,15 @@ export default function EmployeeDashboard({
 
     const loadData = async (silent = false) => {
         try {
-            if (!silent) setLoading(true);
-            setError("");
+            if (!silent) {
+                setLoading(true);
+                setError("");
+            }
 
-            const [employeeData, orderData, customerData, productData, variantData] =
+            const [employeeData, orderData] =
                 await Promise.all([
                     readJson(`${API}/nhan-vien`),
                     readJson(`${API}/hoa-don`),
-                    readJson(`${API}/khach-hang`),
-                    readJson(`${API}/san-pham`),
-                    readJson(`${API}/san-pham-chi-tiet`).catch(() => []),
                 ]);
 
             setEmployees(Array.isArray(employeeData) ? employeeData : []);
@@ -706,9 +651,6 @@ export default function EmployeeDashboard({
                         new Date(a.ngayLap || a.ngayCapNhat || 0)
                 )
             );
-            setCustomers(Array.isArray(customerData) ? customerData : []);
-            setProducts(Array.isArray(productData) ? productData : []);
-            setVariants(Array.isArray(variantData) ? variantData : []);
         } catch (err) {
             console.error(err);
             setError(err.message || "Không thể tải dữ liệu nhân viên.");
@@ -718,7 +660,38 @@ export default function EmployeeDashboard({
     };
 
     useEffect(() => {
-        loadData();
+        let cancelled = false;
+
+        const fetchInitialData = async () => {
+            try {
+                const [employeeData, orderData] = await Promise.all([
+                    readJson(`${API}/nhan-vien`),
+                    readJson(`${API}/hoa-don`),
+                ]);
+
+                if (cancelled) return;
+                setEmployees(Array.isArray(employeeData) ? employeeData : []);
+                setOrders(
+                    (Array.isArray(orderData) ? orderData : []).sort(
+                        (a, b) =>
+                            new Date(b.ngayLap || b.ngayCapNhat || 0) -
+                            new Date(a.ngayLap || a.ngayCapNhat || 0)
+                    )
+                );
+            } catch (err) {
+                if (!cancelled) {
+                    console.error(err);
+                    setError(err.message || "Không thể tải dữ liệu nhân viên.");
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        void fetchInitialData();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     // Đếm tin nhắn khách chưa đọc để hiện huy hiệu ở menu (khi không ở trang Phản hồi)
@@ -781,8 +754,7 @@ export default function EmployeeDashboard({
         );
         setSelectedOrder(updated);
     };
-    const goTo = (menu, preset = null) => {
-        setProductPreset(preset);
+    const goTo = (menu) => {
         setActiveMenu(menu);
     };
 

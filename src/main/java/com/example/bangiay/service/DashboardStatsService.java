@@ -47,47 +47,19 @@ public class DashboardStatsService {
         LocalDateTime start = from == null ? null : from.atStartOfDay();
         LocalDateTime end = to == null ? null : to.plusDays(1).atStartOfDay();
 
-        List<HoaDon> allInvoices = hoaDonRepository.findAll();
-        List<ThanhToan> allPayments = thanhToanRepository.findAll();
-
-        Map<Long, ThanhToan> paymentByInvoiceId = allPayments.stream()
-                .filter(p -> p.getHoaDon() != null && p.getHoaDon().getId() != null)
+        // Lọc ngay tại database thay vì tải toàn bộ hóa đơn/thanh toán rồi lọc trong Java.
+        List<HoaDon> filteredInvoices = hoaDonRepository.findForDashboardExport(
+                start, end, normalize(status), normalize(orderType), normalize(paymentMethod)
+        );
+        List<Long> filteredInvoiceIds = filteredInvoices.stream()
+                .map(HoaDon::getId).filter(Objects::nonNull).toList();
+        Map<Long, ThanhToan> paymentByInvoiceId = filteredInvoiceIds.isEmpty()
+                ? Collections.emptyMap()
+                : thanhToanRepository.findByHoaDon_IdIn(filteredInvoiceIds).stream()
+                .filter(payment -> payment.getHoaDon() != null && payment.getHoaDon().getId() != null)
                 .collect(Collectors.toMap(
-                        p -> p.getHoaDon().getId(),
-                        p -> p,
-                        (first, ignored) -> first
+                        payment -> payment.getHoaDon().getId(), payment -> payment, (first, ignored) -> first
                 ));
-
-        String normalizedStatus = normalize(status);
-        String normalizedType = normalize(orderType);
-        String normalizedPayment = normalize(paymentMethod);
-
-        List<HoaDon> filteredInvoices = allInvoices.stream()
-                .filter(invoice -> {
-                    LocalDateTime date = invoice.getNgayLap();
-                    if (date == null) date = invoice.getNgayCapNhat();
-                    if (start != null && (date == null || date.isBefore(start))) return false;
-                    if (end != null && (date == null || !date.isBefore(end))) return false;
-
-                    if (!normalizedStatus.isEmpty()
-                            && !normalizedStatus.equals(normalize(invoice.getTrangThai()))) return false;
-
-                    if (!normalizedType.isEmpty()
-                            && !normalizedType.equals(normalize(invoice.getLoaiHoaDon()))) return false;
-
-                    if (!normalizedPayment.isEmpty()) {
-                        ThanhToan payment = paymentByInvoiceId.get(invoice.getId());
-                        if (payment == null
-                                || !normalizedPayment.equals(normalize(payment.getPhuongThuc()))) return false;
-                    }
-                    return true;
-                })
-                .sorted(Comparator.comparing(
-                        (HoaDon invoice) -> invoice.getNgayLap() != null
-                                ? invoice.getNgayLap()
-                                : Optional.ofNullable(invoice.getNgayCapNhat()).orElse(LocalDateTime.MIN)
-                ).reversed())
-                .toList();
 
         List<HoaDon> revenueInvoices = filteredInvoices.stream()
                 .filter(this::isRevenueInvoice)
@@ -159,8 +131,10 @@ public class DashboardStatsService {
         }
 
         Map<Long, Map<String, Object>> productSales = new HashMap<>();
-        List<ChiTietHoaDon> allInvoiceDetails = chiTietHoaDonRepository.findAll();
-        for (ChiTietHoaDon detail : allInvoiceDetails) {
+        List<ChiTietHoaDon> revenueDetails = revenueIds.isEmpty()
+                ? Collections.emptyList()
+                : chiTietHoaDonRepository.findByHoaDon_IdIn(new ArrayList<>(revenueIds));
+        for (ChiTietHoaDon detail : revenueDetails) {
             if (detail.getHoaDon() == null || !revenueIds.contains(detail.getHoaDon().getId())) continue;
             if (detail.getSanPhamChiTiet() == null
                     || detail.getSanPhamChiTiet().getSanPham() == null) continue;
@@ -182,7 +156,7 @@ public class DashboardStatsService {
         }
 
         Map<Long, Map<String, Object>> brandSales = new HashMap<>();
-        for (ChiTietHoaDon detail : allInvoiceDetails) {
+        for (ChiTietHoaDon detail : revenueDetails) {
             if (detail.getHoaDon() == null || !revenueIds.contains(detail.getHoaDon().getId())) continue;
             SanPhamChiTiet variant = detail.getSanPhamChiTiet();
             if (variant == null || variant.getSanPham() == null
@@ -209,10 +183,9 @@ public class DashboardStatsService {
                 .toList();
 
         Map<Long, Long> inventory = new HashMap<>();
-        for (SanPhamChiTiet variant : sanPhamChiTietRepository.findAll()) {
-            if (variant.getSanPham() == null || variant.getSanPham().getId() == null) continue;
-            long quantity = variant.getSoLuongTon() == null ? 0L : Math.max(0, variant.getSoLuongTon());
-            inventory.merge(variant.getSanPham().getId(), quantity, Long::sum);
+        for (Object[] row : sanPhamChiTietRepository.sumInventoryByProduct()) {
+            if (row[0] == null) continue;
+            inventory.put(((Number) row[0]).longValue(), row[1] == null ? 0L : ((Number) row[1]).longValue());
         }
 
         List<Map<String, Object>> products = sanPhamRepository.findAll().stream()

@@ -39,7 +39,7 @@ function formatMoney(value) {
     return new Intl.NumberFormat("vi-VN").format(Number(value || 0)) + "đ";
 }
 
-export default function AdminSettings() {
+export default function AdminSettings({ onLogout }) {
     const [activeTab, setActiveTab] = useState("tai-khoan");
     const [settings, setSettings] = useState(loadSettings);
     const [saved, setSaved] = useState(false);
@@ -355,8 +355,8 @@ export default function AdminSettings() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        localStorage.removeItem("taiKhoan");
-                                        window.location.reload();
+                                        if (onLogout) onLogout();
+                                        else localStorage.removeItem("taiKhoan");
                                     }}
                                 >
                                     Đăng xuất

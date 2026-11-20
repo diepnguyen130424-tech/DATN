@@ -1,9 +1,3 @@
-/* =========================================================
-   FSHOP — Cart.css
-   Gồm: ô số lượng + modal sửa màu/size + item sản phẩm
-   ========================================================= */
-
-/* ============ Ô SỐ LƯỢNG TRONG GIỎ HÀNG ============ */
 .cart-quantity {
     display: inline-flex;
     align-items: center;

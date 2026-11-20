@@ -4,6 +4,7 @@ import com.example.bangiay.entity.SanPhamChiTiet;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
@@ -11,6 +12,14 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SanPhamChiTietRepository extends JpaRepository<SanPhamChiTiet, Long> {
+
+    @EntityGraph(attributePaths = {"sanPham", "sanPham.thuongHieu", "sanPham.danhMuc", "mauSac", "kichCo"})
+    @Query("select variant from SanPhamChiTiet variant")
+    List<SanPhamChiTiet> findAllWithRelations();
+
+    @Query("select variant.sanPham.id, coalesce(sum(variant.soLuongTon), 0L) " +
+            "from SanPhamChiTiet variant where variant.sanPham is not null group by variant.sanPham.id")
+    List<Object[]> sumInventoryByProduct();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select spct from SanPhamChiTiet spct where spct.id = :id")

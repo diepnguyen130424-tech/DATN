@@ -245,6 +245,7 @@ function AdminProducts() {
                 mauSacId: String(variant.mauSac?.id || ""),
                 giaBan: String(variant.giaBan ?? ""),
                 soLuongTon: String(variant.soLuongTon ?? 0),
+                originalSoLuongTon: Number(variant.soLuongTon ?? 0),
                 maSku: variant.maSku || "",
                 trangThai: variant.trangThai || "HOAT_DONG",
             })) : [];
@@ -264,8 +265,7 @@ function AdminProducts() {
 
     const addVariantDraft = () => setVariantDrafts((current) => [...current, emptyVariantDraft()]);
 
-    // Giá chung áp dụng cho tất cả; số lượng chung chỉ áp dụng cho biến thể mới.
-    // Tồn kho của biến thể đã tồn tại cần được điều chỉnh tại mục Kho hàng.
+    // Giá chung và số lượng chung áp dụng cho tất cả biến thể đang hiển thị.
     const applyCommonValues = () => {
         const hasPrice = quickPrice !== "";
         const hasQuantity = quickQuantity !== "";
@@ -286,7 +286,7 @@ function AdminProducts() {
         setVariantDrafts((current) => current.map((row) => ({
             ...row,
             ...(hasPrice ? { giaBan: quickPrice } : {}),
-            ...(hasQuantity && !row.id ? { soLuongTon: quickQuantity } : {}),
+            ...(hasQuantity ? { soLuongTon: quickQuantity } : {}),
         })));
     };
 
@@ -382,14 +382,16 @@ function AdminProducts() {
             alert("Giá bán của từng biến thể phải lớn hơn 0.");
             return;
         }
-        if (validDrafts.some((row) => !row.id && (!Number.isInteger(Number(row.soLuongTon || 0)) || Number(row.soLuongTon || 0) < 0))) {
-            alert("Số lượng phải là số nguyên lớn hơn hoặc bằng 0.");
+        if (validDrafts.some((row) => !Number.isInteger(Number(row.soLuongTon)) || Number(row.soLuongTon) < 0)) {
+            alert("Số lượng của mọi biến thể phải là số nguyên lớn hơn hoặc bằng 0.");
             return;
         }
-        const newStockTotal = validDrafts.filter((row) => !row.id)
-            .reduce((sum, row) => sum + Math.max(0, Number(row.soLuongTon) || 0), 0);
-        if (newStockTotal > 0 && !warehouses[0]?.id) {
-            alert("Chưa có kho hàng mặc định. Hãy tạo kho trong mục Kho hàng trước khi nhập số lượng ban đầu.");
+        const hasStockChanges = validDrafts.some((row) => {
+            const oldQuantity = row.id ? Number(row.originalSoLuongTon ?? row.soLuongTon) : 0;
+            return Number(row.soLuongTon) !== oldQuantity;
+        });
+        if (hasStockChanges && !warehouses[0]?.id) {
+            alert("Chưa có kho hàng mặc định. Hãy tạo kho trong mục Kho hàng trước khi điều chỉnh số lượng.");
             return;
         }
 
@@ -421,7 +423,7 @@ function AdminProducts() {
                 throw new Error(savedProduct?.message || savedProduct?.error || responseText || "Lưu sản phẩm thất bại");
             }
 
-            const stockImportItems = [];
+            const stockAdjustmentItems = [];
             for (const row of validDrafts) {
                 const isNewVariant = !row.id;
                 const sku = row.maSku || taoMaSku(savedProduct.maSanPham || form.maSanPham, row.kichCoId, row.mauSacId);
@@ -431,8 +433,8 @@ function AdminProducts() {
                     mauSac: { id: Number(row.mauSacId) },
                     maSku: sku,
                     giaBan: Number(row.giaBan),
-                    // Tồn kho hiện có chỉ được điều chỉnh qua mục Kho hàng.
-                    soLuongTon: isNewVariant ? 0 : Math.max(0, Number(row.soLuongTon) || 0),
+                    // Số lượng được cập nhật bằng phiếu điều chỉnh kho bên dưới để lưu lịch sử tồn kho.
+                    soLuongTon: 0,
                     trangThai: row.trangThai || "HOAT_DONG",
                 };
                 const variantResponse = await fetch(
@@ -449,33 +451,41 @@ function AdminProducts() {
                 if (!variantResponse.ok || !savedVariant?.id) {
                     throw new Error(savedVariant?.message || savedVariant?.error || variantText || `Không lưu được biến thể ${sku}`);
                 }
-                const initialStock = isNewVariant ? Math.max(0, Number(row.soLuongTon) || 0) : 0;
-                if (initialStock > 0) {
-                    stockImportItems.push({
+                const previousQuantity = isNewVariant
+                    ? 0
+                    : Number(row.originalSoLuongTon ?? row.soLuongTon);
+                const requestedQuantity = Number(row.soLuongTon);
+                const quantityDelta = requestedQuantity - previousQuantity;
+                if (quantityDelta !== 0) {
+                    stockAdjustmentItems.push({
                         sanPhamChiTietId: savedVariant.id,
-                        soLuong: initialStock,
+                        // DIEU_CHINH nhận số dương để tăng và số âm để giảm tồn kho.
+                        soLuong: quantityDelta,
                         donGia: Number(row.giaBan),
                     });
                 }
             }
 
-            // Ghi tồn ban đầu qua phiếu nhập để đồng bộ cả bảng tồn kho và lịch sử biến động.
-            if (stockImportItems.length > 0) {
-                const importResponse = await fetch(`${API}/kho/phieu`, {
+            // Dùng phiếu điều chỉnh kho để đồng bộ tồn biến thể, bảng tồn kho và lịch sử biến động.
+            // Số lượng âm là giảm tồn; số lượng dương là tăng tồn.
+            if (stockAdjustmentItems.length > 0) {
+                const adjustmentResponse = await fetch(`${API}/kho/phieu`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        maPhieu: `NK-${Date.now()}`,
-                        loaiPhieu: "NHAP",
+                        maPhieu: `DC-${Date.now()}`,
+                        loaiPhieu: "DIEU_CHINH",
                         khoId: Number(warehouses[0].id),
-                        lyDo: "Nhập tồn kho ban đầu khi tạo biến thể sản phẩm",
-                        ghiChu: `Tạo từ màn hình quản lý sản phẩm ${savedProduct.maSanPham || form.maSanPham}`,
-                        chiTiet: stockImportItems,
+                        lyDo: "Điều chỉnh số lượng khi sửa sản phẩm",
+                        ghiChu: `Điều chỉnh từ màn hình quản lý sản phẩm ${savedProduct.maSanPham || form.maSanPham}`,
+                        chiTiet: stockAdjustmentItems,
                     }),
                 });
-                const importText = await importResponse.text();
-                if (!importResponse.ok) {
-                    throw new Error(importText || "Đã lưu sản phẩm/biến thể nhưng chưa nhập được tồn kho. Vui lòng vào Kho hàng để nhập bổ sung.");
+                const adjustmentText = await adjustmentResponse.text();
+                if (!adjustmentResponse.ok) {
+                    let adjustmentError = null;
+                    try { adjustmentError = adjustmentText ? JSON.parse(adjustmentText) : null; } catch { adjustmentError = null; }
+                    throw new Error(adjustmentError?.message || adjustmentError?.error || adjustmentText || "Không thể điều chỉnh tồn kho. Vui lòng kiểm tra lại số lượng và kho hàng.");
                 }
             }
 
@@ -1174,7 +1184,7 @@ function AdminProducts() {
                                 <div className="variant-quick-entry">
                                     <div className="variant-quick-entry-title">
                                         <strong>Nhập nhanh cho biến thể</strong>
-                                        <span>Giá áp dụng cho tất cả; số lượng áp dụng cho biến thể mới.</span>
+                                        <span>Giá và số lượng áp dụng cho tất cả biến thể.</span>
                                     </div>
                                     <div className="variant-quick-entry-fields">
                                         <label>
@@ -1209,7 +1219,7 @@ function AdminProducts() {
                                     <div className="product-variant-draft" key={row.id || `new-${index}`}>
                                         <div className="variant-draft-title">
                                             <strong>{row.id ? `Biến thể ${row.maSku || index + 1}` : `Biến thể mới ${index + 1}`}</strong>
-                                            {row.id ? <span>Đang có {Number(row.soLuongTon || 0)} đôi trong kho</span> : <span>SKU sẽ tự tạo khi lưu</span>}
+                                            {row.id ? null : <span>SKU sẽ tự tạo khi lưu</span>}
                                         </div>
                                         <div className="variant-draft-fields">
                                             <label>
@@ -1236,8 +1246,8 @@ function AdminProducts() {
                                             </label>
                                             <label>
                                                 Số lượng
-                                                <input type="number" min="0" step="1" value={row.soLuongTon} disabled={Boolean(row.id)} onChange={(event) => updateVariantDraft(index, "soLuongTon", event.target.value)} placeholder="0" />
-                                                {row.id ? <small>Điều chỉnh tồn kho hiện tại trong mục Kho hàng.</small> : <small>Số lượng sẽ được ghi nhận vào kho khi lưu.</small>}
+                                                <input type="number" min="0" step="1" value={row.soLuongTon} onChange={(event) => updateVariantDraft(index, "soLuongTon", event.target.value)} placeholder="0" />
+
                                             </label>
                                         </div>
                                         <div className="variant-draft-footer">

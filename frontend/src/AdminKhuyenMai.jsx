@@ -63,6 +63,13 @@ function writeCache(data) {
     try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, time: Date.now() })); } catch {}
 }
 
+function SortIcon({ active, direction }) {
+    if (!active) {
+        return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
+    }
+    return <span style={{ marginLeft: 4 }}>{direction === "asc" ? "↑" : "↓"}</span>;
+}
+
 export default function AdminKhuyenMai() {
     const [danhSach, setDanhSach] = useState(() => readCache() || []);
     const [loading, setLoading] = useState(() => !readCache());
@@ -142,34 +149,47 @@ export default function AdminKhuyenMai() {
 
     useEffect(() => {
         if (activeSanPhamIds.length === 0) {
-            setBienTheTheoSanPham({});
+            if (Object.keys(bienTheTheoSanPham).length > 0) {
+                setBienTheTheoSanPham({});
+            }
             return;
         }
 
+        let cancelled = false;
+
         const fetchVariants = async () => {
-            const newData = { ...bienTheTheoSanPham };
-            for (const id of activeSanPhamIds) {
-                if (!newData[id]) {
+            const missingIds = activeSanPhamIds.filter(
+                (id) => !bienTheTheoSanPham[id]
+            );
+
+            if (missingIds.length === 0) return;
+
+            const results = {};
+
+            await Promise.all(
+                missingIds.map(async (id) => {
                     try {
                         const res = await fetch(`${API}/san-pham-chi-tiet/san-pham/${id}`);
-                        if (res.ok) {
-                            const data = await res.json();
-                            newData[id] = data;
-                        } else {
-                            newData[id] = [];
-                        }
+                        results[id] = res.ok ? await res.json() : [];
                     } catch {
-                        newData[id] = [];
+                        results[id] = [];
                     }
-                }
+                })
+            );
+
+            if (!cancelled) {
+                setBienTheTheoSanPham((prev) => ({ ...prev, ...results }));
             }
-            setBienTheTheoSanPham(newData);
         };
 
-        fetchVariants();
-    }, [activeSanPhamIds]);
+        void fetchVariants();
 
-    useEffect(() => { loadDanhSach(); }, []);
+        return () => {
+            cancelled = true;
+        };
+    }, [activeSanPhamIds, bienTheTheoSanPham]);
+
+    useEffect(() => { void loadDanhSach(); }, []);
 
     const openCreate = () => {
         setEditing(null);
@@ -362,12 +382,6 @@ export default function AdminKhuyenMai() {
     const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const showSkeleton = loading && danhSach.length === 0;
 
-    // Component Icon Sắp xếp nhỏ
-    const SortIcon = ({ columnKey }) => {
-        if (sortConfig.key !== columnKey) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
-        return <span style={{ marginLeft: 4 }}>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>;
-    };
-
     return (
         <div className="km-container">
             {/* HEADER */}
@@ -421,7 +435,7 @@ export default function AdminKhuyenMai() {
                                 style={{ cursor: 'pointer', userSelect: 'none' }}
                                 title="Click để sắp xếp theo ID"
                             >
-                                ID <SortIcon columnKey="id" />
+                                ID <SortIcon active={sortConfig.key === "id"} direction={sortConfig.direction} />
                             </th>
 
                             {/* ⭐ CỘT TÊN CÓ THỂ CLICK ĐỂ SẮP XẾP */}
@@ -430,7 +444,7 @@ export default function AdminKhuyenMai() {
                                 style={{ cursor: 'pointer', userSelect: 'none' }}
                                 title="Click để sắp xếp theo Tên"
                             >
-                                Tên chương trình <SortIcon columnKey="tenChuongTrinh" />
+                                Tên chương trình <SortIcon active={sortConfig.key === "tenChuongTrinh"} direction={sortConfig.direction} />
                             </th>
 
                             <th>Loại giảm</th>

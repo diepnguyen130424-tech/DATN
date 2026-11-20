@@ -140,7 +140,6 @@ export default function AdminKho() {
             setSelectedPhieu(data);
         } catch (e) {
             alert(e.message || "Không tải được chi tiết phiếu");
-        } finally {
         }
     };
 
