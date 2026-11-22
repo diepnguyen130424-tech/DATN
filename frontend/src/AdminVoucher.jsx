@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_voucher_cache";
 const CACHE_TTL = 60 * 1000;
-const SAP_HET_HAN_NGAY = 3;
 
 function formatSoTienInput(value) {
     if (!value) return "";
@@ -50,21 +49,16 @@ function isKichHoat(v) {
     return v.trangThai !== "NGUNG_HOAT_DONG";
 }
 
+// Trạng thái THEO THỜI GIAN: sắp diễn ra - đang diễn ra - đã kết thúc
 function getComputedStatus(v) {
-    if (v.trangThai === "NGUNG_HOAT_DONG") return "NGUNG_SU_DUNG";
-    const now = new Date().getTime();
+    const now = Date.now();
     if (v.ngayBatDau) {
         const start = new Date(v.ngayBatDau).getTime();
         if (!Number.isNaN(start) && now < start) return "SAP_DIEN_RA";
     }
     if (v.ngayKetThuc) {
         const end = new Date(v.ngayKetThuc).getTime();
-        if (!Number.isNaN(end)) {
-            if (now > end) return "DA_KET_THUC";
-            const diff = end - now;
-            const threshold = SAP_HET_HAN_NGAY * 24 * 60 * 60 * 1000;
-            if (diff <= threshold) return "SAP_HET_HAN";
-        }
+        if (!Number.isNaN(end) && now > end) return "DA_KET_THUC";
     }
     return "DANG_DIEN_RA";
 }
@@ -72,32 +66,38 @@ function getComputedStatus(v) {
 function getTrangThaiClass(trangThai) {
     if (trangThai === "DANG_DIEN_RA") return "active";
     if (trangThai === "SAP_DIEN_RA") return "pending";
-    if (trangThai === "SAP_HET_HAN") return "warning";
     if (trangThai === "DA_KET_THUC") return "inactive";
-    if (trangThai === "NGUNG_SU_DUNG") return "inactive";
     return "";
 }
 
 function getTrangThaiLabel(trangThai) {
     if (trangThai === "DANG_DIEN_RA") return "Đang diễn ra";
     if (trangThai === "SAP_DIEN_RA") return "Sắp diễn ra";
-    if (trangThai === "SAP_HET_HAN") return "Sắp hết hạn";
     if (trangThai === "DA_KET_THUC") return "Đã kết thúc";
-    if (trangThai === "NGUNG_SU_DUNG") return "Ngưng sử dụng";
     return trangThai;
 }
+
+const BADGE_BASE = {
+    padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+    whiteSpace: "nowrap", display: "inline-block", textAlign: "center",
+};
 
 function getTrangThaiBadgeStyle(trangThai) {
     const styles = {
         DANG_DIEN_RA: { background: "#eaf7ed", color: "#24833b" },
         SAP_DIEN_RA: { background: "#fff3cd", color: "#856404" },
-        SAP_HET_HAN: { background: "#ffe8d1", color: "#c05600" },
         DA_KET_THUC: { background: "#f0f0f0", color: "#666666" },
-        NGUNG_SU_DUNG: { background: "#fdecea", color: "#c0392b" },
     };
+    return { ...BADGE_BASE, ...(styles[trangThai] || {}) };
+}
+
+// Trạng thái HOẠT ĐỘNG (bật/tắt thủ công): hoạt động - không hoạt động
+function getHoatDongBadgeStyle(active) {
     return {
-        padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700,
-        whiteSpace: "nowrap", display: "inline-block", textAlign: "center", ...(styles[trangThai] || {}),
+        ...BADGE_BASE,
+        ...(active
+            ? { background: "#eaf7ed", color: "#24833b" }
+            : { background: "#fdecea", color: "#c0392b" }),
     };
 }
 
@@ -143,6 +143,7 @@ export default function AdminVoucher() {
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
+    const [filterHoatDong, setFilterHoatDong] = useState("TAT_CA");
     const [filterStartDate, setFilterStartDate] = useState("");
     const [filterEndDate, setFilterEndDate] = useState("");
 
@@ -297,8 +298,8 @@ export default function AdminVoucher() {
     const handleToggleActive = async (v) => {
         const active = isKichHoat(v);
         const confirmMsg = active
-            ? `Ngưng sử dụng voucher "${v.maVoucher}"?\n\nKhách hàng sẽ nhận được thông báo và KHÔNG thể sử dụng voucher này nữa.`
-            : `Kích hoạt lại voucher "${v.maVoucher}"?\n\nKhách hàng sẽ nhận được thông báo và có thể sử dụng voucher (nếu còn trong thời gian hiệu lực).`;
+            ? `Chuyển voucher "${v.maVoucher}" sang KHÔNG HOẠT ĐỘNG?\n\nKhách hàng sẽ nhận được thông báo và KHÔNG thể sử dụng voucher này nữa.`
+            : `Chuyển voucher "${v.maVoucher}" sang HOẠT ĐỘNG?\n\nKhách hàng sẽ nhận được thông báo và có thể sử dụng voucher (nếu còn trong thời gian hiệu lực).`;
 
         if (!window.confirm(confirmMsg)) return;
         const newTrangThai = active ? "NGUNG_HOAT_DONG" : "HOAT_DONG";
@@ -338,13 +339,14 @@ export default function AdminVoucher() {
         const matchKw = !kw || v.maVoucher?.toLowerCase().includes(kw) || v.tenVoucher?.toLowerCase().includes(kw);
         const computedStatus = getComputedStatus(v);
         const matchTT = filterTrangThai === "TAT_CA" || computedStatus === filterTrangThai;
+        const matchHD = filterHoatDong === "TAT_CA" || (filterHoatDong === "HOAT_DONG") === isKichHoat(v);
         let matchTime = true;
         if (v.ngayBatDau) {
             const vDate = new Date(v.ngayBatDau).setHours(0, 0, 0, 0);
             if (filterStartDate) { const fStart = new Date(filterStartDate).setHours(0, 0, 0, 0); if (vDate < fStart) matchTime = false; }
             if (filterEndDate) { const fEnd = new Date(filterEndDate).setHours(23, 59, 59, 999); if (vDate > fEnd) matchTime = false; }
         } else if (filterStartDate || filterEndDate) matchTime = false;
-        return matchKw && matchTT && matchTime;
+        return matchKw && matchTT && matchHD && matchTime;
     }).sort((a, b) => {
         if (sortConfig.key === "id") return sortConfig.direction === "asc" ? a.id - b.id : b.id - a.id;
         if (sortConfig.key === "maVoucher") {
@@ -356,13 +358,13 @@ export default function AdminVoucher() {
     });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-    useEffect(() => { setCurrentPage(1); }, [search, filterTrangThai, filterStartDate, filterEndDate, sortConfig]);
+    useEffect(() => { setCurrentPage(1); }, [search, filterTrangThai, filterHoatDong, filterStartDate, filterEndDate, sortConfig]);
     useEffect(() => { setCurrentPage((page) => Math.min(page, totalPages)); }, [totalPages]);
 
     const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const showSkeleton = loading && danhSach.length === 0;
 
-    const TOTAL_COLS = 8;
+    const TOTAL_COLS = 9;
     const tableStyle = { minWidth: "1100px", borderCollapse: "separate", borderSpacing: "0" };
 
     // Cố định độ rộng cột Trạng thái và Thao tác để không bị ép chữ
@@ -387,9 +389,12 @@ export default function AdminVoucher() {
                     <option value="TAT_CA">Tất cả trạng thái</option>
                     <option value="SAP_DIEN_RA">Sắp diễn ra</option>
                     <option value="DANG_DIEN_RA">Đang diễn ra</option>
-                    <option value="SAP_HET_HAN">Sắp hết hạn</option>
                     <option value="DA_KET_THUC">Đã kết thúc</option>
-                    <option value="NGUNG_SU_DUNG">Ngưng sử dụng</option>
+                </select>
+                <select value={filterHoatDong} onChange={(e) => setFilterHoatDong(e.target.value)}>
+                    <option value="TAT_CA">Tất cả hoạt động</option>
+                    <option value="HOAT_DONG">Hoạt động</option>
+                    <option value="NGUNG_HOAT_DONG">Không hoạt động</option>
                 </select>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#fff", padding: "0 10px", border: "1px solid #ddd", borderRadius: "4px" }}>
@@ -406,8 +411,8 @@ export default function AdminVoucher() {
                     <table className="admin-table" style={tableStyle}>
                         <thead>
                         <tr>
-                            <th>ID</th><th>Mã</th><th>Tên</th><th>Mức giảm</th><th>Điều kiện</th><th>Thời gian</th><th style={colStatusStyle}>Trạng thái</th>
-                            <th style={stickyTh}>Thao tác & Kích hoạt</th>
+                            <th>ID</th><th>Mã</th><th>Tên</th><th>Mức giảm</th><th>Điều kiện</th><th>Thời gian</th><th style={colStatusStyle}>Trạng thái</th><th style={colStatusStyle}>Hoạt động</th>
+                            <th style={stickyTh}>Thao tác</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -443,8 +448,8 @@ export default function AdminVoucher() {
                             <th>Mức giảm</th>
                             <th>Điều kiện</th>
                             <th>Thời gian</th>
-                            <th style={colStatusStyle}>Trạng thái</th>
-                            <th style={stickyTh}>Thao tác & Kích hoạt</th>
+                            <th style={colStatusStyle}>Trạng thái</th><th style={colStatusStyle}>Hoạt động</th>
+                            <th style={stickyTh}>Thao tác</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -479,11 +484,15 @@ export default function AdminVoucher() {
                                     </td>
 
                                     <td style={colStatusStyle}>
-                                            <span className={`order-status ${getTrangThaiClass(computedStatus)}`} style={getTrangThaiBadgeStyle(computedStatus)}>
-                                                {computedStatus === "SAP_HET_HAN" && "⏰ "}
-                                                {computedStatus === "NGUNG_SU_DUNG" && "⛔ "}
-                                                {getTrangThaiLabel(computedStatus)}
-                                            </span>
+                                        <span className={`order-status ${getTrangThaiClass(computedStatus)}`} style={getTrangThaiBadgeStyle(computedStatus)}>
+                                            {getTrangThaiLabel(computedStatus)}
+                                        </span>
+                                    </td>
+
+                                    <td style={colStatusStyle}>
+                                        <span style={getHoatDongBadgeStyle(active)}>
+                                            {active ? "Hoạt động" : "Không hoạt động"}
+                                        </span>
                                     </td>
 
                                     <td style={stickyTd}>
@@ -508,7 +517,7 @@ export default function AdminVoucher() {
                                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                                 <button
                                                     type="button" onClick={() => handleToggleActive(v)} disabled={isToggling}
-                                                    title={active ? "Ngưng sử dụng" : "Kích hoạt"}
+                                                    title={active ? "Chuyển sang không hoạt động" : "Chuyển sang hoạt động"}
                                                     style={{
                                                         width: "36px", height: "20px", borderRadius: "10px", border: "none", position: "relative",
                                                         cursor: isToggling ? "wait" : "pointer", transition: "0.3s",
@@ -521,9 +530,6 @@ export default function AdminVoucher() {
                                                             transition: "0.3s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
                                                         }} />
                                                 </button>
-                                                <span style={{ fontSize: "12px", fontWeight: 600, color: active ? "#24833b" : "#888", width: "30px" }}>
-                                                        {active ? "Bật" : "Tắt"}
-                                                    </span>
                                             </div>
                                         </div>
                                     </td>
@@ -583,7 +589,7 @@ export default function AdminVoucher() {
                             <Field label="Số lượng *"><input className="price-input" type="number" value={form.soLuong} onChange={(e) => handleChange("soLuong", e.target.value)} placeholder="VD: 100" /></Field>
                             <Field label="Ngày bắt đầu"><input className="price-input" type="datetime-local" value={form.ngayBatDau} onChange={(e) => handleChange("ngayBatDau", e.target.value)} /></Field>
                             <Field label="Ngày kết thúc"><input className="price-input" type="datetime-local" value={form.ngayKetThuc} onChange={(e) => handleChange("ngayKetThuc", e.target.value)} /></Field>
-                            <Field label="Kích hoạt"><select className="price-input" value={form.trangThai} onChange={(e) => handleChange("trangThai", e.target.value)}><option value="HOAT_DONG">✓ Hoạt động</option><option value="NGUNG_HOAT_DONG">⛔ Không hoạt động</option></select></Field>
+                            <Field label="Hoạt động"><select className="price-input" value={form.trangThai} onChange={(e) => handleChange("trangThai", e.target.value)}><option value="HOAT_DONG">Hoạt động</option><option value="NGUNG_HOAT_DONG">Không hoạt động</option></select></Field>
                         </div>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
                             <button type="button" onClick={closeModal} disabled={saving} style={{ padding: "10px 20px", border: "1px solid #ddd", borderRadius: 8, background: "#fff", cursor: "pointer" }}>Hủy</button>

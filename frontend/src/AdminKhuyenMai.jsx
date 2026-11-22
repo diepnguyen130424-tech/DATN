@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect, no-empty */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./AdminKhuyenMai.css";
 
 const API = "http://localhost:8080/api";
@@ -49,6 +49,15 @@ function getTrangThaiLabel(trangThai) {
     return "Hết hạn";
 }
 
+// Bỏ dấu tiếng Việt để tìm kiếm "giay" vẫn ra "Giày"
+function boDau(str) {
+    return String(str || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d");
+}
+
 function readCache() {
     try {
         const raw = sessionStorage.getItem(CACHE_KEY);
@@ -75,7 +84,7 @@ export default function AdminKhuyenMai() {
     const [loading, setLoading] = useState(() => !readCache());
     const [error, setError] = useState("");
 
-    const [showModal, setShowModal] = useState(false);
+    const [view, setView] = useState("list"); // "list" | "form"
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
@@ -85,6 +94,11 @@ export default function AdminKhuyenMai() {
     const [activeSanPhamIds, setActiveSanPhamIds] = useState([]);
     const [bienTheTheoSanPham, setBienTheTheoSanPham] = useState({});
     const [selectedBienTheIds, setSelectedBienTheIds] = useState([]);
+
+    // Tìm kiếm / lọc sản phẩm trong trang thêm - sửa
+    const [spSearch, setSpSearch] = useState("");
+    const [spBrand, setSpBrand] = useState("TAT_CA");
+    const [onlySelected, setOnlySelected] = useState(false);
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
@@ -198,7 +212,9 @@ export default function AdminKhuyenMai() {
         setSelectedBienTheIds([]);
         setBienTheTheoSanPham({});
         setFormError("");
-        setShowModal(true);
+        resetProductFilters();
+        setView("form");
+        window.scrollTo({ top: 0 });
     };
 
     const openEdit = (v) => {
@@ -221,12 +237,20 @@ export default function AdminKhuyenMai() {
         setBienTheTheoSanPham({});
 
         setFormError("");
-        setShowModal(true);
+        resetProductFilters();
+        setView("form");
+        window.scrollTo({ top: 0 });
+    };
+
+    const resetProductFilters = () => {
+        setSpSearch("");
+        setSpBrand("TAT_CA");
+        setOnlySelected(false);
     };
 
     const closeModal = () => {
         if (saving) return;
-        setShowModal(false);
+        setView("list");
         setEditing(null);
         setForm(EMPTY_FORM);
         setActiveSanPhamIds([]);
@@ -327,6 +351,41 @@ export default function AdminKhuyenMai() {
         }
     };
 
+    // ===== Chọn sản phẩm / biến thể =====
+    const toggleSanPham = (id) => {
+        const key = String(id);
+        const dangChon = activeSanPhamIds.includes(key);
+        if (dangChon) {
+            // Bỏ chọn sản phẩm => bỏ luôn các biến thể của nó để không bị "chọn ngầm"
+            const ids = (bienTheTheoSanPham[key] || []).map((b) => b.id);
+            if (ids.length) setSelectedBienTheIds((p) => p.filter((x) => !ids.includes(x)));
+            setActiveSanPhamIds((p) => p.filter((x) => x !== key));
+        } else {
+            setActiveSanPhamIds((p) => [...p, key]);
+        }
+    };
+
+    const selectAllVisible = () => {
+        const ids = filteredSanPham.map((s) => String(s.id));
+        setActiveSanPhamIds((p) => [...new Set([...p, ...ids])]);
+    };
+
+    const clearAllSelected = () => {
+        setActiveSanPhamIds([]);
+        setSelectedBienTheIds([]);
+    };
+
+    const toggleBienThe = (id) => {
+        setSelectedBienTheIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+    };
+
+    const setAllVariantsOf = (variants, checked) => {
+        const ids = variants.map((v) => v.id);
+        setSelectedBienTheIds((p) =>
+            checked ? [...new Set([...p, ...ids])] : p.filter((x) => !ids.includes(x))
+        );
+    };
+
     // ⭐ HÀM XỬ LÝ CLICK SẮP XẾP
     const requestSort = (key) => {
         let direction = 'asc';
@@ -381,6 +440,258 @@ export default function AdminKhuyenMai() {
 
     const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const showSkeleton = loading && danhSach.length === 0;
+
+    // ===== Danh sách sản phẩm sau khi tìm kiếm / lọc =====
+    const brandOptions = useMemo(
+        () => [...new Set(sanPhamList.map((sp) => sp.thuongHieu?.tenThuongHieu).filter(Boolean))].sort(),
+        [sanPhamList]
+    );
+
+    const filteredSanPham = useMemo(() => {
+        const kw = boDau(spSearch.trim());
+        return sanPhamList.filter((sp) => {
+            const brand = sp.thuongHieu?.tenThuongHieu || "";
+            if (spBrand !== "TAT_CA" && brand !== spBrand) return false;
+            if (onlySelected && !activeSanPhamIds.includes(String(sp.id))) return false;
+            if (!kw) return true;
+            return boDau(`${sp.tenSanPham || ""} ${brand} ${sp.maSanPham || ""}`).includes(kw);
+        });
+    }, [sanPhamList, spSearch, spBrand, onlySelected, activeSanPhamIds]);
+
+    // ===== TRANG THÊM / SỬA (thay cho modal) =====
+    if (view === "form") {
+        return (
+            <div className="km-container km-form-page">
+                <div className="km-page-top">
+                    <button className="km-btn-back" onClick={closeModal} disabled={saving}>
+                        ← Quay lại danh sách
+                    </button>
+                    <div className="km-eyebrow">
+                        Quản lý / Khuyến mãi / {editing ? "Sửa" : "Thêm mới"}
+                    </div>
+                    <h1 className="km-title">
+                        {editing ? `Sửa chương trình #${editing.id}` : "Thêm chương trình khuyến mãi"}
+                    </h1>
+                </div>
+
+                <div className="km-form-layout">
+                    {/* ----- CỘT TRÁI: THÔNG TIN CHƯƠNG TRÌNH ----- */}
+                    <section className="km-panel km-panel-info">
+                        <h2 className="km-panel-title">Thông tin chương trình</h2>
+
+                        <div className="km-form-stack">
+                            <div className="km-form-group">
+                                <label className="km-label">Tên chương trình *</label>
+                                <input className="km-input-base" value={form.tenChuongTrinh} onChange={(e) => handleChange("tenChuongTrinh", e.target.value)} placeholder="VD: Giảm 50% giày Nike" />
+                            </div>
+
+                            <div className="km-form-row">
+                                <div className="km-form-group">
+                                    <label className="km-label">Loại giảm</label>
+                                    <select className="km-input-base" value={form.loaiGiam} onChange={(e) => handleChange("loaiGiam", e.target.value)}>
+                                        <option value="PHAN_TRAM">Phần trăm (%)</option>
+                                        <option value="SO_TIEN">Số tiền (đ)</option>
+                                    </select>
+                                </div>
+                                <div className="km-form-group">
+                                    <label className="km-label">Giá trị giảm *</label>
+                                    <input className="km-input-base" type="number" value={form.giaTriGiam} onChange={(e) => handleChange("giaTriGiam", e.target.value)} placeholder={form.loaiGiam === "PHAN_TRAM" ? "VD: 50 (Tối đa 60)" : "VD: 100000"} max={form.loaiGiam === "PHAN_TRAM" ? 60 : undefined} />
+                                </div>
+                            </div>
+
+                            {form.loaiGiam === "PHAN_TRAM" && (
+                                <div className="km-form-group">
+                                    <label className="km-label">Số tiền giảm tối đa (đ) <span>(để trống nếu không giới hạn)</span></label>
+                                    <input className="km-input-base" type="number" value={form.giamToiDa} onChange={(e) => handleChange("giamToiDa", e.target.value)} placeholder="VD: 200000" />
+                                </div>
+                            )}
+
+                            <div className="km-form-group">
+                                <label className="km-label">Ngày bắt đầu *</label>
+                                <input className="km-input-base" type="datetime-local" value={form.ngayBatDau} onChange={(e) => handleChange("ngayBatDau", e.target.value)} style={{ colorScheme: "light dark" }} />
+                            </div>
+
+                            <div className="km-form-group">
+                                <label className="km-label">Ngày kết thúc *</label>
+                                <input className="km-input-base" type="datetime-local" value={form.ngayKetThuc} onChange={(e) => handleChange("ngayKetThuc", e.target.value)} style={{ colorScheme: "light dark" }} />
+                            </div>
+
+                            <div className="km-form-group">
+                                <label className="km-label">Trạng thái</label>
+                                <select className="km-input-base" value={form.trangThai} onChange={(e) => handleChange("trangThai", e.target.value)}>
+                                    <option value="HOAT_DONG">Hoạt động</option>
+                                    <option value="HET_HAN">Hết hạn</option>
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* ----- CỘT PHẢI: SẢN PHẨM & BIẾN THỂ ----- */}
+                    <section className="km-panel km-panel-products">
+                        <div className="km-panel-head">
+                            <div>
+                                <h2 className="km-panel-title">Sản phẩm & biến thể *</h2>
+                                <p className="km-hint">Bấm vào sản phẩm để mở danh sách biến thể, sau đó chọn biến thể được giảm giá.</p>
+                            </div>
+                            <div className="km-selected-summary">
+                                <strong>{activeSanPhamIds.length}</strong> sản phẩm ·{" "}
+                                <strong>{selectedBienTheIds.length}</strong> biến thể
+                            </div>
+                        </div>
+
+                        {/* THANH TÌM KIẾM */}
+                        <div className="km-product-toolbar">
+                            <div className="km-search-wrap">
+                                <input
+                                    className="km-input-base km-search-input"
+                                    type="search"
+                                    placeholder="Tìm sản phẩm theo tên, thương hiệu, mã..."
+                                    value={spSearch}
+                                    onChange={(e) => setSpSearch(e.target.value)}
+                                />
+                                {spSearch && (
+                                    <button className="km-search-clear" onClick={() => setSpSearch("")} aria-label="Xóa tìm kiếm">✕</button>
+                                )}
+                            </div>
+                            <select className="km-input-base km-toolbar-select" value={spBrand} onChange={(e) => setSpBrand(e.target.value)}>
+                                <option value="TAT_CA">Tất cả thương hiệu</option>
+                                {brandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                            <label className="km-check-inline">
+                                <input type="checkbox" checked={onlySelected} onChange={(e) => setOnlySelected(e.target.checked)} />
+                                Chỉ hiện đã chọn
+                            </label>
+                        </div>
+
+                        <div className="km-product-actions">
+                            <span className="km-hint">Hiển thị {filteredSanPham.length} / {sanPhamList.length} sản phẩm</span>
+                            <div>
+                                <button type="button" className="km-link-btn" onClick={selectAllVisible} disabled={filteredSanPham.length === 0}>
+                                    Chọn tất cả đang hiển thị
+                                </button>
+                                <button type="button" className="km-link-btn km-link-danger" onClick={clearAllSelected} disabled={activeSanPhamIds.length === 0}>
+                                    Bỏ chọn tất cả
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* LƯỚI SẢN PHẨM */}
+                        <div className="km-product-grid">
+                            {filteredSanPham.map((sp) => {
+                                const key = String(sp.id);
+                                const isActive = activeSanPhamIds.includes(key);
+                                const variants = bienTheTheoSanPham[key] || [];
+                                const soChon = variants.filter((b) => selectedBienTheIds.includes(b.id)).length;
+                                const img = sp.hinhAnh || sp.anhDaiDien;
+
+                                return (
+                                    <div
+                                        key={sp.id}
+                                        className={`km-product-card ${isActive ? "active" : ""}`}
+                                        onClick={() => toggleSanPham(sp.id)}
+                                    >
+                                        <div className="km-product-img-wrapper">
+                                            {img ? (
+                                                <img
+                                                    src={img}
+                                                    alt={sp.tenSanPham}
+                                                    className="km-product-img"
+                                                    loading="lazy"
+                                                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                                />
+                                            ) : (
+                                                <div className="km-product-noimg">Chưa có ảnh</div>
+                                            )}
+                                            {soChon > 0 && <div className="km-product-check">{soChon}</div>}
+                                        </div>
+                                        <div className="km-product-info">
+                                            <div className="km-product-name" title={sp.tenSanPham}>{sp.tenSanPham}</div>
+                                            <div className="km-product-brand">{sp.thuongHieu?.tenThuongHieu || "N/A"}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {filteredSanPham.length === 0 && (
+                                <div className="km-empty-products">
+                                    {sanPhamList.length === 0
+                                        ? "Chưa có sản phẩm nào."
+                                        : "Không tìm thấy sản phẩm phù hợp. Thử đổi từ khóa hoặc bỏ lọc thương hiệu."}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* BIẾN THỂ THEO TỪNG SẢN PHẨM */}
+                        {activeSanPhamIds.length > 0 && (
+                            <div className="km-variant-wrapper">
+                                <h3 className="km-subsection-title">Chọn biến thể</h3>
+                                {activeSanPhamIds.map((spId) => {
+                                    const sp = sanPhamList.find((s) => String(s.id) === spId);
+                                    const variants = bienTheTheoSanPham[spId];
+                                    if (!sp) return null;
+
+                                    const soLuongDaChon = variants
+                                        ? variants.filter((v) => selectedBienTheIds.includes(v.id)).length
+                                        : 0;
+                                    const tatCaDaChon = !!variants && variants.length > 0 && soLuongDaChon === variants.length;
+
+                                    return (
+                                        <div key={spId} className="km-variant-group">
+                                            <div className="km-variant-group-header">
+                                                <span className="km-variant-group-title">{sp.tenSanPham}</span>
+                                                <div className="km-variant-group-tools">
+                                                    {variants && variants.length > 0 && (
+                                                        <button type="button" className="km-link-btn" onClick={() => setAllVariantsOf(variants, !tatCaDaChon)}>
+                                                            {tatCaDaChon ? "Bỏ chọn hết" : "Chọn hết"}
+                                                        </button>
+                                                    )}
+                                                    <span className="km-variant-group-count">{soLuongDaChon} đã chọn</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="km-variant-container">
+                                                {!variants ? (
+                                                    <span className="km-hint">Đang tải biến thể...</span>
+                                                ) : variants.length === 0 ? (
+                                                    <span className="km-hint">Sản phẩm này chưa có biến thể.</span>
+                                                ) : (
+                                                    variants.map((bt) => {
+                                                        const checked = selectedBienTheIds.includes(bt.id);
+                                                        return (
+                                                            <div
+                                                                key={bt.id}
+                                                                className={`km-variant-pill ${checked ? "active" : ""}`}
+                                                                onClick={() => toggleBienThe(bt.id)}
+                                                            >
+                                                                <span className="km-variant-color">{bt.mauSac?.tenMau || "?"}</span>
+                                                                <span className="km-variant-size">Size {bt.kichCo?.tenKichCo || "?"}</span>
+                                                                {bt.maSku && <span className="km-variant-sku">({bt.maSku})</span>}
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </section>
+                </div>
+
+                {/* THANH THAO TÁC DÍNH Ở CUỐI TRANG */}
+                <div className="km-action-bar">
+                    <div className="km-action-bar-inner">
+                        <div className="km-action-error">{formError}</div>
+                        <button className="km-btn-cancel" onClick={closeModal} disabled={saving}>Hủy</button>
+                        <button className="km-btn-save" onClick={handleSave} disabled={saving}>
+                            {saving ? "Đang lưu..." : editing ? "Cập nhật" : "Tạo mới"}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="km-container">
@@ -495,167 +806,6 @@ export default function AdminKhuyenMai() {
                         </tr>
                         </tbody>
                     </table>
-                </div>
-            )}
-
-            {/* MODAL THÊM/SỬA */}
-            {showModal && (
-                <div className="km-modal-overlay" onClick={closeModal}>
-                    <div className="km-modal-content" onClick={(e) => e.stopPropagation()}>
-
-                        <h2 className="km-modal-title">{editing ? "Sửa chương trình" : "Thêm chương trình"}</h2>
-                        {formError && <div className="km-error-box">{formError}</div>}
-
-                        <div className="km-form-grid">
-
-                            <div className="km-form-group km-form-full">
-                                <label className="km-label">Tên chương trình *</label>
-                                <input className="km-input-base" value={form.tenChuongTrinh} onChange={(e) => handleChange("tenChuongTrinh", e.target.value)} placeholder="VD: Giảm 50% giày Nike" />
-                            </div>
-
-                            <div className="km-form-group">
-                                <label className="km-label">Loại giảm</label>
-                                <select className="km-input-base" value={form.loaiGiam} onChange={(e) => handleChange("loaiGiam", e.target.value)}>
-                                    <option value="PHAN_TRAM">Phần trăm (%)</option>
-                                    <option value="SO_TIEN">Số tiền (đ)</option>
-                                </select>
-                            </div>
-
-                            <div className="km-form-group">
-                                <label className="km-label">Giá trị giảm *</label>
-                                <input className="km-input-base" type="number" value={form.giaTriGiam} onChange={(e) => handleChange("giaTriGiam", e.target.value)} placeholder={form.loaiGiam === "PHAN_TRAM" ? "VD: 50 (Tối đa 60)" : "VD: 100000"} max={form.loaiGiam === "PHAN_TRAM" ? 60 : undefined} />
-                            </div>
-
-                            {form.loaiGiam === "PHAN_TRAM" && (
-                                <div className="km-form-group">
-                                    <label className="km-label">Số tiền giảm tối đa (đ)</label>
-                                    <input className="km-input-base" type="number" value={form.giamToiDa} onChange={(e) => handleChange("giamToiDa", e.target.value)} placeholder="VD: 200000 (Để trống nếu không giới hạn)" />
-                                </div>
-                            )}
-
-                            <div className="km-form-group">
-                                <label className="km-label">Ngày bắt đầu *</label>
-                                <input className="km-input-base" type="datetime-local" value={form.ngayBatDau} onChange={(e) => handleChange("ngayBatDau", e.target.value)} style={{ colorScheme: "light dark" }} />
-                            </div>
-
-                            <div className="km-form-group">
-                                <label className="km-label">Ngày kết thúc *</label>
-                                <input className="km-input-base" type="datetime-local" value={form.ngayKetThuc} onChange={(e) => handleChange("ngayKetThuc", e.target.value)} style={{ colorScheme: "light dark" }} />
-                            </div>
-
-                            {/* CHỌN SẢN PHẨM & BIẾN THỂ */}
-                            <div className="km-form-group km-form-full" style={{ marginTop: "10px" }}>
-                                <label className="km-label">
-                                    Chọn sản phẩm & biến thể * <br/>
-                                    <span>(Bấm vào ảnh để chọn/bỏ chọn nhiều sản phẩm)</span>
-                                </label>
-
-                                <div className="km-product-grid">
-                                    {sanPhamList.map((sp) => {
-                                        const isActive = activeSanPhamIds.includes(String(sp.id));
-                                        const hasSelectedVariant = selectedBienTheIds.some(id => {
-                                            const listVariants = bienTheTheoSanPham[sp.id] || [];
-                                            const bt = listVariants.find(b => b.id === id);
-                                            return !!bt;
-                                        });
-
-                                        return (
-                                            <div
-                                                key={sp.id}
-                                                className={`km-product-card ${isActive ? 'active' : ''}`}
-                                                onClick={() => {
-                                                    setActiveSanPhamIds(prev => {
-                                                        if (prev.includes(String(sp.id))) {
-                                                            return prev.filter(id => id !== String(sp.id));
-                                                        } else {
-                                                            return [...prev, String(sp.id)];
-                                                        }
-                                                    });
-                                                }}
-                                            >
-                                                <div className="km-product-img-wrapper">
-                                                    <img src={sp.hinhAnh || sp.anhDaiDien || "https://via.placeholder.com/150"} alt={sp.tenSanPham} className="km-product-img" />
-                                                    {hasSelectedVariant && <div className="km-product-check">✓</div>}
-                                                </div>
-                                                <div className="km-product-info">
-                                                    <div className="km-product-name" title={sp.tenSanPham}>{sp.tenSanPham}</div>
-                                                    <div className="km-product-brand">{sp.thuongHieu?.tenThuongHieu || "N/A"}</div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Hiển thị biến thể TÁCH RIÊNG theo từng sản phẩm */}
-                                {activeSanPhamIds.length > 0 && (
-                                    <div className="km-variant-wrapper">
-                                        {activeSanPhamIds.map(spId => {
-                                            const sp = sanPhamList.find(s => String(s.id) === spId);
-                                            const variants = bienTheTheoSanPham[spId];
-
-                                            if (!sp) return null;
-
-                                            const soLuongDaChon = variants
-                                                ? variants.filter(v => selectedBienTheIds.includes(v.id)).length
-                                                : 0;
-
-                                            return (
-                                                <div key={spId} className="km-variant-group">
-                                                    <div className="km-variant-group-header">
-                                                        <span className="km-variant-group-title">{sp.tenSanPham}</span>
-                                                        <span className="km-variant-group-count">
-                                                            ({soLuongDaChon} đã chọn)
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="km-variant-container">
-                                                        {!variants ? (
-                                                            <span style={{color: "var(--text-muted)", fontSize: 13}}>Đang tải biến thể...</span>
-                                                        ) : variants.length === 0 ? (
-                                                            <span style={{color: "var(--text-muted)", fontSize: 13}}>Sản phẩm này chưa có biến thể.</span>
-                                                        ) : (
-                                                            variants.map((bt) => {
-                                                                const checked = selectedBienTheIds.includes(bt.id);
-                                                                return (
-                                                                    <div
-                                                                        key={bt.id}
-                                                                        className={`km-variant-pill ${checked ? 'active' : ''}`}
-                                                                        onClick={() => {
-                                                                            if (checked) setSelectedBienTheIds((p) => p.filter((x) => x !== bt.id));
-                                                                            else setSelectedBienTheIds((p) => [...p, bt.id]);
-                                                                        }}
-                                                                    >
-                                                                        <span className="km-variant-color">{bt.mauSac?.tenMau || "?"}</span>
-                                                                        <span className="km-variant-size">Size {bt.kichCo?.tenKichCo || "?"}</span>
-                                                                        {bt.maSku && <span className="km-variant-sku">({bt.maSku})</span>}
-                                                                    </div>
-                                                                );
-                                                            })
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="km-form-group">
-                                <label className="km-label">Trạng thái</label>
-                                <select className="km-input-base" value={form.trangThai} onChange={(e) => handleChange("trangThai", e.target.value)}>
-                                    <option value="HOAT_DONG">Hoạt động</option>
-                                    <option value="HET_HAN">Hết hạn</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="km-modal-actions">
-                            <button className="km-btn-cancel" onClick={closeModal} disabled={saving}>Hủy</button>
-                            <button className="km-btn-save" onClick={handleSave} disabled={saving}>
-                                {saving ? "Đang lưu..." : editing ? "Cập nhật" : "Tạo mới"}
-                            </button>
-                        </div>
-                    </div>
                 </div>
             )}
         </div>
