@@ -1897,12 +1897,7 @@ function ThanhToanContent({ taiKhoan }) {
                 overflowX: "auto",
             }}>
 
-                <table className="admin-table" style={{
-                    width: "100%",
-                    minWidth: "1100px",
-                    tableLayout: "fixed",
-                }}>
-
+                <table className="admin-table payment-compact-table">
                     <thead>
 
                     <tr>
@@ -4286,7 +4281,8 @@ export function BanHangTaiQuayContent(taiKhoan) {
                         <button type="button" onClick={() => openVariants(product)} aria-label={`Chọn size màu ${product.tenSanPham}`} style={{ position: "relative", border: 0, padding: 0, background: "#f7f7f7", borderRadius: 9, cursor: "pointer", overflow: "hidden" }}><img src={image} alt={product.tenSanPham || "Sản phẩm"} style={{ width: "100%", height: 145, objectFit: "contain", display: "block" }}/><span style={{ position: "absolute", right: 8, bottom: 8, width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", color: "#fff", background: "#ed4b2e", boxShadow: "0 2px 7px #0002", fontSize: 22 }}>+</span></button>
                         <small style={{ color: "#ed4b2e", fontSize: 10, fontWeight: 700, marginTop: 10, textTransform: "uppercase" }}>{brandName(product)}</small><strong style={{ display: "block", fontSize: 13, lineHeight: 1.4, minHeight: 38, marginTop: 6, overflowWrap: "anywhere" }}>{product.tenSanPham || "Sản phẩm"}</strong><small style={{ color: "#999", marginTop: 6 }}>{product.maSanPham || `SP${product.id}`}</small><strong style={{ color: "#ed4b2e", fontSize: 15, marginTop: 8, whiteSpace: "normal", overflowWrap: "anywhere" }}>{(product.giaBan ?? product.gia) != null && Number(product.giaBan ?? product.gia) > 0 ? money(product.giaBan ?? product.gia) : "Chưa có giá"}</strong><small style={{ color: "#777", fontSize: 11, margin: "7px 0 10px" }}><span style={{ color: stock > 0 ? "#20b66a" : "#d92d20" }}>●</span> {stock == null ? (product.loiTaiBienThe ? "Chưa tải được tồn kho" : "Chưa có dữ liệu tồn kho") : stock > 0 ? `Còn hàng (${stock})` : "Hết hàng"}</small><button type="button" disabled={inactive || stock === 0} onClick={() => openVariants(product)} style={{ ...buttonBase, marginTop: "auto", fontSize: 12, opacity: inactive || stock === 0 ? .55 : 1, cursor: inactive || stock === 0 ? "not-allowed" : "pointer", background: inactive ? "#98a2b3" : buttonBase.background }}>{inactive ? "Ngừng hoạt động" : stock === 0 ? "Hết hàng" : "Thêm vào giỏ ＋"}</button>
                     </article>;
-                })}</div> : <p style={{ padding: 28, textAlign: "center", color: "#667085" }}>Không tìm thấy sản phẩm phù hợp.</p>}
+                })}
+                </div> : <p style={{ padding: 28, textAlign: "center", color: "#667085" }}>Không tìm thấy sản phẩm phù hợp.</p>}
             </section>
             <aside style={{ ...panel, display: "flex", flexDirection: "column" }}>
                 <h2 style={{ margin: "2px 0 2px", fontSize: 24 }}>Giỏ hàng ({cart.length})</h2>
@@ -4294,7 +4290,52 @@ export function BanHangTaiQuayContent(taiKhoan) {
                 <div style={{ flex: 1, minHeight: 100, maxHeight: 320, overflowY: "auto" }}>{cart.length ? cart.map(item => <div key={item.variant.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "12px 0", borderBottom: "1px solid #eee" }}><div><strong>{item.product.tenSanPham}</strong>
                     <div style={{ color: "#667085", fontSize: 12, marginTop: 4 }}>Size {item.variant.kichCo?.tenKichCo || item.variant.kichCo?.kichCo || "-"} · {item.variant.mauSac?.tenMau || "-"}</div>
                     <b style={{ display: "block", color: "#ed4b2e", marginTop: 5 }}>{money(priceOf(item.product, item.variant))}</b><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 7 }}>
-                        <button type="button" onClick={() => changeQuantity(item.variant.id, -1)}>−</button><span>{item.quantity}</span><button type="button" onClick={() => changeQuantity(item.variant.id, 1)}>+</button><small style={{ color: "#667085" }}>Còn {item.variant.soLuongTon}</small></div></div><button type="button" aria-label="Xóa sản phẩm"onClick={() => {
+                        <div className="pos-quantity-control">
+                            <button
+                                type="button"
+                                className="pos-quantity-btn"
+                                onClick={() => changeQuantity(item.variant.id, -1)}
+                            >
+                                −
+                            </button>
+
+                            <input
+                                className="pos-quantity-input"
+                                type="number"
+                                min="1"
+                                max={item.variant.soLuongTon}
+                                key={item.quantity}
+                                defaultValue={item.quantity}                                onBlur={(e) => {
+                                    const value = Math.max(
+                                        1,
+                                        Math.min(
+                                            Number(e.target.value) || 1,
+                                            Number(item.variant.soLuongTon)
+                                        )
+                                    );
+                                    changeQuantity(item.variant.id, value - item.quantity);
+                                    e.target.value = value;
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") e.target.blur();
+                                }}
+                            />
+
+                            <button
+                                type="button"
+                                className="pos-quantity-btn pos-quantity-plus"
+                                onClick={() => changeQuantity(item.variant.id, 1)}
+                            >
+                                +
+                            </button>
+
+                            <small className="pos-quantity-stock">
+                                Còn {item.variant.soLuongTon}
+                            </small>
+                        </div>
+
+                </div></div>
+                    <button type="button" aria-label="Xóa sản phẩm"onClick={() => {
                     const itemToRemove = cart.find(row => row.variant.id === item.variant.id);
                     if (itemToRemove) {
                         setVariants(oldVars => oldVars.map(v =>

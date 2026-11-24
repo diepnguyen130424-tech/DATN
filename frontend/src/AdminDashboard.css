@@ -2996,3 +2996,93 @@
 .admin-sidebar-footer {
     margin-top: 12px !important;
 }
+/* Bộ điều chỉnh số lượng sản phẩm */
+.pos-quantity-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.pos-quantity-btn {
+    width: 34px;
+    height: 34px;
+    border: 1px solid #D0D5DD;
+    border-radius: 8px;
+    background: #F9FAFB;
+    color: #344054;
+    font-size: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.pos-quantity-btn:hover {
+    background: #E8EDFF;
+    border-color: #3157D5;
+    color: #3157D5;
+}
+
+.pos-quantity-plus {
+    background: #3157D5;
+    border-color: #3157D5;
+    color: white;
+}
+
+.pos-quantity-plus:hover {
+    background: #2446B5;
+    color: white;
+}
+
+.pos-quantity-input {
+    width: 52px;
+    height: 34px;
+    border: 1px solid #D0D5DD;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: #101828;
+    outline: none;
+}
+
+.pos-quantity-input:focus {
+    border-color: #3157D5;
+    box-shadow: 0 0 0 3px rgba(49, 87, 213, 0.12);
+}
+
+.pos-quantity-stock {
+    margin-left: 4px;
+    color: #667085;
+    font-size: 13px;
+}
+/* Thu gọn bảng thanh toán */
+.payment-compact-table {
+    width: 100%;
+    min-width: 0 !important;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+.payment-compact-table th,
+.payment-compact-table td {
+    padding: 12px 8px;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.payment-compact-table th {
+    white-space: normal;
+    line-height: 1.4;
+}
+
+.payment-compact-table td {
+    color: #475467;
+}
+
+.payment-compact-table tr {
+    height: auto;
+}
