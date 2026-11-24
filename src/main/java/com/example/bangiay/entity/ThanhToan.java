@@ -1,8 +1,10 @@
+
 package com.example.bangiay.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ManyToOne;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -19,8 +21,8 @@ public class ThanhToan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
-    @JoinColumn(name = "hoa_don_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hoa_don_id", nullable = false)
     private HoaDon hoaDon;
 
     @Column(name = "phuong_thuc", nullable = false)

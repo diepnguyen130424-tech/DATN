@@ -1379,22 +1379,6 @@ function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "
                 </div>
                 <div className="product-buttons">
                     <button type="button" className="detail-button" onClick={() => xemSanPham(sanPham)}>◉&nbsp; Xem chi tiết</button>
-
-                    <button type="button" className="add-cart"
-                            disabled={isNgungHoatDong}
-                            style={isNgungHoatDong ? { background: "#ccc", cursor: "not-allowed", color: "#666", border: "none" } : {}}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (isNgungHoatDong) return;
-                                const variantToAdd = chiTiets.find(i => Number(i.soLuongTon) > 0);
-                                if (variantToAdd) {
-                                    themVaoGio(sanPham, variantToAdd);
-                                } else {
-                                    alert("Sản phẩm này hiện đã hết hàng.");
-                                }
-                            }}>
-                        {isNgungHoatDong ? "Ngừng bán" : "🛒 Thêm vào giỏ"}
-                    </button>
                 </div>
             </div>
         </article>

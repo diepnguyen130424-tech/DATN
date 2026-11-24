@@ -34,7 +34,7 @@ const MENU = [
     {id: "san-pham", icon: "□", label: "Sản phẩm"},
     {id: "kho", icon: "▣", label: "Xuất nhập hàng"},
     {id: "danh-muc", icon: "▤", label: "Danh mục"},
-    {id: "thuong-hieu", icon: "◇", label: "Thương hiệu"},
+    //{id: "thuong-hieu", icon: "◇", label: "Thương hiệu"},
     // {id: "kich-co", icon: "↔", label: "Kích cỡ"},
     // {id: "mau-sac", icon: "●", label: "Màu sắc"},
     // {id: "voucher", icon: "◇", label: "Voucher"},

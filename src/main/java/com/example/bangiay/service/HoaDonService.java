@@ -1310,59 +1310,86 @@ public class HoaDonService {
                         );
 
 
-        // -----------------------------------------------------
-        // 6. TẠO THANH TOÁN
-        // -----------------------------------------------------
+// 6. TẠO THANH TOÁN
+        String phuongThuc = request.getPhuongThucThanhToan();
 
-        String phuongThuc =
-                request.getPhuongThucThanhToan();
-
-
-        if (phuongThuc == null
-                || phuongThuc.trim().isEmpty()) {
-
+        if (phuongThuc == null || phuongThuc.trim().isEmpty()) {
             phuongThuc = "TIEN_MAT";
         }
 
+        if ("KET_HOP".equalsIgnoreCase(phuongThuc)) {
 
-        ThanhToan thanhToan =
-                new ThanhToan();
+            BigDecimal soTienMat = request.getSoTienMat() == null
+                    ? BigDecimal.ZERO
+                    : request.getSoTienMat();
 
+            BigDecimal soTienChuyenKhoan = request.getSoTienChuyenKhoan() == null
+                    ? BigDecimal.ZERO
+                    : request.getSoTienChuyenKhoan();
 
-        thanhToan.setHoaDon(
-                hoaDonCapNhat
-        );
+            // Kiểm tra số tiền không âm
+            if (soTienMat.compareTo(BigDecimal.ZERO) < 0
+                    || soTienChuyenKhoan.compareTo(BigDecimal.ZERO) < 0) {
+                throw new RuntimeException("Số tiền thanh toán không hợp lệ");
+            }
 
+            // Phải có ít nhất một khoản thanh toán
+            if (soTienMat.compareTo(BigDecimal.ZERO) == 0
+                    && soTienChuyenKhoan.compareTo(BigDecimal.ZERO) == 0) {
+                throw new RuntimeException("Vui lòng nhập số tiền thanh toán");
+            }
 
-        thanhToan.setPhuongThuc(
-                phuongThuc
-        );
+            // Tổng tiền mặt và chuyển khoản phải bằng tổng hóa đơn
+            BigDecimal tongTienThanhToan = soTienMat.add(soTienChuyenKhoan);
 
+            if (tongTienThanhToan.compareTo(tongTienHang) != 0) {
+                throw new RuntimeException(
+                        "Tổng tiền mặt và chuyển khoản phải bằng tổng tiền hóa đơn"
+                );
+            }
 
-        thanhToan.setSoTien(
-                tongTienHang
-        );
+            // Lưu khoản tiền mặt
+            if (soTienMat.compareTo(BigDecimal.ZERO) > 0) {
 
+                ThanhToan tienMat = ThanhToan.builder()
+                        .hoaDon(hoaDon)
+                        .phuongThuc("TIEN_MAT")
+                        .soTien(soTienMat)
+                        .trangThai("DA_THANH_TOAN")
+                        .maGiaoDich("TM_" + hoaDon.getId())
+                        .build();
 
-        thanhToan.setTrangThai(
-                "DA_THANH_TOAN"
-        );
+                thanhToanRepository.save(tienMat);
+            }
 
+            // Lưu khoản chuyển khoản
+            if (soTienChuyenKhoan.compareTo(BigDecimal.ZERO) > 0) {
 
-        thanhToan.setMaGiaoDich(
-                "GD_" + hoaDonCapNhat.getId()
-        );
+                ThanhToan chuyenKhoan = ThanhToan.builder()
+                        .hoaDon(hoaDon)
+                        .phuongThuc("CHUYEN_KHOAN")
+                        .soTien(soTienChuyenKhoan)
+                        .trangThai("DA_THANH_TOAN")
+                        .maGiaoDich("CK_" + hoaDon.getId())
+                        .build();
 
+                thanhToanRepository.save(chuyenKhoan);
+            }
 
-        thanhToan.setNgayThanhToan(
-                LocalDateTime.now()
-        );
+            phuongThuc = "KET_HOP";
 
+        } else {
 
-        thanhToanRepository.save(
-                thanhToan
-        );
+            ThanhToan thanhToan = ThanhToan.builder()
+                    .hoaDon(hoaDon)
+                    .phuongThuc(phuongThuc)
+                    .soTien(tongTienHang)
+                    .trangThai("DA_THANH_TOAN")
+                    .maGiaoDich(phuongThuc + "_" + hoaDon.getId())
+                    .build();
 
+            thanhToanRepository.save(thanhToan);
+        }
 
         // -----------------------------------------------------
         // 7. LƯU LỊCH SỬ HÓA ĐƠN
@@ -1501,8 +1528,8 @@ public class HoaDonService {
                 hoaDonCapNhat.getKhachHang() != null
                         ? String.valueOf(hoaDonCapNhat.getKhachHang().getId())
                         : hoaDonCapNhat.getKhachHangQuay() != null
-                          ? String.valueOf(hoaDonCapNhat.getKhachHangQuay().getId())
-                          : null
+                        ? String.valueOf(hoaDonCapNhat.getKhachHangQuay().getId())
+                        : null
         );
 
 
@@ -1584,8 +1611,11 @@ public class HoaDonService {
     // =========================================================
 
     public ThanhToan getThanhToanByHoaDonId(Long hoaDonId) {
-        // Trả về null nếu không tìm thấy, thay vì ném lỗi làm sập app
-        return thanhToanRepository.findByHoaDon_Id(hoaDonId).orElse(null);
+        // Lấy giao dịch đầu tiên, trả về null nếu không tìm thấy
+        return thanhToanRepository.findByHoaDon_Id(hoaDonId)
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     /**
@@ -1598,9 +1628,14 @@ public class HoaDonService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng"));
 
-        ThanhToan thanhToan = thanhToanRepository.findByHoaDon_Id(hoaDonId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Không tìm thấy thông tin thanh toán"));
+        ThanhToan thanhToan = thanhToanRepository
+                .findByHoaDon_Id(hoaDon.getId())
+                .stream()
+                .filter(tt -> "CHUYEN_KHOAN".equalsIgnoreCase(tt.getPhuongThuc()))
+                .findFirst()
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy thông tin thanh toán chuyển khoản")
+                );
 
         if (!"ONLINE".equalsIgnoreCase(hoaDon.getLoaiHoaDon())
                 || !"CHUYEN_KHOAN".equalsIgnoreCase(thanhToan.getPhuongThuc())) {
@@ -2360,10 +2395,10 @@ public class HoaDonService {
         // 6. Tìm thông tin thanh toán
         ThanhToan thanhToan = thanhToanRepository
                 .findByHoaDon_Id(hoaDon.getId())
+                .stream()
+                .findFirst()
                 .orElseThrow(() ->
-                        new RuntimeException(
-                                "Không tìm thấy thông tin thanh toán"
-                        )
+                        new RuntimeException("Không tìm thấy thông tin thanh toán")
                 );
 
         // 7. Kiểm tra phương thức thanh toán

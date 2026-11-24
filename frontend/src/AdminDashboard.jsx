@@ -138,12 +138,19 @@ async function getThanhToanByHoaDonId(id, force = false) {
 const menuItems = [
     { id: "dashboard", icon: "▦", label: "Tổng quan" },
     { id: "ban-hang", icon: "🛒", label: "Bán hàng tại quầy" },
-    { id: "san-pham", icon: "□", label: "Sản phẩm" },
+    {
+        id: "san-pham",
+        icon: "□",
+        label: "Sản phẩm",
+        children: [
+            {id: "san-pham", label: "Danh sách sản phẩm"},
+            {id: "thuong-hieu", label: "Thương hiệu"},
+            {id: "kich-co", label: "Kích cỡ"},
+            {id: "mau-sac", label: "Màu sắc"},
+        ]
+    },
     { id: "kho", icon: "▣", label: "Xuất nhập hàng" },
     { id: "danh-muc", icon: "▤", label: "Danh mục" },
-    { id: "thuong-hieu", icon: "◇", label: "Thương hiệu" },
-    { id: "kich-co", icon: "↔", label: "Kích cỡ" },
-    { id: "mau-sac", icon: "●", label: "Màu sắc" },
     { id: "voucher", icon: "◇", label: "Voucher" },
     { id: "khuyen-mai", icon: "✦", label: "Khuyến mãi" },
     { id: "hoa-don", icon: "▧", label: "Hóa đơn" },
@@ -152,6 +159,7 @@ const menuItems = [
     { id: "khach-hang", icon: "◎", label: "Khách hàng" },
     { id: "nhan-vien", icon: "♙", label: "Nhân viên" },
 ];
+
 /* ⭐ DANH SÁCH TẤT CẢ TRẠNG THÁI HÓA ĐƠN (dùng cho dropdown filter) */
 const TRANG_THAI_HOA_DON = [
     "CHO_XAC_NHAN",
@@ -4119,19 +4127,91 @@ export function BanHangTaiQuayContent(taiKhoan) {
         setCashGiven(phuongThucThanhToan === "TIEN_MAT" ? String(total) : "");
         setPaymentModalOpen(true);
     };
+
     const confirmCheckout = async () => {
-        if (!cart.length) { setError("Giỏ hàng đang trống."); return; }
+        if (!cart.length) {
+            setError("Giỏ hàng đang trống.");
+            return;
+        }
+
         const cashAmount = Number(cashGiven || 0);
+        const transferAmount = phuongThucThanhToan === "KET_HOP"
+            ? Math.max(0, total - cashAmount)
+            : phuongThucThanhToan === "CHUYEN_KHOAN"
+                ? total
+                : 0;
+
         if (phuongThucThanhToan === "TIEN_MAT" && cashAmount < total) {
             setError("Số tiền khách đưa chưa đủ thanh toán.");
             return;
         }
-        const requestBody = { phuongThucThanhToan, tenKhach: tenKhach.trim() || null, soDienThoaiKhach: soDienThoaiKhach.trim() || null, chiTiet: cart.map(item => ({ sanPhamChiTietId: Number(item.variant.id), soLuong: item.quantity })) };
+
+        if (phuongThucThanhToan === "KET_HOP") {
+            if (cashAmount <= 0) {
+                setError("Vui lòng nhập số tiền mặt lớn hơn 0.");
+                return;
+            }
+            if (cashAmount >= total) {
+                setError("Số tiền mặt phải nhỏ hơn tổng tiền đơn hàng khi thanh toán kết hợp.");
+                return;
+            }
+        }
+
+
+        const requestBody = {
+            phuongThucThanhToan,
+
+            tenKhach: tenKhach.trim() || null,
+            soDienThoaiKhach: soDienThoaiKhach.trim() || null,
+
+            // Tiền mặt thực tế dùng để thanh toán hóa đơn
+            soTienMat:
+                phuongThucThanhToan === "TIEN_MAT"
+                    ? total
+                    : phuongThucThanhToan === "KET_HOP"
+                        ? cashAmount
+                        : 0,
+
+            // Tiền chuyển khoản thực tế dùng để thanh toán hóa đơn
+            soTienChuyenKhoan:
+                phuongThucThanhToan === "CHUYEN_KHOAN"
+                    ? total
+                    : phuongThucThanhToan === "KET_HOP"
+                        ? transferAmount
+                        : 0,
+
+            chiTiet: cart.map((item) => ({
+                sanPhamChiTietId: Number(item.variant.id),
+                soLuong: item.quantity,
+            })),
+        };
+
+        console.log("===== KIỂM TRA THANH TOÁN =====");
+        console.log("Phương thức:", phuongThucThanhToan);
+        console.log("Tổng tiền:", total);
+        console.log("Tiền mặt:", cashAmount);
+        console.log("Tiền chuyển khoản:", transferAmount);
+        console.log("Request Body:", requestBody);
+
         try {
-            setBusy(true); setError("");
-            const response = await fetch(`${API}/hoa-don/tao-tai-quay`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
-            const raw = await response.text(); let data; try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
-            if (!response.ok) throw new Error(data?.message || data?.error || raw || "Không thể tạo hóa đơn tại quầy.");
+            setBusy(true);
+            setError("");
+            const response = await fetch(`${API}/hoa-don/tao-tai-quay`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(requestBody),
+            });
+            const raw = await response.text();
+            let data;
+            try {
+                data = raw ? JSON.parse(raw) : null;
+            } catch {
+                data = null;
+            }
+            if (!response.ok) {
+                throw new Error(data?.message || data?.error || raw || "Không thể tạo hóa đơn tại quầy.");
+            }
+
             const ma = data?.maHoaDon || (data?.id ? `HD${data.id}` : "");
             setPaymentModalOpen(false);
             setSuccessBill({
@@ -4139,9 +4219,13 @@ export function BanHangTaiQuayContent(taiKhoan) {
                 tongTien: Number(data?.tongThanhToan ?? total),
                 tenKhach: tenKhach.trim() || "Khách lẻ",
                 soDienThoai: soDienThoaiKhach.trim() || "—",
-                phuongThuc: phuongThucThanhToan === "TIEN_MAT" ? "Tiền mặt" : "Chuyển khoản",
+                phuongThuc: phuongThucThanhToan === "TIEN_MAT"
+                    ? "Tiền mặt"
+                    : phuongThucThanhToan === "CHUYEN_KHOAN"
+                        ? "Chuyển khoản"
+                        : `Kết hợp (Tiền mặt: ${money(cashAmount)} · CK: ${money(transferAmount)})`,
                 tienThua: phuongThucThanhToan === "TIEN_MAT" ? Math.max(0, cashAmount - total) : 0,
-                items: cart.map(item => ({
+                items: cart.map((item) => ({
                     ten: item.product?.tenSanPham || "Sản phẩm",
                     ma: item.product?.maSanPham || `SP${item.product?.id ?? ""}`,
                     size: item.variant?.kichCo?.tenKichCo || item.variant?.kichCo?.kichCo || "—",
@@ -4150,24 +4234,33 @@ export function BanHangTaiQuayContent(taiKhoan) {
                     donGia: priceOf(item.product, item.variant),
                 })),
                 ngay: new Date().toLocaleString("vi-VN"),
+
             });
-            setParkedBills(old => old.filter(b => b.id !== activeBillId));
-            const nextBill = billCounter + 1;
-            setBillCounter(nextBill);
-            setActiveBillId(`HD-${nextBill}`);
-            setCart([]); setTenKhach(""); setSoDienThoaiKhach(""); setCashGiven("");
+            ngay: new Date().toLocaleString("vi-VN"),
+            setCart([]);
+            setTenKhach("");
+            setSoDienThoaiKhach("");
             setPhuongThucThanhToan("TIEN_MAT");
-            await loadProducts();
-            adminDataCache.hoaDons = null; adminDataCache.khachHangs = null;
-        } catch (e) { setError(e.message || "Thanh toán thất bại. Vui lòng thử lại."); }
-        finally { setBusy(false); }
+            setCashGiven("");
+
+// Tải lại sản phẩm và tồn kho mới nhất
+        await loadProducts();
+        } catch (err) {
+            setError(err?.message || "Đã xảy ra lỗi khi thanh toán.");
+        } finally {
+            setBusy(false);
+        }
     };
     const changeDue = Math.max(0, Number(cashGiven || 0) - total);
     const cashPresets = [...new Set([total, Math.ceil(total / 50000) * 50000, Math.ceil(total / 100000) * 100000, Math.ceil(total / 500000) * 500000].filter(n => n >= total))];
     const [transferContent] = useState(() => `FSHOP${Date.now().toString().slice(-8)}`);
     const bankConfigured = Boolean(BANK_ID.trim() && BANK_ACCOUNT_NO.trim() && BANK_ACCOUNT_NAME.trim());
+    const qrTransferAmount = phuongThucThanhToan === "KET_HOP"
+        ? Math.max(0, total - Number(cashGiven || 0))
+        : total;
+
     const vietQrUrl = bankConfigured
-        ? `https://img.vietqr.io/image/${encodeURIComponent(BANK_ID)}-${encodeURIComponent(BANK_ACCOUNT_NO)}-compact2.png?amount=${Math.round(total)}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(BANK_ACCOUNT_NAME)}`
+        ? `https://img.vietqr.io/image/${encodeURIComponent(BANK_ID)}-${encodeURIComponent(BANK_ACCOUNT_NO)}-compact2.png?amount=${Math.round(qrTransferAmount)}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(BANK_ACCOUNT_NAME)}`
         : "";
     const panel = { background: "#fff", border: "1px solid #ececec", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(16,24,40,.035)", minWidth: 0 };
     const field = { width: "100%", boxSizing: "border-box", border: "1px solid #ddd", borderRadius: 9, padding: "12px", background: "#fff", outlineColor: "#f04b2f" };
@@ -4213,7 +4306,13 @@ export function BanHangTaiQuayContent(taiKhoan) {
                     setCart(old => old.filter(row => row.variant.id !== item.variant.id));
                 }} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
                 <div style={{ borderTop: "1px dashed #ddd", marginTop: 12, paddingTop: 14, display: "grid", gap: 10 }}><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Tạm tính</span><strong>{money(total)}</strong></div><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Giảm giá</span><strong>0đ</strong></div><div style={{ display: "flex", justifyContent: "space-between", fontSize: 19 }}><strong>Tổng tiền</strong><strong style={{ color: "#ed4b2e" }}>{money(total)}</strong></div></div>
-                <div style={{ borderTop: "1px solid #eee", marginTop: 16, paddingTop: 14, display: "grid", gap: 11 }}><strong style={{ fontSize: 15 }}>PHƯƠNG THỨC THANH TOÁN</strong><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{[["TIEN_MAT", "💵", "Tiền mặt"], ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"]].map(([value, icon, label]) => <button type="button" key={value} onClick={() => setPhuongThucThanhToan(value)} style={{ padding: "12px 6px", borderRadius: 9, border: `1px solid ${phuongThucThanhToan === value ? "#ed4b2e" : "#ddd"}`, background: phuongThucThanhToan === value ? "#fff3ef" : "#fff", color: phuongThucThanhToan === value ? "#ed4b2e" : "#555", cursor: "pointer" }}><span style={{ display: "block", fontSize: 20 }}>{icon}</span><small>{label}</small></button>)}</div><label style={{ fontSize: 13 }}>Chọn khách hàng đã lưu
+                <div style={{ borderTop: "1px solid #eee", marginTop: 16, paddingTop: 14, display: "grid", gap: 11 }}><strong style={{ fontSize: 15 }}>PHƯƠNG THỨC THANH TOÁN</strong><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[
+                        ["TIEN_MAT", "💵", "Tiền mặt"],
+                        ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"],
+                        ["KET_HOP", "💳", "Kết hợp"]
+                    ].map(([value, icon, label]) =>
+                    <button type="button" key={value} onClick={() => setPhuongThucThanhToan(value)} style={{ padding: "12px 6px", borderRadius: 9, border: `1px solid ${phuongThucThanhToan === value ? "#ed4b2e" : "#ddd"}`, background: phuongThucThanhToan === value ? "#fff3ef" : "#fff", color: phuongThucThanhToan === value ? "#ed4b2e" : "#555", cursor: "pointer" }}><span style={{ display: "block", fontSize: 20 }}>{icon}</span><small>{label}</small></button>)}</div><label style={{ fontSize: 13 }}>Chọn khách hàng đã lưu
                     <input list="fshop-pos-customers" value={customerSearch} onChange={e => {
                         const value = e.target.value;
                         setCustomerSearch(value);
@@ -4242,24 +4341,160 @@ export function BanHangTaiQuayContent(taiKhoan) {
         {paymentModalOpen && <div onClick={() => !busy && setPaymentModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 11000, background: "rgba(16,24,40,.48)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
             <section role="dialog" aria-modal="true" aria-labelledby="pos-payment-title" onClick={e => e.stopPropagation()} style={{ width: "min(560px, 100%)", maxHeight: "min(90vh, 820px)", overflowY: "auto", background: "#fff", borderRadius: 18, boxShadow: "0 24px 80px rgba(0,0,0,.25)", color: "#202124" }}>
                 <header style={{ padding: "22px 24px 18px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: "1px solid #eee", gap: 12 }}>
-                    <div><small style={{ color: "#ed4b2e", fontWeight: 800, letterSpacing: 1.4 }}>XÁC NHẬN THANH TOÁN</small><h2 id="pos-payment-title" style={{ margin: "6px 0 0", fontSize: 23 }}>{phuongThucThanhToan === "TIEN_MAT" ? "💵 Tiền mặt" : "🏦 Chuyển khoản"}</h2></div>
+                    <div><small style={{ color: "#ed4b2e", fontWeight: 800, letterSpacing: 1.4 }}>XÁC NHẬN THANH TOÁN</small>
+
+
+                        {phuongThucThanhToan === "KET_HOP" && (
+                            <div style={{ display: "grid", gap: 12, border: "1px solid #eaecf0", borderRadius: 12, padding: 14, background: "#fafafa" }}>
+                                <label style={{ fontSize: 13, fontWeight: 700 }}>
+                                    💵 Số tiền mặt
+                                    <div style={{ position: "relative", marginTop: 6 }}>
+                                        <input
+                                            inputMode="numeric"
+                                            type="number"
+                                            min={0}
+                                            max={total}
+                                            value={cashGiven}
+                                            onChange={e => {
+                                                const rawVal = e.target.value;
+                                                if (rawVal === "") {
+                                                    setCashGiven("");
+                                                    return;
+                                                }
+                                                const num = Math.max(0, Math.min(total, Number(rawVal)));
+                                                setCashGiven(String(num));
+                                            }}
+                                            placeholder="Nhập số tiền mặt"
+                                            style={{ ...field, paddingRight: 36, background: "#fff" }}
+                                        />
+                                        <strong style={{ position: "absolute", right: 12, top: 11, color: "#888" }}>đ</strong>
+                                    </div>
+                                </label>
+
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 9, background: "#fff", border: "1px solid #e4e7ec" }}>
+                                    <span style={{ fontSize: 13, color: "#475467", fontWeight: 600 }}>🏦 Số tiền chuyển khoản</span>
+                                    <strong style={{ color: "#175cd3", fontSize: 16 }}>
+                                        {money(Math.max(0, total - Number(cashGiven || 0)))}
+                                    </strong>
+                                </div>
+                            </div>
+                        )}
+
+                        {(phuongThucThanhToan === "CHUYEN_KHOAN" || phuongThucThanhToan === "KET_HOP") && (() => {
+                            const transferAmount = phuongThucThanhToan === "KET_HOP"
+                                ? Math.max(0, total - Number(cashGiven || 0))
+                                : total;
+
+                            return (
+                                <div style={{ border: "1px solid #d1e9ff", background: "#f0f8ff", borderRadius: 12, padding: 14, color: "#175cd3", fontSize: 13, display: "grid", justifyItems: "center", gap: 10, textAlign: "center" }}>
+                                    <strong style={{ fontSize: 15 }}>Quét mã QR để chuyển {money(transferAmount)}</strong>
+                                    <img
+                                        src={vietQrUrl}
+                                        alt="Mã QR chuyển khoản FShop"
+                                        style={{ width: 250, maxWidth: "100%", height: "auto", borderRadius: 10, border: "1px solid #e4e7ec", background: "white" }}
+                                    />
+                                    <div style={{ color: "#344054", textAlign: "left", width: "100%", background: "#fff", borderRadius: 9, padding: 12, boxSizing: "border-box" }}>
+                                        <div><strong>Ngân hàng:</strong> MB Bank</div>
+                                        <div><strong>Số tài khoản:</strong> {BANK_ACCOUNT_NO}</div>
+                                        <div><strong>Chủ tài khoản:</strong> {BANK_ACCOUNT_NAME}</div>
+                                        <div><strong>Số tiền:</strong> {money(transferAmount)}</div>
+                                        <div><strong>Nội dung:</strong> {transferContent}</div>
+                                    </div>
+                                    <p style={{ margin: 0 }}>
+                                        Quét mã để ứng dụng ngân hàng tự điền số tiền {money(transferAmount)} và nội dung chuyển khoản. Sau khi kiểm tra tài khoản đã nhận đúng tiền, nhấn xác nhận bên dưới; hệ thống chưa tự đối soát giao dịch ngân hàng.
+                                    </p>
+                                </div>
+                            );
+                        })()}
+                    </div>
                     <button type="button" aria-label="Đóng cửa sổ thanh toán" onClick={() => setPaymentModalOpen(false)} disabled={busy} style={{ border: 0, background: "transparent", fontSize: 24, color: "#98a2b3", cursor: "pointer" }}>×</button>
                 </header>
                 <div style={{ padding: "18px 24px", background: "linear-gradient(110deg,#fff7f4,#fff)", borderBottom: "1px solid #f1e9e6", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><span style={{ color: "#667085", fontSize: 14 }}>Số tiền cần thanh toán</span><strong style={{ color: "#ed4b2e", fontSize: "clamp(22px,4vw,29px)", whiteSpace: "nowrap" }}>{money(total)}</strong></div>
                 <div style={{ padding: 24, display: "grid", gap: 14 }}>
                     <label style={{ fontSize: 13, fontWeight: 700 }}>♟ Tên khách hàng <span style={{ color: "#98a2b3", fontWeight: 400 }}>(Không bắt buộc)</span><input value={tenKhach} onChange={e => setTenKhach(e.target.value)} placeholder="Nhập tên khách (để trống = Khách lẻ)" style={{ ...field, marginTop: 7, padding: 13, fontWeight: 400 }}/></label>
                     <label style={{ fontSize: 13, fontWeight: 700 }}>📱 Số điện thoại người mua <span style={{ color: "#98a2b3", fontWeight: 400 }}>(Không bắt buộc)</span><input value={soDienThoaiKhach} onChange={e => setSoDienThoaiKhach(e.target.value)} placeholder="Nhập số điện thoại để gắn vào hóa đơn" style={{ ...field, marginTop: 7, padding: 13, fontWeight: 400 }}/></label>
-                    {phuongThucThanhToan === "TIEN_MAT" ? <>
-                        <label style={{ fontSize: 13, fontWeight: 700 }}>Tiền khách đưa<div style={{ position: "relative", marginTop: 7 }}><input inputMode="numeric" type="number" min={0} value={cashGiven} onChange={e => setCashGiven(e.target.value)} placeholder="Nhập số tiền khách đưa" style={{ ...field, padding: "15px 42px 15px 14px", border: "1.5px solid #ed4b2e", boxShadow: "0 0 0 3px rgba(237,75,46,.08)", fontSize: 17 }}/><strong style={{ position: "absolute", right: 14, top: 14, color: "#888" }}>đ</strong></div></label>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))", gap: 8 }}>{cashPresets.map(amount => <button type="button" key={amount} onClick={() => setCashGiven(String(amount))} style={{ border: `1px solid ${Number(cashGiven) === amount ? "#ed4b2e" : "#e4e7ec"}`, borderRadius: 9, background: Number(cashGiven) === amount ? "#fff3ef" : "#f9fafb", padding: "10px 6px", color: Number(cashGiven) === amount ? "#ed4b2e" : "#344054", fontWeight: 700, cursor: "pointer" }}>{money(amount)}</button>)}</div>
-                        <div style={{ border: "1px solid #ffd0c7", background: "#fff5f3", borderRadius: 11, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#667085", fontSize: 14 }}>Tiền thừa trả khách</span><strong style={{ color: Number(cashGiven) >= total ? "#16834a" : "#b42318", fontSize: 22 }}>{cashGiven === "" || Number(cashGiven) < total ? "—" : money(changeDue)}</strong></div>
-                        {cashGiven !== "" && Number(cashGiven) < total && <small style={{ color: "#b42318" }}>Còn thiếu {money(total - Number(cashGiven || 0))}.</small>}
-                    </> : <div style={{ border: "1px solid #d1e9ff", background: "#f0f8ff", borderRadius: 12, padding: 14, color: "#175cd3", fontSize: 13, display: "grid", justifyItems: "center", gap: 10, textAlign: "center" }}>
-                        <strong style={{ fontSize: 15 }}>Quét mã QR để chuyển {money(total)}</strong>
-                        <img src={vietQrUrl} alt="Mã QR chuyển khoản FShop" style={{ width: 250, maxWidth: "100%", height: "auto", borderRadius: 10, border: "1px solid #e4e7ec", background: "white" }} />
-                        <div style={{ color: "#344054", textAlign: "left", width: "100%", background: "#fff", borderRadius: 9, padding: 12, boxSizing: "border-box" }}><div><strong>Ngân hàng:</strong> MB Bank</div><div><strong>Số tài khoản:</strong> {BANK_ACCOUNT_NO}</div><div><strong>Chủ tài khoản:</strong> {BANK_ACCOUNT_NAME}</div><div><strong>Số tiền:</strong> {money(total)}</div><div><strong>Nội dung:</strong> {transferContent}</div></div>
-                        <p style={{ margin: 0 }}>Quét mã để ứng dụng ngân hàng tự điền số tiền {money(total)} và nội dung chuyển khoản. Sau khi kiểm tra tài khoản đã nhận đúng tiền, nhấn xác nhận bên dưới; hệ thống chưa tự đối soát giao dịch ngân hàng.</p>
-                    </div>}
+
+                    {phuongThucThanhToan === "TIEN_MAT" && <>
+                        <label style={{ fontSize: 13, fontWeight: 700 }}>
+                            Tiền khách đưa
+                            <div style={{ position: "relative", marginTop: 7 }}>
+                                <input
+                                    inputMode="numeric"
+                                    type="number"
+                                    min={0}
+                                    value={cashGiven}
+                                    onChange={e => setCashGiven(e.target.value)}
+                                    placeholder="Nhập số tiền khách đưa"
+                                    style={{
+                                        ...field,
+                                        padding: "15px 42px 15px 14px",
+                                        border: "1.5px solid #ed4b2e",
+                                        boxShadow: "0 0 0 3px rgba(237,75,46,.08)",
+                                        fontSize: 17
+                                    }}
+                                />
+                                <strong style={{
+                                    position: "absolute",
+                                    right: 14,
+                                    top: 14,
+                                    color: "#888"
+                                }}>đ</strong>
+                            </div>
+                        </label>
+
+                        <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))",
+                            gap: 8
+                        }}>
+                            {cashPresets.map(amount => (
+                                <button
+                                    type="button"
+                                    key={amount}
+                                    onClick={() => setCashGiven(String(amount))}
+                                    style={{
+                                        border: `1px solid ${Number(cashGiven) === amount ? "#ed4b2e" : "#e4e7ec"}`,
+                                        borderRadius: 9,
+                                        background: Number(cashGiven) === amount ? "#fff3ef" : "#f9fafb",
+                                        padding: "10px 6px",
+                                        color: Number(cashGiven) === amount ? "#ed4b2e" : "#344054",
+                                        fontWeight: 700,
+                                        cursor: "pointer"
+                                    }}
+                                >
+                                    {money(amount)}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div style={{
+                            border: "1px solid #ffd0c7",
+                            background: "#fff5f3",
+                            borderRadius: 11,
+                            padding: "14px 16px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12
+                        }}>
+        <span style={{ color: "#667085", fontSize: 14 }}>
+            Tiền thừa trả khách
+        </span>
+                            <strong style={{
+                                color: Number(cashGiven) >= total ? "#16834a" : "#b42318",
+                                fontSize: 22
+                            }}>
+                                {cashGiven === "" || Number(cashGiven) < total ? "—" : money(changeDue)}
+                            </strong>
+                        </div>
+
+                        {cashGiven !== "" && Number(cashGiven) < total && (
+                            <small style={{ color: "#b42318" }}>
+                                Còn thiếu {money(total - Number(cashGiven || 0))}.
+                            </small>
+                        )}
+                    </>}
+
                     {error && <div role="alert" style={{ padding: 11, borderRadius: 9, color: "#b42318", background: "#fff1f0", fontSize: 13 }}>{error}</div>}
                 </div>
                 <footer style={{ padding: "14px 24px 22px", borderTop: "1px solid #eee", display: "grid", gridTemplateColumns: "minmax(100px,.7fr) minmax(180px,1.5fr)", gap: 10 }}><button type="button" disabled={busy} onClick={() => setPaymentModalOpen(false)} style={{ border: "1px solid #e4e7ec", background: "#f9fafb", color: "#475467", borderRadius: 10, padding: 13, fontWeight: 700, cursor: "pointer" }}>Hủy</button><button type="button" disabled={busy || (phuongThucThanhToan === "TIEN_MAT" && Number(cashGiven || 0) < total)} onClick={confirmCheckout} style={{ ...buttonBase, borderRadius: 10, padding: 13, fontSize: 14, opacity: busy || (phuongThucThanhToan === "TIEN_MAT" && Number(cashGiven || 0) < total) ? .55 : 1, cursor: busy || (phuongThucThanhToan === "TIEN_MAT" && Number(cashGiven || 0) < total) ? "not-allowed" : "pointer" }}>{busy ? "Đang xử lý..." : `✓ Xác nhận thanh toán · ${money(total)}`}</button></footer>
@@ -4329,6 +4564,9 @@ function ComingSoon({ title, }) {
 }
 export default function AdminDashboard({ dangXuat, taiKhoan, }) {
     const [activeMenu, setActiveMenu] = useState("dashboard");
+    const [openSubMenu, setOpenSubMenu] = useState("san-pham");
+    // ⭐ State quản lý đóng/mở menu con (Mặc định là đóng)
+    const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
     const [visitedMenus, setVisitedMenus] = useState(() => new Set(["dashboard"]));
     const chonMenu = (menuId) => {
         setVisitedMenus((previous) => { const next = new Set(previous); next.add(menuId); return next; });
@@ -4370,22 +4608,71 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
             </div>
 
             <nav className="admin-nav">
+                {menuItems.map((item) => {
+                    // Nếu là menu "Sản phẩm" có chứa mục con
+                    if (item.children) {
+                        return (
+                            <div key={item.id} style={{ marginBottom: 4 }}>
+                                {/* Nút Menu Cha (Bấm vào để đóng/mở) */}
+                                <button
+                                    type="button"
+                                    className={activeMenu === item.id || item.children.some(c => c.id === activeMenu) ? "active" : ""}
+                                    onClick={() => setIsProductMenuOpen(!isProductMenuOpen)}
+                                    style={{ display: "flex", justifyContent: "space-between", width: "100%" }}
+                                >
+                                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                        <span className="admin-nav-icon">{item.icon}</span>
+                                        <span>{item.label}</span>
+                                    </div>
+                                    {/* Mũi tên xoay lên/xuống */}
+                                    <span style={{ transform: isProductMenuOpen ? "rotate(180deg)" : "rotate(0)", transition: "0.2s" }}>
+                                        ⌄
+                                    </span>
+                                </button>
 
-                {menuItems.map((item) => (<button type="button" key={item.id} className={activeMenu ===
-                item.id
-                    ? "active"
-                    : ""} onClick={() => chonMenu(item.id)}>
+                                {/* Danh sách Menu Con (Chỉ hiển thị khi isProductMenuOpen = true) */}
+                                {isProductMenuOpen && (
+                                    <div style={{
+                                        paddingLeft: 20,
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 4,
+                                        marginTop: 4,
+                                        marginBottom: 8
+                                    }}>
+                                        {item.children.map(child => (
+                                            <button
+                                                key={child.id}
+                                                type="button"
+                                                className={activeMenu === child.id ? "active" : ""}
+                                                onClick={() => setActiveMenu(child.id)}
+                                                style={{
+                                                    minHeight: 32,
+                                                    padding: "0 12px",
+                                                    fontSize: 12,
+                                                    justifyContent: "flex-start",
+                                                    background: activeMenu === child.id ? "rgba(237, 75, 46, 0.1)" : "transparent",
+                                                    color: activeMenu === child.id ? "#ed4b2e" : "#aaa",
+                                                    borderRadius: 6
+                                                }}
+                                            >
+                                                <span>{child.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    }
 
-                                <span className="admin-nav-icon">
-                                    {item.icon}
-                                </span>
-
-                    <span>
-                                    {item.label}
-                                </span>
-
-                </button>))}
-
+                    // Các menu bình thường khác (Tổng quan, Bán hàng, Hóa đơn...)
+                    return (
+                        <button type="button" key={item.id} className={activeMenu === item.id ? "active" : ""} onClick={() => setActiveMenu(item.id)}>
+                            <span className="admin-nav-icon">{item.icon}</span>
+                            <span>{item.label}</span>
+                        </button>
+                    );
+                })}
             </nav>
 
             <div className="admin-sidebar-footer">
@@ -4471,22 +4758,22 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
             </header>
 
             <div className="admin-main-body">
-                {visitedMenus.has("dashboard") && <section style={{ display: activeMenu === "dashboard" ? "block" : "none" }}><DashboardContent /></section>}
-                {visitedMenus.has("ban-hang") && <section style={{ display: activeMenu === "ban-hang" ? "block" : "none" }}><BanHangTaiQuayContent /></section>}
-                {visitedMenus.has("hoa-don") && <section style={{ display: activeMenu === "hoa-don" ? "block" : "none" }}><HoaDonContent taiKhoan={taiKhoan} /></section>}
-                {visitedMenus.has("doi-tra") && <section style={{ display: activeMenu === "doi-tra" ? "block" : "none" }}><Returns mode="admin" /></section>}
-                {visitedMenus.has("thanh-toan") && <section style={{ display: activeMenu === "thanh-toan" ? "block" : "none" }}><ThanhToanContent taiKhoan={taiKhoan} /></section>}
-                {visitedMenus.has("san-pham") && <section style={{ display: activeMenu === "san-pham" ? "block" : "none" }}><AdminProducts /></section>}
-                {visitedMenus.has("danh-muc") && <section style={{ display: activeMenu === "danh-muc" ? "block" : "none" }}><AdminDanhMuc /></section>}
-                {visitedMenus.has("thuong-hieu") && <section style={{ display: activeMenu === "thuong-hieu" ? "block" : "none" }}><AdminThuongHieu /></section>}
-                {visitedMenus.has("kich-co") && <section style={{ display: activeMenu === "kich-co" ? "block" : "none" }}><AdminKichCo /></section>}
-                {visitedMenus.has("mau-sac") && <section style={{ display: activeMenu === "mau-sac" ? "block" : "none" }}><AdminMauSac /></section>}
-                {visitedMenus.has("kho") && <section style={{ display: activeMenu === "kho" ? "block" : "none" }}><AdminKho /></section>}
-                {visitedMenus.has("voucher") && <section style={{ display: activeMenu === "voucher" ? "block" : "none" }}><AdminVoucher /></section>}
-                {visitedMenus.has("khuyen-mai") && <section style={{ display: activeMenu === "khuyen-mai" ? "block" : "none" }}><AdminKhuyenMai /></section>}
-                {visitedMenus.has("khach-hang") && <section style={{ display: activeMenu === "khach-hang" ? "block" : "none" }}><CustomerContent /></section>}
-                {visitedMenus.has("nhan-vien") && <section style={{ display: activeMenu === "nhan-vien" ? "block" : "none" }}><EmployeeContent /></section>}
-                {visitedMenus.has("cai-dat") && <section style={{ display: activeMenu === "cai-dat" ? "block" : "none" }}><AdminSettings onLogout={dangXuat} /></section>}
+                {activeMenu === "dashboard" && <DashboardContent />}
+                {activeMenu === "ban-hang" && <BanHangTaiQuayContent />}
+                {activeMenu === "san-pham" && <AdminProducts onMenu={setActiveMenu} />}
+                {activeMenu === "thuong-hieu" && <AdminThuongHieu />}
+                {activeMenu === "kich-co" && <AdminKichCo />}
+                {activeMenu === "mau-sac" && <AdminMauSac />}
+                {activeMenu === "kho" && <AdminKho />}
+                {activeMenu === "danh-muc" && <AdminDanhMuc />}
+                {activeMenu === "voucher" && <AdminVoucher />}
+                {activeMenu === "khuyen-mai" && <AdminKhuyenMai />}
+                {activeMenu === "hoa-don" && <HoaDonContent taiKhoan={taiKhoan} />}
+                {activeMenu === "doi-tra" && <Returns mode="admin" />}
+                {activeMenu === "thanh-toan" && <ThanhToanContent taiKhoan={taiKhoan} />}
+                {activeMenu === "khach-hang" && <CustomerContent />}
+                {activeMenu === "nhan-vien" && <EmployeeContent />}
+                {activeMenu === "cai-dat" && <AdminSettings onLogout={dangXuat} />}
             </div>
 
         </main>

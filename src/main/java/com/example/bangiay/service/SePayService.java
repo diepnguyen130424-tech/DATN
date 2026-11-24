@@ -56,10 +56,12 @@ public class SePayService {
 
     public Map<String, String> taoCheckout(Long hoaDonId) {
 
+        // 1. Kiểm tra ID hóa đơn
         if (hoaDonId == null) {
             throw new RuntimeException("ID hóa đơn không hợp lệ");
         }
 
+        // 2. Kiểm tra cấu hình SePay
         if (merchantId == null || merchantId.isBlank()
                 || secretKey == null || secretKey.isBlank()
                 || checkoutUrl == null || checkoutUrl.isBlank()) {
@@ -68,30 +70,32 @@ public class SePayService {
             );
         }
 
+        // 3. Tìm hóa đơn
         HoaDon hoaDon = hoaDonRepository.findById(hoaDonId)
                 .orElseThrow(() ->
                         new RuntimeException("Không tìm thấy hóa đơn"));
 
+        // 4. Chỉ hỗ trợ hóa đơn online
         if (!"ONLINE".equalsIgnoreCase(hoaDon.getLoaiHoaDon())) {
             throw new RuntimeException(
                     "Chỉ hỗ trợ thanh toán hóa đơn online"
             );
         }
 
+        // 5. Lấy bản ghi thanh toán chuyển khoản
         ThanhToan thanhToan = thanhToanRepository
                 .findByHoaDon_Id(hoaDonId)
+                .stream()
+                .filter(tt -> "CHUYEN_KHOAN".equalsIgnoreCase(
+                        tt.getPhuongThuc()
+                ))
+                .findFirst()
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "Hóa đơn chưa có thông tin thanh toán"
+                                "Hóa đơn chưa có thông tin thanh toán chuyển khoản"
                         ));
 
-        if (!"CHUYEN_KHOAN".equalsIgnoreCase(
-                thanhToan.getPhuongThuc())) {
-            throw new RuntimeException(
-                    "Hóa đơn không sử dụng chuyển khoản"
-            );
-        }
-
+        // 6. Kiểm tra trạng thái thanh toán
         if ("DA_THANH_TOAN".equalsIgnoreCase(
                 thanhToan.getTrangThai())) {
             throw new RuntimeException(
@@ -99,19 +103,24 @@ public class SePayService {
             );
         }
 
+        // 7. Kiểm tra thông tin hóa đơn
         if (hoaDon.getMaHoaDon() == null
-                || hoaDon.getMaHoaDon().isBlank()
-                || hoaDon.getTongThanhToan() == null
-                || hoaDon.getTongThanhToan()
-                .compareTo(BigDecimal.ZERO) <= 0) {
+                || hoaDon.getMaHoaDon().isBlank()) {
             throw new RuntimeException(
-                    "Thông tin hóa đơn không hợp lệ"
+                    "Mã hóa đơn không hợp lệ"
+            );
+        }
+
+        // 8. Lấy số tiền từ bản ghi thanh toán
+        BigDecimal tongTien = thanhToan.getSoTien();
+
+        if (tongTien == null || tongTien.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException(
+                    "Số tiền thanh toán không hợp lệ"
             );
         }
 
         // VND không được có phần thập phân
-        BigDecimal tongTien = hoaDon.getTongThanhToan();
-
         if (tongTien.stripTrailingZeros().scale() > 0) {
             throw new RuntimeException(
                     "Số tiền thanh toán VND không hợp lệ"
@@ -122,7 +131,13 @@ public class SePayService {
                 .setScale(0, RoundingMode.UNNECESSARY)
                 .toPlainString();
 
-        // Chuẩn hóa địa chỉ frontend
+        // 9. Chuẩn hóa địa chỉ frontend
+        if (frontendUrl == null || frontendUrl.isBlank()) {
+            throw new RuntimeException(
+                    "Chưa cấu hình địa chỉ frontend"
+            );
+        }
+
         String baseUrl = frontendUrl.replaceAll("/+$", "");
 
         if (!baseUrl.startsWith("https://")
@@ -132,7 +147,7 @@ public class SePayService {
             );
         }
 
-        // Tạo các trường gửi sang SePay
+        // 10. Tạo các trường gửi sang SePay
         Map<String, String> fields = new LinkedHashMap<>();
 
         fields.put("order_amount", soTien);
@@ -166,13 +181,12 @@ public class SePayService {
                 baseUrl + "/?sepay=cancel&hoaDonId=" + hoaDonId
         );
 
-        // Tạo chữ ký sau khi đã có đầy đủ trường
+        // 11. Tạo chữ ký
         String signature = taoChuKy(fields);
 
-        // Signature luôn là input cuối cùng
         fields.put("signature", signature);
 
-        // Trả URL và dữ liệu checkout cho React
+        // 12. Trả dữ liệu checkout cho React
         Map<String, String> result = new LinkedHashMap<>();
 
         result.put("checkoutUrl", checkoutUrl);

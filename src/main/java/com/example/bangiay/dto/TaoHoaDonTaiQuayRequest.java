@@ -1,18 +1,29 @@
+
 package com.example.bangiay.dto;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
 public class TaoHoaDonTaiQuayRequest {
 
-    private String phuongThucThanhToan;   // TIEN_MAT | CHUYEN_KHOAN | MOMO
-    private String tenKhach;              // Tên người mua (không bắt buộc)
-    private String soDienThoaiKhach;      // SĐT người mua (không bắt buộc)
+    // TIEN_MAT | CHUYEN_KHOAN | MOMO | KET_HOP
+    private String phuongThucThanhToan;
+
+    // Số tiền thanh toán bằng tiền mặt
+    private BigDecimal soTienMat;
+
+    // Số tiền thanh toán bằng chuyển khoản
+    private BigDecimal soTienChuyenKhoan;
+
+    private String tenKhach;
+    private String soDienThoaiKhach;
+
     private List<ChiTiet> chiTiet;
 
-    // Người thao tác (nhân viên đang bán tại quầy) — để ghi vào hóa đơn & lịch sử
+    // Người thao tác
     private Long taiKhoanId;
     private Long nhanVienId;
 

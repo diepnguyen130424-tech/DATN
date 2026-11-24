@@ -81,6 +81,7 @@ function buildVietQrUrl(amount, content) {
 function methodLabel(method) {
     if (method === "TIEN_MAT") return "Tiền mặt";
     if (method === "CHUYEN_KHOAN") return "Chuyển khoản";
+    if (method === "KET_HOP") return "Tiền mặt + Chuyển khoản";
     return method;
 }
 
@@ -299,8 +300,23 @@ function InvoiceModal({invoice, onClose}) {
 
                     <div className="invoice-meta">
                         <div><span>Ngày lập</span><strong>{formatDateTime(invoice.ngayLap)}</strong></div>
-                        <div><span>Phương thức</span><strong>{methodLabel(invoice.phuongThucThanhToan)}</strong></div>
-                        <div><span>Thu ngân</span><strong>{invoice.nhanVien || "Nhân viên"}</strong></div>
+                        <div>
+                            <span>Phương thức</span>
+                            <strong>{methodLabel(invoice.phuongThucThanhToan)}</strong>
+                        </div>
+
+                        {invoice.phuongThucThanhToan === "KET_HOP" && (
+                            <>
+                                <div>
+                                    <span>Tiền mặt</span>
+                                    <strong>{formatMoney(invoice.soTienMat)}</strong>
+                                </div>
+                                <div>
+                                    <span>Chuyển khoản</span>
+                                    <strong>{formatMoney(invoice.soTienChuyenKhoan)}</strong>
+                                </div>
+                            </>
+                        )}                        <div><span>Thu ngân</span><strong>{invoice.nhanVien || "Nhân viên"}</strong></div>
                         {invoice.maKhachHang && (
                             <div><span>ID khách hàng</span><strong>#{invoice.maKhachHang}</strong></div>
                         )}
@@ -367,8 +383,11 @@ function InvoiceModal({invoice, onClose}) {
     );
 }
 
+
 function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
     const [cashReceived, setCashReceived] = useState("");
+    const [cashPart, setCashPart] = useState("");
+    const [transferPart, setTransferPart] = useState("");
     const [note, setNote] = useState("");
     const [paidConfirmed, setPaidConfirmed] = useState(false);
     const [payCode] = useState(() => `POS${Date.now().toString().slice(-6)}`);
@@ -376,11 +395,18 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
     const received = parseMoneyInput(cashReceived);
     const change = received - total;
     const isCashEnough = received >= total;
+
+    const cashAmount = parseMoneyInput(cashPart);
+    const transferAmount = parseMoneyInput(transferPart);
+
+    const isCombined = method === "KET_HOP";
+    const actualTransfer = isCombined ? transferAmount : total;
+
     const transferContent = `${note.trim() || "Thanh toan don hang"} ${payCode}`;
 
     const qrUrl = useMemo(
-        () => buildVietQrUrl(total, transferContent),
-        [total, transferContent]
+        () => buildVietQrUrl(actualTransfer, transferContent),
+        [actualTransfer, transferContent]
     );
 
     const quickCash = useMemo(() => {
@@ -391,20 +417,44 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
         return [...set].filter((v) => v > total).slice(0, 4);
     }, [total]);
 
-    const canConfirm = method === "TIEN_MAT" ? isCashEnough : paidConfirmed;
+    const validCombined =
+        cashAmount > 0 &&
+        transferAmount > 0 &&
+        cashAmount + transferAmount === total;
+
+    const canConfirm =
+        method === "TIEN_MAT"
+            ? isCashEnough
+            : method === "CHUYEN_KHOAN"
+                ? paidConfirmed
+                : validCombined && paidConfirmed;
+
+    const submitPayment = () => {
+        if (!canConfirm || loading) return;
+
+        onConfirm({
+            method,
+            total,
+            soTienMat: isCombined ? cashAmount : 0,
+            soTienChuyenKhoan: isCombined ? transferAmount : 0,
+        });
+    };
 
     useEffect(() => {
         if (!open) return undefined;
+
         const onKey = (e) => {
             if (e.key === "Escape" && !loading) onClose();
+
             if (e.key === "Enter" && canConfirm && !loading) {
                 e.preventDefault();
-                onConfirm({method, total});
+                submitPayment();
             }
         };
+
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [open, canConfirm, loading, method, total, onClose, onConfirm]);
+    }, [open, canConfirm, loading, onClose, method, total, cashAmount, transferAmount, paidConfirmed]);
 
     if (!open) return null;
 
@@ -414,9 +464,22 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
                 <div className="pos-pay-modal-head">
                     <div>
                         <span className="employee-eyebrow">XÁC NHẬN THANH TOÁN</span>
-                        <h2>{method === "TIEN_MAT" ? "💵 Tiền mặt" : "🏦 Chuyển khoản ngân hàng"}</h2>
+                        <h2>
+                            {method === "TIEN_MAT"
+                                ? "💵 Tiền mặt"
+                                : method === "CHUYEN_KHOAN"
+                                    ? "🏦 Chuyển khoản ngân hàng"
+                                    : "💵🏦 Thanh toán kết hợp"}
+                        </h2>
                     </div>
-                    <button type="button" className="pos-pay-close" onClick={onClose}>×</button>
+
+                    <button
+                        type="button"
+                        className="pos-pay-close"
+                        onClick={onClose}
+                    >
+                        ×
+                    </button>
                 </div>
 
                 <div className="pos-pay-amount">
@@ -427,42 +490,177 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
                 {method === "TIEN_MAT" && (
                     <div className="pos-pay-body">
                         <label className="pos-pay-label">Tiền khách đưa</label>
+
                         <div className="pos-pay-cash-input">
                             <input
                                 type="text"
                                 inputMode="numeric"
                                 value={cashReceived}
-                                onChange={(e) => setCashReceived(formatMoneyInput(e.target.value))}
+                                onChange={(e) =>
+                                    setCashReceived(formatMoneyInput(e.target.value))
+                                }
                                 placeholder="Nhập số tiền khách đưa"
                                 autoFocus
                             />
                             <span>đ</span>
                         </div>
+
                         <div className="pos-quick-cash">
                             {quickCash.map((amt) => (
-                                <button key={amt} type="button" onClick={() => setCashReceived(formatMoneyInput(String(amt)))}>
+                                <button
+                                    key={amt}
+                                    type="button"
+                                    onClick={() =>
+                                        setCashReceived(formatMoneyInput(String(amt)))
+                                    }
+                                >
                                     {formatMoney(amt)}
                                 </button>
                             ))}
-                            <button type="button" className="exact" onClick={() => setCashReceived(formatMoneyInput(String(total)))}>
+
+                            <button
+                                type="button"
+                                className="exact"
+                                onClick={() =>
+                                    setCashReceived(formatMoneyInput(String(total)))
+                                }
+                            >
                                 Đủ tiền
                             </button>
                         </div>
+
                         <div className={`pos-change ${isCashEnough ? "ok" : "warn"}`}>
                             <span>Tiền thừa trả khách</span>
                             <strong>
-                                {isCashEnough ? formatMoney(change) : received > 0 ? `Còn thiếu ${formatMoney(total - received)}` : "—"}
+                                {isCashEnough
+                                    ? formatMoney(change)
+                                    : received > 0
+                                        ? `Còn thiếu ${formatMoney(total - received)}`
+                                        : "—"}
                             </strong>
                         </div>
+                    </div>
+                )}
+
+                {isCombined && (
+                    <div className="pos-pay-body">
+                        <label className="pos-pay-label">
+                            Số tiền thanh toán bằng tiền mặt
+                        </label>
+
+                        <div className="pos-pay-cash-input">
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={cashPart}
+                                onChange={(e) => {
+                                    setCashPart(formatMoneyInput(e.target.value));
+                                    setPaidConfirmed(false);
+                                }}
+                                placeholder="Nhập số tiền mặt"
+                            />
+                            <span>đ</span>
+                        </div>
+
+                        <label className="pos-pay-label" style={{marginTop: "14px"}}>
+                            Số tiền thanh toán bằng chuyển khoản
+                        </label>
+
+                        <div className="pos-pay-cash-input">
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={transferPart}
+                                onChange={(e) => {
+                                    setTransferPart(formatMoneyInput(e.target.value));
+                                    setPaidConfirmed(false);
+                                }}
+                                placeholder="Nhập số tiền chuyển khoản"
+                            />
+                            <span>đ</span>
+                        </div>
+
+                        <div className={`pos-change ${validCombined ? "ok" : "warn"}`}>
+                            <span>Tổng tiền đã phân bổ</span>
+                            <strong>
+                                {formatMoney(cashAmount + transferAmount)}
+                            </strong>
+                        </div>
+
+                        {!validCombined && (
+                            <p style={{color: "#dc2626", fontSize: "12px", marginTop: "8px"}}>
+                                {cashAmount + transferAmount > total
+                                    ? `Số tiền đã nhập vượt ${formatMoney(cashAmount + transferAmount - total)}`
+                                    : `Còn thiếu ${formatMoney(total - cashAmount - transferAmount)}. Hai khoản phải bằng tổng hóa đơn.`}
+                            </p>
+                        )}
+
+                        {transferAmount > 0 && (
+                            <>
+                                <div className="pos-qr-wrapper" style={{marginTop: "16px"}}>
+                                    <img
+                                        src={qrUrl}
+                                        alt="QR thanh toán"
+                                        className="pos-qr-image"
+                                    />
+                                    <span className="pos-qr-badge">VietQR</span>
+                                </div>
+
+                                <div className="pos-bank-info">
+                                    <div>
+                                        <span>Ngân hàng</span>
+                                        <strong>MB Bank</strong>
+                                    </div>
+                                    <div>
+                                        <span>Số tài khoản</span>
+                                        <strong>{BANK_CONFIG.accountNo}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Chủ tài khoản</span>
+                                        <strong>{BANK_CONFIG.accountName}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Số tiền chuyển khoản</span>
+                                        <strong className="highlight">
+                                            {formatMoney(transferAmount)}
+                                        </strong>
+                                    </div>
+                                    <div>
+                                        <span>Nội dung CK</span>
+                                        <strong className="content">
+                                            {transferContent}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                <label className="pos-paid-checkbox">
+                                    <input
+                                        type="checkbox"
+                                        checked={paidConfirmed}
+                                        onChange={(e) =>
+                                            setPaidConfirmed(e.target.checked)
+                                        }
+                                    />
+                                    <span>
+                                        Tôi đã xác nhận khách chuyển khoản thành công
+                                    </span>
+                                </label>
+                            </>
+                        )}
                     </div>
                 )}
 
                 {method === "CHUYEN_KHOAN" && (
                     <div className="pos-pay-body pos-pay-qr-body">
                         <div className="pos-qr-wrapper">
-                            <img src={qrUrl} alt="QR thanh toán" className="pos-qr-image" />
+                            <img
+                                src={qrUrl}
+                                alt="QR thanh toán"
+                                className="pos-qr-image"
+                            />
                             <span className="pos-qr-badge">VietQR</span>
                         </div>
+
                         <div className="pos-bank-info">
                             <div><span>Ngân hàng</span><strong>MB Bank</strong></div>
                             <div><span>Số tài khoản</span><strong>{BANK_CONFIG.accountNo}</strong></div>
@@ -470,6 +668,7 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
                             <div><span>Số tiền</span><strong className="highlight">{formatMoney(total)}</strong></div>
                             <div><span>Nội dung CK</span><strong className="content">{transferContent}</strong></div>
                         </div>
+
                         <input
                             type="text"
                             className="pos-pay-note-input"
@@ -477,16 +676,34 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
                             value={note}
                             onChange={(e) => setNote(e.target.value)}
                         />
+
                         <label className="pos-paid-checkbox">
-                            <input type="checkbox" checked={paidConfirmed} onChange={(e) => setPaidConfirmed(e.target.checked)} />
+                            <input
+                                type="checkbox"
+                                checked={paidConfirmed}
+                                onChange={(e) => setPaidConfirmed(e.target.checked)}
+                            />
                             <span>Tôi đã xác nhận khách đã chuyển khoản thành công</span>
                         </label>
                     </div>
                 )}
 
                 <div className="pos-pay-modal-footer">
-                    <button type="button" className="pos-btn-cancel" onClick={onClose} disabled={loading}>Hủy</button>
-                    <button type="button" className="pos-btn-confirm" disabled={!canConfirm || loading} onClick={() => onConfirm({method, total})}>
+                    <button
+                        type="button"
+                        className="pos-btn-cancel"
+                        onClick={onClose}
+                        disabled={loading}
+                    >
+                        Hủy
+                    </button>
+
+                    <button
+                        type="button"
+                        className="pos-btn-confirm"
+                        disabled={!canConfirm || loading}
+                        onClick={submitPayment}
+                    >
                         {loading ? "Đang xử lý..." : "Xác nhận thanh toán"}
                     </button>
                 </div>
@@ -494,6 +711,7 @@ function PaymentModal({open, onClose, method, total, onConfirm, loading}) {
         </div>
     );
 }
+
 
 function VariantPickerModal({open, product, variants, onClose, onConfirm}) {
     const [selectedColor, setSelectedColor] = useState(() => {
@@ -1088,18 +1306,28 @@ export default function EmployeeCounterSale({products = [], onRefresh, actor = n
         setShowPayment(true);
     }, [cart.length]);
 
-    const confirmPayment = async () => {
-        if (loadingCheckout || !cart.length) return;
+    const confirmPayment = async ({
+          method,
+          soTienMat = 0,
+          soTienChuyenKhoan = 0,
+      } = {}) => {        if (loadingCheckout || !cart.length) return;
 
         try {
             setLoadingCheckout(true);
             const payload = {
-                phuongThucThanhToan: paymentMethod,
+                phuongThucThanhToan: method || paymentMethod,
+
+                ...(method === "KET_HOP" && {
+                    soTienMat,
+                    soTienChuyenKhoan,
+                }),
+
                 tenKhach: tenKhach.trim() || null,
                 soDienThoaiKhach: soDienThoaiKhach.trim() || null,
-                // Người bán tại quầy → ghi vào hóa đơn & lịch sử
+
                 nhanVienId: actor?.nhanVienId || null,
                 taiKhoanId: actor?.taiKhoanId || null,
+
                 chiTiet: cart.map((item) => ({
                     sanPhamChiTietId: item.variant.id,
                     soLuong: item.quantity,
@@ -1119,8 +1347,9 @@ export default function EmployeeCounterSale({products = [], onRefresh, actor = n
             setInvoice({
                 maHoaDon: result?.maHoaDon || `HD${Date.now()}`,
                 ngayLap: result?.ngayLap || new Date().toISOString(),
-                phuongThucThanhToan: paymentMethod,
-                tenKhach: result?.tenKhach || tenKhach,
+                phuongThucThanhToan: method || paymentMethod,
+                soTienMat: method === "KET_HOP" ? soTienMat : 0,
+                soTienChuyenKhoan: method === "KET_HOP" ? soTienChuyenKhoan : 0,                tenKhach: result?.tenKhach || tenKhach,
                 maKhachHang: result?.maKhachHang || null,
                 soDienThoaiKhach: result?.soDienThoaiKhach || soDienThoaiKhach,
                 tongThanhToan: totalPaid,
@@ -1190,7 +1419,12 @@ export default function EmployeeCounterSale({products = [], onRefresh, actor = n
             } else if (e.key === "F8") {
                 e.preventDefault();
                 patchActive((o) => ({
-                    method: o.method === "TIEN_MAT" ? "CHUYEN_KHOAN" : "TIEN_MAT",
+                    method:
+                        o.method === "TIEN_MAT"
+                            ? "CHUYEN_KHOAN"
+                            : o.method === "CHUYEN_KHOAN"
+                                ? "KET_HOP"
+                                : "TIEN_MAT",
                 }));
             } else if (e.key === "F9") {
                 e.preventDefault();
@@ -1454,24 +1688,36 @@ export default function EmployeeCounterSale({products = [], onRefresh, actor = n
                                 <span>Phương thức thanh toán (F8)</span>
                             </div>
 
+
                             <div className="pos-payment-options">
-                                {[
-                                    ["TIEN_MAT", "💵", "Tiền mặt"],
-                                    ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"],
-                                ].map(([value, icon, label]) => (
-                                    <button
-                                        type="button"
-                                        key={value}
-                                        className={`pos-payment-option ${
-                                            paymentMethod === value ? "active" : ""
-                                        }`}
-                                        onClick={() => patchActive({method: value})}
-                                    >
-                                        <span className="pos-payment-icon">{icon}</span>
-                                        <span>{label}</span>
-                                    </button>
-                                ))}
+                                <button
+                                    type="button"
+                                    className={`pos-payment-option ${paymentMethod === "TIEN_MAT" ? "active" : ""}`}
+                                    onClick={() => patchActive({method: "TIEN_MAT"})}
+                                >
+                                    <span className="pos-payment-icon">💵</span>
+                                    <span>Tiền mặt</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`pos-payment-option ${paymentMethod === "CHUYEN_KHOAN" ? "active" : ""}`}
+                                    onClick={() => patchActive({method: "CHUYEN_KHOAN"})}
+                                >
+                                    <span className="pos-payment-icon">🏦</span>
+                                    <span>Chuyển khoản</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`pos-payment-option ${paymentMethod === "KET_HOP" ? "active" : ""}`}
+                                    onClick={() => patchActive({method: "KET_HOP"})}
+                                >
+                                    <span className="pos-payment-icon">💳</span>
+                                    <span>Kết hợp</span>
+                                </button>
                             </div>
+
                         </div>
 
                         <button

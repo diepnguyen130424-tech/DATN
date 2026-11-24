@@ -4402,8 +4402,8 @@ a {
 }
 
 .product-buttons {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
+  display: flex; /* Chuyển từ grid sang flex */
+  flex-direction: column; /* Xếp chồng các nút theo chiều dọc */
   gap: 7px;
   margin-top: 12px;
 }
@@ -5381,9 +5381,8 @@ body { background: #fff; color: #171717; }
 
 .product-list-page .product-buttons {
   display: grid !important;
-  grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr) !important;
-  gap: 6px !important;
-  margin-top: 7px !important;
+  grid-template-columns: 1fr !important;
+  width: 100% !important;
 }
 
 .product-list-page .product-buttons button {
@@ -7706,13 +7705,10 @@ body { background: #fff; color: #171717; }
 /* XEM CHI TIẾT */
 
 .product-list-page .detail-button {
-  border: 1px solid #d4d8dc !important;
-
-  background: #fff !important;
-
-  color: #222 !important;
-
-  box-shadow: 0 2px 5px rgba(0, 0, 0, .035) !important;
+  width: 100% !important;
+  grid-column: 1 / -1 !important;
+  box-sizing: border-box !important;
+  height: 45px !important;
 }
 
 .product-list-page .detail-button:hover {
