@@ -12540,3 +12540,221 @@ body { background: #fff; color: #171717; }
   .sepay-result-actions{flex-direction:column}
   .sepay-result-actions button{width:100%}
 }
+
+
+/* =========================================================
+   FIX HEADER DESKTOP: KHONG DE O TIM KIEM DE LEN MENU
+   Ap dung cho man hinh rong; giu nguyen cac nut va chuc nang.
+========================================================= */
+@media (min-width: 1501px) {
+  .site-header-inner {
+    grid-template-columns: 150px 510px 270px 510px !important;
+    column-gap: 8px !important;
+    align-items: center !important;
+  }
+
+  .site-nav {
+    width: 510px !important;
+    min-width: 510px !important;
+    max-width: 510px !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+  }
+
+  .site-nav-link {
+    flex: 0 0 auto !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  .site-search {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    width: 270px !important;
+    min-width: 270px !important;
+    max-width: 270px !important;
+    margin: 0 !important;
+    transform: none !important;
+    justify-self: start !important;
+    z-index: 1 !important;
+  }
+}
+
+
+/* FINAL HEADER OVERRIDE - RESTORE SEARCH BUTTON AND PREVENT PSEUDO ELEMENT HIDING IT */
+@media (min-width: 1501px) {
+  .site-header-inner {
+    display: grid !important;
+    grid-template-columns: 150px 500px minmax(300px, 1fr) 510px !important;
+    column-gap: 8px !important;
+    width: calc(100% - 28px) !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  .site-logo { grid-column: 1 !important; }
+  .site-nav {
+    grid-column: 2 !important;
+    width: 500px !important;
+    min-width: 500px !important;
+    max-width: 500px !important;
+    overflow: visible !important;
+  }
+
+  .site-search {
+    grid-column: 3 !important;
+    width: 100% !important;
+    min-width: 300px !important;
+    max-width: none !important;
+    height: 46px !important;
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+    position: relative !important;
+    transform: none !important;
+    background: #fff !important;
+    border: 1px solid #d8d8d8 !important;
+    border-radius: 10px !important;
+    z-index: 5 !important;
+  }
+
+  .site-search::before,
+  .site-search::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .site-search input {
+    display: block !important;
+    flex: 1 1 auto !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 44px !important;
+    box-sizing: border-box !important;
+    background: #fff !important;
+    color: #222 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .site-search button {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    flex: 0 0 48px !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    height: 44px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    background: #ed1c24 !important;
+    color: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    z-index: 10 !important;
+  }
+
+  .site-actions {
+    grid-column: 4 !important;
+    width: 510px !important;
+    min-width: 510px !important;
+    max-width: 510px !important;
+    position: relative !important;
+    z-index: 20 !important;
+    background: #111 !important;
+  }
+}
+
+@media (min-width: 1261px) and (max-width: 1500px) {
+  .site-search::before,
+  .site-search::after { content: none !important; display: none !important; }
+  .site-search button {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex: 0 0 48px !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #ed1c24 !important;
+    color: #fff !important;
+  }
+}
+
+
+/* SEARCH BUTTON VISIBILITY FIX - GRID LAYOUT OVERRIDES OLD FLEX/PSEUDO RULES */
+@media (min-width: 1261px) {
+  .site-header-inner .site-search {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 48px !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 46px !important;
+    overflow: hidden !important;
+    position: relative !important;
+    transform: none !important;
+    background: #fff !important;
+    border: 1px solid #d8d8d8 !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    z-index: 50 !important;
+  }
+
+  .site-header-inner .site-search::before,
+  .site-header-inner .site-search::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .site-header-inner .site-search input {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 44px !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: none !important;
+    background: #fff !important;
+    color: #222 !important;
+    box-sizing: border-box !important;
+  }
+
+  .site-header-inner .site-search > button[type="submit"] {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    height: 44px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #ed1c24 !important;
+    color: #fff !important;
+    font-size: 25px !important;
+    line-height: 1 !important;
+    position: relative !important;
+    z-index: 100 !important;
+  }
+}

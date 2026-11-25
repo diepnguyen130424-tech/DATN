@@ -382,13 +382,8 @@ function DashboardContent({ eyebrow = "FSHOP ADMIN" }) {
         if (filterOrderType) params.set("loaiHoaDon", filterOrderType);
         if (filterPaymentMethod) params.set("phuongThucThanhToan", filterPaymentMethod);
         const cacheKey = params.toString() || "default";
-        const cachedStats = readDashboardCache(cacheKey);
-        if (cachedStats) {
-            setDashboardStats(cachedStats);
-            setLoadingDashboardStats(false);
-        } else if (!dashboardStats) {
-            setLoadingDashboardStats(true);
-        }
+        // Dữ liệu cache đã được nạp ở lazy initializer của useState.
+        // Effect chỉ gọi API để đồng bộ dữ liệu mới, tránh setState đồng bộ trong effect.
 
         fetch(`${API}/admin/dashboard/thong-ke?${params.toString()}`, { cache: "no-store" })
             .then(async (response) => {
@@ -3753,7 +3748,7 @@ function printAdminPosInvoice() {
     document.body.appendChild(iframe);
 }
 
-export function BanHangTaiQuayContent(taiKhoan) {
+export function BanHangTaiQuayContent() {
     // Tài khoản nhận tiền cố định của FShop; VietQR tự điền số tiền và nội dung theo đơn.
     const BANK_ID = "MB";
     const BANK_ACCOUNT_NO = "0867596002";
@@ -4112,6 +4107,71 @@ export function BanHangTaiQuayContent(taiKhoan) {
         }
     };
 
+    // Hoàn số lượng đã giữ về DATABASE trước khi bỏ sản phẩm khỏi giỏ.
+    // API này cũng đang được dùng trong changeQuantity() khi giảm số lượng.
+    const removeCartItem = async (variantId) => {
+        const item = cart.find(row => String(row.variant.id) === String(variantId));
+        if (!item) return;
+
+        try {
+            setBusy(true);
+            setError("");
+            const response = await fetch(
+                `${API}/hoa-don/nha-hang?sanPhamChiTietId=${item.variant.id}&soLuong=${item.quantity}`,
+                { method: "POST" }
+            );
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || "Không thể hoàn số lượng về kho.");
+            }
+
+            // Chỉ cập nhật giao diện sau khi server xác nhận hoàn kho thành công.
+            setVariants(old => old.map(variant =>
+                String(variant.id) === String(item.variant.id)
+                    ? { ...variant, soLuongTon: Number(variant.soLuongTon || 0) + item.quantity }
+                    : variant
+            ));
+            capNhatTonKhoSanPham(item.variant.id, item.quantity);
+            setCart(old => old.filter(row => String(row.variant.id) !== String(item.variant.id)));
+        } catch (err) {
+            setError(err.message || "Không thể xóa sản phẩm và hoàn kho.");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    // Xóa toàn bộ giỏ: hoàn kho từng dòng qua API; dòng nào hoàn thất bại vẫn giữ lại.
+    const clearCartAndRestoreStock = async () => {
+        if (!cart.length) return;
+
+        try {
+            setBusy(true);
+            setError("");
+            for (const item of [...cart]) {
+                const response = await fetch(
+                    `${API}/hoa-don/nha-hang?sanPhamChiTietId=${item.variant.id}&soLuong=${item.quantity}`,
+                    { method: "POST" }
+                );
+                if (!response.ok) {
+                    const message = await response.text();
+                    throw new Error(message || `Không thể hoàn kho cho ${item.product?.tenSanPham || "sản phẩm"}.`);
+                }
+
+                setVariants(old => old.map(variant =>
+                    String(variant.id) === String(item.variant.id)
+                        ? { ...variant, soLuongTon: Number(variant.soLuongTon || 0) + item.quantity }
+                        : variant
+                ));
+                capNhatTonKhoSanPham(item.variant.id, item.quantity);
+                setCart(old => old.filter(row => String(row.variant.id) !== String(item.variant.id)));
+            }
+        } catch (err) {
+            setError(err.message || "Có sản phẩm chưa thể hoàn kho. Các sản phẩm đó vẫn được giữ trong giỏ.");
+        } finally {
+            setBusy(false);
+        }
+    };
+
     const priceOf = (product, variant) => Number(variant?.giaBan ?? variant?.gia ?? variant?.donGia ?? product?.giaBan ?? product?.gia ?? 0);
     const total = cart.reduce((sum, item) => sum + priceOf(item.product, item.variant) * item.quantity, 0);
     const money = value => `${Number(value || 0).toLocaleString("vi-VN")}đ`;
@@ -4232,14 +4292,14 @@ export function BanHangTaiQuayContent(taiKhoan) {
 
             });
             ngay: new Date().toLocaleString("vi-VN"),
-            setCart([]);
+                setCart([]);
             setTenKhach("");
             setSoDienThoaiKhach("");
             setPhuongThucThanhToan("TIEN_MAT");
             setCashGiven("");
 
 // Tải lại sản phẩm và tồn kho mới nhất
-        await loadProducts();
+            await loadProducts();
         } catch (err) {
             setError(err?.message || "Đã xảy ra lỗi khi thanh toán.");
         } finally {
@@ -4306,16 +4366,16 @@ export function BanHangTaiQuayContent(taiKhoan) {
                                 max={item.variant.soLuongTon}
                                 key={item.quantity}
                                 defaultValue={item.quantity}                                onBlur={(e) => {
-                                    const value = Math.max(
-                                        1,
-                                        Math.min(
-                                            Number(e.target.value) || 1,
-                                            Number(item.variant.soLuongTon)
-                                        )
-                                    );
-                                    changeQuantity(item.variant.id, value - item.quantity);
-                                    e.target.value = value;
-                                }}
+                                const value = Math.max(
+                                    1,
+                                    Math.min(
+                                        Number(e.target.value) || 1,
+                                        Number(item.variant.soLuongTon)
+                                    )
+                                );
+                                changeQuantity(item.variant.id, value - item.quantity);
+                                e.target.value = value;
+                            }}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter") e.target.blur();
                                 }}
@@ -4334,18 +4394,8 @@ export function BanHangTaiQuayContent(taiKhoan) {
                             </small>
                         </div>
 
-                </div></div>
-                    <button type="button" aria-label="Xóa sản phẩm"onClick={() => {
-                    const itemToRemove = cart.find(row => row.variant.id === item.variant.id);
-                    if (itemToRemove) {
-                        setVariants(oldVars => oldVars.map(v =>
-                            String(v.id) === String(itemToRemove.variant.id)
-                                ? { ...v, soLuongTon: Number(v.soLuongTon || 0) + itemToRemove.quantity }
-                                : v
-                        ));
-                    }
-                    setCart(old => old.filter(row => row.variant.id !== item.variant.id));
-                }} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: "pointer" }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
+                    </div></div>
+                    <button type="button" aria-label="Xóa sản phẩm" disabled={busy} onClick={() => removeCartItem(item.variant.id)} style={{ border: 0, background: "transparent", color: "#b42318", fontSize: 22, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.5 : 1 }}>×</button></div>) : <div style={{ minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#999", textAlign: "center" }}><span style={{ fontSize: 36 }}>🛒</span><strong style={{ color: "#666", marginTop: 8 }}>Chưa có sản phẩm</strong><small style={{ marginTop: 6 }}>Chọn sản phẩm bên trái để bắt đầu.</small></div>}</div>
                 <div style={{ borderTop: "1px dashed #ddd", marginTop: 12, paddingTop: 14, display: "grid", gap: 10 }}><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Tạm tính</span><strong>{money(total)}</strong></div><div style={{ display: "flex", justifyContent: "space-between", color: "#777", fontSize: 13 }}><span>Giảm giá</span><strong>0đ</strong></div><div style={{ display: "flex", justifyContent: "space-between", fontSize: 19 }}><strong>Tổng tiền</strong><strong style={{ color: "#ed4b2e" }}>{money(total)}</strong></div></div>
                 <div style={{ borderTop: "1px solid #eee", marginTop: 16, paddingTop: 14, display: "grid", gap: 11 }}><strong style={{ fontSize: 15 }}>PHƯƠNG THỨC THANH TOÁN</strong><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     {[
@@ -4353,7 +4403,7 @@ export function BanHangTaiQuayContent(taiKhoan) {
                         ["CHUYEN_KHOAN", "🏦", "Chuyển khoản"],
                         ["KET_HOP", "💳", "Kết hợp"]
                     ].map(([value, icon, label]) =>
-                    <button type="button" key={value} onClick={() => setPhuongThucThanhToan(value)} style={{ padding: "12px 6px", borderRadius: 9, border: `1px solid ${phuongThucThanhToan === value ? "#ed4b2e" : "#ddd"}`, background: phuongThucThanhToan === value ? "#fff3ef" : "#fff", color: phuongThucThanhToan === value ? "#ed4b2e" : "#555", cursor: "pointer" }}><span style={{ display: "block", fontSize: 20 }}>{icon}</span><small>{label}</small></button>)}</div><label style={{ fontSize: 13 }}>Chọn khách hàng đã lưu
+                        <button type="button" key={value} onClick={() => setPhuongThucThanhToan(value)} style={{ padding: "12px 6px", borderRadius: 9, border: `1px solid ${phuongThucThanhToan === value ? "#ed4b2e" : "#ddd"}`, background: phuongThucThanhToan === value ? "#fff3ef" : "#fff", color: phuongThucThanhToan === value ? "#ed4b2e" : "#555", cursor: "pointer" }}><span style={{ display: "block", fontSize: 20 }}>{icon}</span><small>{label}</small></button>)}</div><label style={{ fontSize: 13 }}>Chọn khách hàng đã lưu
                     <input list="fshop-pos-customers" value={customerSearch} onChange={e => {
                         const value = e.target.value;
                         setCustomerSearch(value);
@@ -4365,7 +4415,7 @@ export function BanHangTaiQuayContent(taiKhoan) {
                 </label>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><input value={tenKhach} onChange={e => setTenKhach(e.target.value)} placeholder="Tên khách hàng" style={field}/><input value={soDienThoaiKhach} onChange={e => setSoDienThoaiKhach(e.target.value)} placeholder="Số điện thoại" style={field}/></div>
                     <button type="button" onClick={() => setShowNewCustomer(v => !v)} style={{ border: "1px solid #ed4b2e", borderRadius: 9, padding: 10, background: "#fff", color: "#ed4b2e", fontWeight: 700, cursor: "pointer" }}>{showNewCustomer ? "Đóng thêm khách hàng" : "+ Thêm khách hàng mới"}</button>
-                    {showNewCustomer && <div style={{ display: "grid", gap: 8, padding: 10, background: "#fff8f5", borderRadius: 9 }}><input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Họ tên khách hàng mới" style={field}/><input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Số điện thoại khách hàng mới" style={field}/><button type="button" disabled={busy} onClick={saveNewCustomer} style={buttonBase}>{busy ? "Đang lưu..." : "Lưu khách hàng"}</button></div>}<button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣ Thanh toán ${money(total)}`}</button><button type="button" disabled={!cart.length} onClick={() => setCart([])} style={{ border: "1px solid #ddd", borderRadius: 9, padding: 11, background: "#fff", color: "#777", cursor: cart.length ? "pointer" : "not-allowed" }}>Xóa giỏ hàng</button><small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
+                    {showNewCustomer && <div style={{ display: "grid", gap: 8, padding: 10, background: "#fff8f5", borderRadius: 9 }}><input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Họ tên khách hàng mới" style={field}/><input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Số điện thoại khách hàng mới" style={field}/><button type="button" disabled={busy} onClick={saveNewCustomer} style={buttonBase}>{busy ? "Đang lưu..." : "Lưu khách hàng"}</button></div>}<button type="button" disabled={busy || !cart.length} onClick={checkout} style={{ ...buttonBase, padding: 14, opacity: busy || !cart.length ? .55 : 1, cursor: busy || !cart.length ? "not-allowed" : "pointer" }}>{busy ? "Đang tạo hóa đơn..." : `▣ Thanh toán ${money(total)}`}</button><button type="button" disabled={!cart.length || busy} onClick={clearCartAndRestoreStock} style={{ border: "1px solid #ddd", borderRadius: 9, padding: 11, background: "#fff", color: "#777", cursor: cart.length && !busy ? "pointer" : "not-allowed", opacity: busy ? 0.55 : 1 }}>Xóa giỏ hàng</button><small style={{ color: "#999", fontStyle: "italic" }}>* Hóa đơn tại quầy được ghi trực tiếp vào database.</small></div>
             </aside>
         </div>
         {successBill && <div className="admin-pos-success-backdrop" onClick={() => setSuccessBill(null)} style={{ position: "fixed", inset: 0, zIndex: 12000, background: "rgba(16,24,40,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -4585,34 +4635,11 @@ export function BanHangTaiQuayContent(taiKhoan) {
     </div>;
 }
 
-function ComingSoon({ title, }) {
-    return (<div className="admin-placeholder">
-
-        <div className="admin-placeholder-icon">
-            ✦
-        </div>
-
-        <h2>
-            {title}
-        </h2>
-
-        <p>
-            Giao diện chức năng này sẽ được team
-            triển khai ở bước tiếp theo.
-        </p>
-
-    </div>);
-}
 export default function AdminDashboard({ dangXuat, taiKhoan, }) {
     const [activeMenu, setActiveMenu] = useState("dashboard");
-    const [openSubMenu, setOpenSubMenu] = useState("san-pham");
     // ⭐ State quản lý đóng/mở menu con (Mặc định là đóng)
     const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
-    const [visitedMenus, setVisitedMenus] = useState(() => new Set(["dashboard"]));
-    const chonMenu = (menuId) => {
-        setVisitedMenus((previous) => { const next = new Set(previous); next.add(menuId); return next; });
-        setActiveMenu(menuId);
-    };
+    const chonMenu = (menuId) => setActiveMenu(menuId);
     const activeLabel =
         activeMenu === "cai-dat"
             ? "Cài đặt"

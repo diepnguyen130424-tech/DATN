@@ -16,13 +16,12 @@ import { anhUrl, isActive } from "./CatalogCrud";
 
 const API = "http://localhost:8080/api";
 
-// Cache phiên làm việc: dữ liệu có sẵn ngay sau F5, API chỉ chạy nền để cập nhật.
 function readAppCache(key) {
     try {
         const raw = sessionStorage.getItem(`fshop:${key}`);
         if (!raw) return null;
         const entry = JSON.parse(raw);
-        if (!entry) return null; // Hiển thị cache ngay cả khi cũ; API bên dưới luôn cập nhật dữ liệu mới.
+        if (!entry) return null;
         return entry.data ?? null;
     } catch { return null; }
 }
@@ -1952,6 +1951,10 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
             </main>
             {showAIDoSize && (
                 <AIDoSize
+                    availableSizes={chiTietsHoatDong
+                        .filter((item) => Number(item.soLuongTon || 0) > 0)
+                        .map((item) => item?.kichCo?.tenKichCo)
+                        .filter(Boolean)}
                     onSelectSize={(size) => {
                         const sizeText = String(size);
                         const variant = chiTietsHoatDong.find((item) => String(item?.kichCo?.tenKichCo) === sizeText && Number(item.soLuongTon || 0) > 0);

@@ -3,6 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import "./AdminProducts.css";
 
 const API = "http://localhost:8080/api";
+const CACHE_KEY = "fshop_admin_products_cache_v1";
+function readProductsCache() { try { const raw = sessionStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } }
+function writeProductsCache(data) {
+    try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    } catch {
+        // Bỏ qua khi trình duyệt chặn sessionStorage.
+    }
+}
 
 const emptyForm = {
     maSanPham: "",
@@ -17,14 +26,15 @@ const emptyForm = {
     trangThai: "HOAT_DONG",
 };
 
- function AdminProducts({ onMenu })  {
-    const [products, setProducts] = useState([]);
-    const [stockByProductId, setStockByProductId] = useState({});
-    const [categories, setCategories] = useState([]);
-    const [brands, setBrands] = useState([]);
-    const [sizes, setSizes] = useState([]);
-    const [colors, setColors] = useState([]);
-    const [warehouses, setWarehouses] = useState([]);
+function AdminProducts() {
+    const cachedData = readProductsCache();
+    const [products, setProducts] = useState(cachedData?.products || []);
+    const [stockByProductId, setStockByProductId] = useState(cachedData?.stockByProductId || {});
+    const [categories, setCategories] = useState(cachedData?.categories || []);
+    const [brands, setBrands] = useState(cachedData?.brands || []);
+    const [sizes, setSizes] = useState(cachedData?.sizes || []);
+    const [colors, setColors] = useState(cachedData?.colors || []);
+    const [warehouses, setWarehouses] = useState(cachedData?.warehouses || []);
     const [variantDrafts, setVariantDrafts] = useState([]);
     const [quickPrice, setQuickPrice] = useState("");
     const [quickQuantity, setQuickQuantity] = useState("");
@@ -34,7 +44,7 @@ const emptyForm = {
     const [brandFilter, setBrandFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
 
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!cachedData);
     const [error, setError] = useState("");
 
     const [showModal, setShowModal] = useState(false);
@@ -50,7 +60,7 @@ const emptyForm = {
 
     const loadData = async () => {
         try {
-            setLoading(true);
+            if (!readProductsCache()) setLoading(true);
             setError("");
 
             const [productRes, categoryRes, brandRes, sizeRes, colorRes, warehouseRes] = await Promise.all([
@@ -105,7 +115,9 @@ const emptyForm = {
                     }
                 })
             );
-            setStockByProductId(Object.fromEntries(stockEntries));
+            const stockMap = Object.fromEntries(stockEntries);
+            setStockByProductId(stockMap);
+            writeProductsCache({ products: productList, categories: Array.isArray(categoryData) ? categoryData : [], brands: Array.isArray(brandData) ? brandData : [], sizes: Array.isArray(sizeData) ? sizeData : [], colors: Array.isArray(colorData) ? colorData : [], warehouses: Array.isArray(warehouseData) ? warehouseData : [], stockByProductId: stockMap });
         } catch (err) {
             setError(err.message || "Có lỗi xảy ra");
         } finally {
@@ -559,7 +571,17 @@ const emptyForm = {
 
             {/* HEADER */}
             <div className="products-header">
-                {/* ... nội dung header cũ giữ nguyên ... */}
+                <div>
+                    <h1>Quản lý sản phẩm</h1>
+                    <p>Quản lý thông tin, biến thể và tồn kho sản phẩm.</p>
+                </div>
+                <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={openCreate}
+                >
+                    + Thêm sản phẩm
+                </button>
             </div>
 
 
@@ -1621,3 +1643,4 @@ const emptyForm = {
 }
 
 export default AdminProducts;
+

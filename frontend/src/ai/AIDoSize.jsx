@@ -1,500 +1,217 @@
 import { useEffect, useRef, useState } from "react";
-import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import "./AIDoSize.css";
+import "./AIDoSizeAuto.css";
 
-const WASM_URL =
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
-
-const MODEL_URL =
-    "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
-
-const SIZE_TABLE = [
-    { size: "39", min: 24.0, max: 24.6 },
-    { size: "40", min: 24.7, max: 25.3 },
-    { size: "41", min: 25.4, max: 26.0 },
-    { size: "42", min: 26.1, max: 26.7 },
-    { size: "43", min: 26.8, max: 27.4 },
-    { size: "44", min: 27.5, max: 28.2 },
-];
-
-function distance2D(a, b) {
-    if (!a || !b) return 0;
-
-    const dx = Number(a.x) - Number(b.x);
-    const dy = Number(a.y) - Number(b.y);
-
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-function getBestFootLength(landmarks) {
-    if (!Array.isArray(landmarks)) return 0;
-
-    const leftHeel = landmarks[29];
-    const leftToe = landmarks[31];
-    const rightHeel = landmarks[30];
-    const rightToe = landmarks[32];
-
-    const candidates = [];
-
-    if (
-        leftHeel &&
-        leftToe &&
-        (leftHeel.visibility ?? 1) >= 0.35 &&
-        (leftToe.visibility ?? 1) >= 0.35
-    ) {
-        candidates.push(distance2D(leftHeel, leftToe));
-    }
-
-    if (
-        rightHeel &&
-        rightToe &&
-        (rightHeel.visibility ?? 1) >= 0.35 &&
-        (rightToe.visibility ?? 1) >= 0.35
-    ) {
-        candidates.push(distance2D(rightHeel, rightToe));
-    }
-
-    if (candidates.length === 0) return 0;
-
-    return Math.max(...candidates);
-}
-
-function recommendSize(lengthCm) {
-    if (!lengthCm) return null;
-
-    let closest = SIZE_TABLE[0];
-    let closestDistance = Number.POSITIVE_INFINITY;
-
-    SIZE_TABLE.forEach((item) => {
-        if (lengthCm >= item.min && lengthCm <= item.max) {
-            closest = item;
-            closestDistance = 0;
-            return;
-        }
-
-        const distance =
-            lengthCm < item.min
-                ? item.min - lengthCm
-                : lengthCm - item.max;
-
-        if (distance < closestDistance) {
-            closestDistance = distance;
-            closest = item;
-        }
-    });
-
-    return closest;
-}
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8080/api").replace(/\/$/, "");
 
 export default function AIDoSize({ onSelectSize, onClose }) {
-    const videoRef = useRef(null);
-    const streamRef = useRef(null);
-    const landmarkerRef = useRef(null);
-    const animationRef = useRef(null);
-    const lastVideoTimeRef = useRef(-1);
-    const runningRef = useRef(false);
-
-    const [status, setStatus] = useState("Đang khởi tạo camera...");
+    const inputRef = useRef(null);
+    const [file, setFile] = useState(null);
+    const [preview, setPreview] = useState("");
+    const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
-    const [measuring, setMeasuring] = useState(false);
-    const [lengthCm, setLengthCm] = useState(null);
-    const [recommendedSize, setRecommendedSize] = useState(null);
-    const [showGuide, setShowGuide] = useState(true);
-
-    const stopCamera = () => {
-        runningRef.current = false;
-
-        if (animationRef.current) {
-            cancelAnimationFrame(animationRef.current);
-            animationRef.current = null;
-        }
-
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach((track) => track.stop());
-            streamRef.current = null;
-        }
-
-        if (landmarkerRef.current) {
-            try {
-                landmarkerRef.current.close();
-            } catch {
-                // Model đã được đóng.
-            }
-            landmarkerRef.current = null;
-        }
-    };
+    const [status, setStatus] = useState("Chọn ảnh bàn chân trần, AI sẽ ước lượng size trực tiếp.");
+    const [result, setResult] = useState(null);
 
     useEffect(() => {
-        let cancelled = false;
-
-        const start = async () => {
-            try {
-                setError("");
-                setStatus("Đang xin quyền sử dụng camera...");
-
-                if (!navigator.mediaDevices?.getUserMedia) {
-                    throw new Error(
-                        "Trình duyệt không hỗ trợ camera. Hãy mở bằng Chrome/Edge trên localhost hoặc HTTPS."
-                    );
-                }
-
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: "environment",
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                    },
-                    audio: false,
-                });
-
-                if (cancelled) {
-                    stream.getTracks().forEach((track) => track.stop());
-                    return;
-                }
-
-                streamRef.current = stream;
-
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    await videoRef.current.play();
-                }
-
-                setStatus("Đang tải AI đo bàn chân...");
-
-                const vision = await FilesetResolver.forVisionTasks(WASM_URL);
-
-                const landmarker = await PoseLandmarker.createFromOptions(
-                    vision,
-                    {
-                        baseOptions: {
-                            modelAssetPath: MODEL_URL,
-                            delegate: "GPU",
-                        },
-                        runningMode: "VIDEO",
-                        numPoses: 1,
-                        minPoseDetectionConfidence: 0.45,
-                        minPosePresenceConfidence: 0.45,
-                        minTrackingConfidence: 0.45,
-                    }
-                );
-
-                if (cancelled) {
-                    landmarker.close();
-                    return;
-                }
-
-                landmarkerRef.current = landmarker;
-                runningRef.current = true;
-
-                setStatus(
-                    "Đặt bàn chân vào khung A4, giữ chân yên rồi bấm Bắt đầu đo."
-                );
-            } catch (err) {
-                console.error("Lỗi AI đo size:", err);
-
-                setError(
-                    err?.message ||
-                    "Không thể khởi động camera hoặc AI đo size."
-                );
-                setStatus("");
-            }
-        };
-
-        start();
-
-        return () => {
-            cancelled = true;
-            stopCamera();
-        };
-    }, []);
-
-    const detectOnce = () => {
-        const video = videoRef.current;
-        const landmarker = landmarkerRef.current;
-
-        if (!video || !landmarker || video.readyState < 2) {
-            return null;
+        if (!file) {
+            setPreview("");
+            return undefined;
         }
+        const url = URL.createObjectURL(file);
+        setPreview(url);
+        return () => URL.revokeObjectURL(url);
+    }, [file]);
 
-        const currentTime = video.currentTime;
-
-        if (currentTime === lastVideoTimeRef.current) {
-            return null;
-        }
-
-        lastVideoTimeRef.current = currentTime;
-
-        const result = landmarker.detectForVideo(
-            video,
-            performance.now()
-        );
-
-        if (!result?.landmarks?.length) {
-            return null;
-        }
-
-        return getBestFootLength(result.landmarks[0]);
-    };
-
-    const startMeasuring = () => {
-        if (!landmarkerRef.current || !videoRef.current) {
-            setError("AI chưa sẵn sàng. Vui lòng chờ vài giây.");
+    const handleFile = (nextFile) => {
+        setError("");
+        setResult(null);
+        if (!nextFile) return;
+        if (!/^image\/(jpeg|png|webp)$/i.test(nextFile.type)) {
+            setError("Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP.");
             return;
         }
+        if (nextFile.size > 5 * 1024 * 1024) {
+            setError("Ảnh tối đa 5MB. Vui lòng chọn ảnh nhỏ hơn.");
+            return;
+        }
+        setFile(nextFile);
+        setStatus("Đã nhận ảnh. Nhấn Phân tích và đo size.");
+    };
 
+    const analyze = async () => {
+        if (!file || busy) return;
+        setBusy(true);
         setError("");
-        setLengthCm(null);
-        setRecommendedSize(null);
-        setMeasuring(true);
-        setShowGuide(false);
-        setStatus("Đang đo... Giữ chân yên trong khung.");
+        setResult(null);
+        setStatus("AI đang nhận diện bàn chân và ước lượng size...");
+        try {
+            const body = new FormData();
+            body.append("file", file);
 
-        let samples = [];
-        const startedAt = performance.now();
-
-        const loop = () => {
-            if (!runningRef.current) return;
-
-            const normalizedLength = detectOnce();
-
-            if (normalizedLength > 0) {
-                const A4_WIDTH_NORMALIZED = 0.72;
-                const length =
-                    normalizedLength * (21 / A4_WIDTH_NORMALIZED);
-
-                if (length >= 18 && length <= 34) {
-                    samples.push(length);
-
-                    if (samples.length > 25) {
-                        samples = samples.slice(-25);
-                    }
-                }
-            }
-
-            const elapsed = performance.now() - startedAt;
-
-            if (elapsed < 3000) {
-                animationRef.current = requestAnimationFrame(loop);
-                return;
-            }
-
-            if (samples.length < 5) {
-                setMeasuring(false);
-                setShowGuide(true);
-                setStatus(
-                    "Chưa nhận diện rõ bàn chân. Hãy đặt chân thẳng, để cả cổ chân và bàn chân trong khung rồi thử lại."
+            let response;
+            try {
+                response = await fetch(`${API_BASE}/ai-size/analyze`, {
+                    method: "POST",
+                    body,
+                });
+            } catch {
+                throw new Error(
+                    `Không kết nối được Backend tại ${API_BASE}. Hãy kiểm tra Spring Boot có đang chạy không.`
                 );
-                return;
             }
 
-            const sorted = [...samples].sort((a, b) => a - b);
+            const responseText = await response.text();
+            let data = {};
+            try {
+                data = responseText ? JSON.parse(responseText) : {};
+            } catch {
+                data = {};
+            }
 
-            const trimmed = sorted.slice(
-                Math.floor(sorted.length * 0.2),
-                Math.ceil(sorted.length * 0.8)
-            );
+            if (!response.ok) {
+                throw new Error(
+                    data.message
+                    || (response.status === 413
+                        ? "Ảnh vượt quá giới hạn upload của Backend."
+                        : `Backend trả lỗi HTTP ${response.status}. Hãy kiểm tra log Spring Boot.`)
+                );
+            }
 
-            const average =
-                trimmed.reduce((sum, value) => sum + value, 0) /
-                trimmed.length;
+            if (!data.success || !data.recommendedSize || !Number.isFinite(Number(data.lengthCm))) {
+                throw new Error("AI chưa trả về size hợp lệ. Vui lòng thử ảnh khác.");
+            }
 
-            const rounded = Number(average.toFixed(1));
-            const size = recommendSize(rounded);
+            setResult(data);
+            setStatus("Đã ước lượng xong size từ ảnh.");
+        } catch (err) {
+            setError(err.message || "Có lỗi khi phân tích ảnh.");
+            setStatus("Chưa thể ước lượng size từ ảnh này.");
+        } finally {
+            setBusy(false);
+        }
+    };
 
-            setLengthCm(rounded);
-            setRecommendedSize(size);
-            setMeasuring(false);
-            setShowGuide(false);
-            setStatus("Đã đo size thành công.");
-        };
-
-        animationRef.current = requestAnimationFrame(loop);
+    const reset = () => {
+        setFile(null);
+        setResult(null);
+        setError("");
+        setStatus("Chọn ảnh bàn chân trần, AI sẽ ước lượng size trực tiếp.");
+        if (inputRef.current) inputRef.current.value = "";
     };
 
     const handleSelect = () => {
-        if (!recommendedSize) return;
-
-        if (typeof onSelectSize === "function") {
-            onSelectSize(recommendedSize.size);
-        }
-
-        stopCamera();
-    };
-
-    const handleClose = () => {
-        stopCamera();
-
-        if (typeof onClose === "function") {
-            onClose();
-        }
+        if (!result?.recommendedSize) return;
+        onSelectSize?.(result.recommendedSize);
     };
 
     return (
-        <div className="ai-size-overlay" onClick={handleClose}>
-            <div
-                className="ai-size-modal"
-                onClick={(event) => event.stopPropagation()}
-            >
-                <div className="ai-size-header">
+        <div className="ai-size-overlay" onClick={onClose}>
+            <section className="ai-size-modal ai-auto-modal" onClick={(event) => event.stopPropagation()}>
+                <header className="ai-size-header ai-auto-header">
                     <div>
-                        <span className="ai-size-eyebrow">
-                            FSHOP AI SIZE
-                        </span>
-                        <h2>Đo size giày bằng AI</h2>
+                        <span className="ai-size-eyebrow">FSHOP AI SIZE</span>
+                        <h2>AI ước lượng size giày</h2>
+                        <p>Chỉ cần tải một ảnh bàn chân lên rồi nhấn đo size.</p>
                     </div>
+                    <button type="button" className="ai-size-close" onClick={onClose} aria-label="Đóng">×</button>
+                </header>
 
-                    <button
-                        type="button"
-                        className="ai-size-close"
-                        onClick={handleClose}
-                        aria-label="Đóng"
-                    >
-                        ×
-                    </button>
-                </div>
+                <div className="ai-size-body ai-auto-body">
+                    <div className="ai-auto-left">
+                        <div className="ai-auto-preview">
+                            {preview ? (
+                                <img src={preview} alt="Ảnh bàn chân đã chọn" />
+                            ) : (
+                                <div className="ai-auto-empty">
+                                    <span className="ai-auto-camera-icon">◎</span>
+                                    <strong>Chưa có ảnh</strong>
+                                    <span>Chụp hoặc tải ảnh thấy trọn bàn chân trần từ trên xuống.</span>
+                                </div>
+                            )}
+                            {busy && <div className="ai-auto-loading"><span className="ai-spinner" />AI đang phân tích ảnh...</div>}
+                        </div>
 
-                <div className="ai-size-body">
-                    <div className="ai-camera">
-                        <video
-                            ref={videoRef}
-                            className="ai-camera-video"
-                            autoPlay
-                            playsInline
-                            muted
+                        <input
+                            ref={inputRef}
+                            className="ai-auto-file"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            capture="environment"
+                            onChange={(event) => handleFile(event.target.files?.[0])}
                         />
 
-                        <div
-                            className={`ai-a4-guide ${
-                                showGuide ? "show" : ""
-                            }`}
-                        >
-                            <div className="ai-a4-corner top-left" />
-                            <div className="ai-a4-corner top-right" />
-                            <div className="ai-a4-corner bottom-left" />
-                            <div className="ai-a4-corner bottom-right" />
-
-                            <div className="ai-a4-label">
-                                Căn A4 vào khung này
-                            </div>
+                        <div className="ai-auto-actions">
+                            <button
+                                type="button"
+                                className="ai-auto-secondary"
+                                onClick={() => inputRef.current?.click()}
+                                disabled={busy}
+                            >
+                                {file ? "Chọn ảnh khác / chụp lại" : "Chụp ảnh hoặc tải ảnh lên"}
+                            </button>
+                            <button
+                                type="button"
+                                className="ai-start-button ai-auto-analyze"
+                                onClick={analyze}
+                                disabled={!file || busy}
+                            >
+                                {busy ? "Đang phân tích..." : "✨ Phân tích và đo size"}
+                            </button>
                         </div>
 
-                        {measuring && (
-                            <div className="ai-measuring">
-                                <span className="ai-spinner" />
-                                Đang đo...
-                            </div>
+                        {file && (
+                            <button type="button" className="ai-auto-reset" onClick={reset} disabled={busy}>
+                                Xóa ảnh
+                            </button>
                         )}
                     </div>
 
-                    <div className="ai-size-instructions">
-                        <div className="ai-step">
-                            <b>1</b>
-                            <span>
-                                Đặt một tờ giấy A4 nằm phẳng trên sàn.
-                            </span>
+                    <div className="ai-size-instructions ai-auto-instructions">
+                        <h3>Cách chụp ảnh</h3>
+                        <div className="ai-step"><b>1</b><span>Đặt bàn chân trần trên mặt sàn, không mang tất hoặc giày.</span></div>
+                        <div className="ai-step"><b>2</b><span>Chụp từ trên xuống, đủ sáng và thấy trọn gót chân đến đầu ngón dài nhất.</span></div>
+                        <div className="ai-step"><b>3</b><span>Tải ảnh lên và nhấn nút. AI tự ước lượng chiều dài và quy đổi size.</span></div>
+
+                        <div className="ai-auto-supported">
+                            <strong>Không cần vật chuẩn</strong>
+                            <span>Không cần giấy A4, thẻ ngân hàng, thước đo hoặc chọn điểm trên ảnh.</span>
                         </div>
 
-                        <div className="ai-step">
-                            <b>2</b>
-                            <span>
-                                Đặt bàn chân lên giấy, để cả cổ chân và bàn
-                                chân nằm trong khung camera.
-                            </span>
-                        </div>
+                        <p className="ai-size-note">
+                            Lưu ý: Ảnh không có vật chuẩn nên AI không thể xác định kích thước thực từ pixel.
+                            Kết quả cm và size chỉ là ước lượng tham khảo, có thể sai lệch.
+                        </p>
 
-                        <div className="ai-step">
-                            <b>3</b>
-                            <span>
-                                Giữ chân yên rồi bấm{" "}
-                                <strong>Bắt đầu đo</strong>.
-                            </span>
-                        </div>
+                        <div className="ai-status">{status}</div>
+                        {error && <div className="ai-error">{error}</div>}
 
-                        <div className="ai-size-note">
-                            Kết quả là kích thước tham khảo. Size thực tế có
-                            thể thay đổi theo form và thương hiệu giày.
-                        </div>
-
-                        {status && (
-                            <div className="ai-status">
-                                {status}
-                            </div>
-                        )}
-
-                        {error && (
-                            <div className="ai-error">
-                                {error}
-                            </div>
-                        )}
-
-                        {lengthCm && recommendedSize && (
-                            <div className="ai-result">
+                        {result && (
+                            <div className="ai-result ai-auto-result">
                                 <div className="ai-success-title">
-                                    <span className="ai-success-icon">
-                                        ✓
-                                    </span>
-
+                                    <span className="ai-success-icon">✓</span>
                                     <div>
-                                        <strong>ĐO SIZE THÀNH CÔNG</strong>
-                                        <span>
-                                            AI đã phân tích bàn chân của bạn
-                                        </span>
+                                        <strong>ĐÃ ƯỚC LƯỢNG XONG</strong>
+                                        <span>Nhận diện ảnh: {result.confidence}% · Không phải độ chính xác đo lường</span>
                                     </div>
                                 </div>
-
                                 <div className="ai-result-length">
-                                    <span>Chiều dài bàn chân</span>
-                                    <strong>{lengthCm} cm</strong>
+                                    <span>Chiều dài ước lượng</span>
+                                    <strong>{result.lengthCm} cm</strong>
                                 </div>
-
                                 <div className="ai-result-size">
-                                    <span>SIZE ĐỀ XUẤT</span>
-                                    <strong>
-                                        {recommendedSize.size}
-                                    </strong>
+                                    <span>SIZE THAM KHẢO</span>
+                                    <strong>{result.recommendedSize}</strong>
                                 </div>
-
-                                <div className="ai-result-message">
-                                    ✨ AI đề xuất size{" "}
-                                    <b>{recommendedSize.size}</b> cho bạn.
-                                </div>
-
-                                <button
-                                    type="button"
-                                    className="ai-select-size"
-                                    onClick={handleSelect}
-                                >
-                                    ✓ Chọn size {recommendedSize.size}
+                                <p className="ai-result-message">{result.message}</p>
+                                <button type="button" className="ai-select-size" onClick={handleSelect}>
+                                    ✓ Chọn size {result.recommendedSize}
                                 </button>
                             </div>
                         )}
-
-                        {!lengthCm && (
-                            <button
-                                type="button"
-                                className="ai-start-button"
-                                disabled={measuring}
-                                onClick={startMeasuring}
-                            >
-                                {measuring
-                                    ? "Đang đo..."
-                                    : "📏 Bắt đầu đo"}
-                            </button>
-                        )}
-
-                        {lengthCm && (
-                            <button
-                                type="button"
-                                className="ai-retry-button"
-                                disabled={measuring}
-                                onClick={startMeasuring}
-                            >
-                                ↻ Đo lại
-                            </button>
-                        )}
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     );
 }
