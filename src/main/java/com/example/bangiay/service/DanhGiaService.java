@@ -36,7 +36,7 @@ public class DanhGiaService {
     private final ChiTietHoaDonRepository chiTietHoaDonRepository;
 
     // ---------------------------------------------------------
-    // Tạo đánh giá - chỉ khi đã mua và đã nhận hàng
+    // Tạo đánh giá - chỉ khi đã mua thành công (đơn đã giao)
     // ---------------------------------------------------------
     @Transactional
     public DanhGiaResponse taoDanhGia(DanhGiaRequest req) {
@@ -68,9 +68,11 @@ public class DanhGiaService {
         if (hd.getKhachHang() == null || !hd.getKhachHang().getId().equals(req.getKhachHangId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn chỉ có thể đánh giá sản phẩm trong đơn hàng của mình");
         }
-        if (!"DA_GIAO".equalsIgnoreCase(hd.getTrangThai()) || hd.getNgayNhanHang() == null) {
+        // Mua thành công = đơn đã giao (DA_GIAO) hoặc đã hoàn tất (DA_THANH_TOAN)
+        if (!"DA_GIAO".equalsIgnoreCase(hd.getTrangThai())
+                && !"DA_THANH_TOAN".equalsIgnoreCase(hd.getTrangThai())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Chỉ có thể đánh giá sau khi bạn đã nhận được hàng");
+                    "Chỉ có thể đánh giá sau khi đơn hàng đã được giao thành công");
         }
         if (danhGiaRepository.existsByChiTietHoaDon_Id(ct.getId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã đánh giá sản phẩm này rồi");

@@ -13,6 +13,7 @@ import AIDoSize from "./ai/AIDoSize";
 import ChatWidget from "./chat/ChatWidget";
 import Contact from "./Contact";
 import { anhUrl, isActive } from "./CatalogCrud";
+import { RatingBadge, ProductReviews, ReviewModal, lamMoiThongKeDanhGia } from "./Reviews";
 
 const API = "http://localhost:8080/api";
 
@@ -1334,8 +1335,6 @@ function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "
     const coSale = !!kmInfo;
     const gia = coSale ? kmInfo.giaSauGiam : giaGoc;
 
-    const rating = (4.6 + (index % 4) * 0.1).toFixed(1);
-    const rc = 20 + index * 13;
     const sold = [1200, 856, 931, 1400, 640, 720, 1100, 950][index % 8];
     const sT = sold >= 1000 ? `${(sold / 1000).toFixed(1).replace(".0", "")}k` : sold;
 
@@ -1363,7 +1362,7 @@ function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "
                 <div className="product-brand">{sanPham.thuongHieu?.tenThuongHieu || "FShop"}</div>
                 <h3>{sanPham.tenSanPham}</h3>
                 <div className="rating">
-                    <span>★</span> {rating}<small>({rc})</small><i>|</i><small>Đã bán {sT}</small>
+                    <RatingBadge sanPhamId={sanPham.id} variant="card" /><i>|</i><small>Đã bán {sT}</small>
                 </div>
                 <div className="price-row">
                     <strong style={{ color: coSale ? "#e53935" : "" }}>{formatGia(gia)}</strong>
@@ -1804,8 +1803,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                             <div className="detail-brand">{sanPham.thuongHieu?.tenThuongHieu || "FSHOP"}</div>
                             <h1>{sanPham.tenSanPham}</h1>
                             <div className="detail-rating">
-                                <span>★</span> 4.8
-                                <span className="rating-count">(126 đánh giá)</span>
+                                <RatingBadge sanPhamId={sanPham.id} variant="detail" />
                             </div>
                             {kmInfo && !isSoldOut ? (
                                 <>
@@ -1949,6 +1947,7 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                     </div>
                 </div>
             </main>
+            <ProductReviews sanPhamId={sanPham.id} />
             {showAIDoSize && (
                 <AIDoSize
                     availableSizes={chiTietsHoatDong
@@ -4232,6 +4231,8 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
     const [searchOrder, setSearchOrder] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6; // Số đơn hàng trên 1 trang
+    const [reviewItem, setReviewItem] = useState(null);
+    const [daDanhGia, setDaDanhGia] = useState(new Set()); // id chi tiết hóa đơn đã đánh giá
 
     const khachHangId = taiKhoan?.khachHangId;
 
@@ -4329,6 +4330,15 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
             const detailData = detailResponse.ok ? await detailResponse.json() : [];
             const historyData = historyResponse.ok ? await historyResponse.json() : [];
             const paymentData = paymentResponse.ok ? await paymentResponse.json() : null;
+
+            // Các dòng sản phẩm đã được đánh giá (để ẩn nút "Đánh giá")
+            try {
+                const rvRes = await fetch(`${API}/danh-gia/hoa-don/${id}`);
+                const rvData = rvRes.ok ? await rvRes.json() : [];
+                setDaDanhGia(new Set((Array.isArray(rvData) ? rvData : []).map((r) => r.chiTietHoaDonId)));
+            } catch {
+                setDaDanhGia(new Set());
+            }
 
             setSelectedOrder({
                 ...order,
@@ -4605,6 +4615,20 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
 
                                             {detailError && <div className="order-inline-error">{detailError}</div>}
 
+                                            {reviewItem && (
+                                                <ReviewModal
+                                                    item={reviewItem}
+                                                    orderCode={getOrderCode(selectedOrder)}
+                                                    khachHangId={khachHangId}
+                                                    onClose={() => setReviewItem(null)}
+                                                    onSubmitted={() => {
+                                                        setDaDanhGia((prev) => new Set(prev).add(reviewItem.id));
+                                                        setReviewItem(null);
+                                                        lamMoiThongKeDanhGia();
+                                                    }}
+                                                />
+                                            )}
+
                                             <div className={`order-progress ${getStatus(selectedOrder).className}`}>
                                                 {steps.map(([key, label], index) => {
                                                     const currentStep = getStatus(selectedOrder).step;
@@ -4772,9 +4796,32 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
                                                                         </span>
                                                                         <small>x{item?.soLuong || 0}</small>
                                                                     </div>
-                                                                    <strong>
-                                                                        {formatGia(item?.thanhTien ?? Number(item?.donGia || 0) * Number(item?.soLuong || 0))}
-                                                                    </strong>
+                                                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                                                                        <strong>
+                                                                            {formatGia(item?.thanhTien ?? Number(item?.donGia || 0) * Number(item?.soLuong || 0))}
+                                                                        </strong>
+                                                                        {getStatus(selectedOrder).className === "delivered" && item?.id && (
+                                                                            daDanhGia.has(item.id) ? (
+                                                                                <span style={{ fontSize: 13, color: "#15803d", fontWeight: 600 }}>✓ Đã đánh giá</span>
+                                                                            ) : (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => setReviewItem(item)}
+                                                                                    style={{
+                                                                                        border: "1px solid #ee4d2d",
+                                                                                        borderRadius: 8,
+                                                                                        padding: "6px 14px",
+                                                                                        background: "#fff",
+                                                                                        color: "#ee4d2d",
+                                                                                        fontWeight: 700,
+                                                                                        cursor: "pointer",
+                                                                                    }}
+                                                                                >
+                                                                                    ★ Đánh giá
+                                                                                </button>
+                                                                            )
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             );
                                                         })}
