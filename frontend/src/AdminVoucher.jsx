@@ -12,6 +12,15 @@ const HANG_MAC_DINH = [
     { ma: "KIM_CUONG", ten: "Kim cương", nguong: 10000000 },
 ];
 const tenHangVoucher = (ma) => ({ BAC: "Bạc", VANG: "Vàng", KIM_CUONG: "Kim cương" }[ma] || ma);
+// ⭐ MÀU + BIỂU TƯỢNG TỪNG HẠNG (giống bảng MAU_HANG trong App.jsx) — muốn đổi màu hạng nào thì sửa đúng dòng của hạng đó
+// (nen = màu nền, chu = màu chữ, vien = màu viền, icon = biểu tượng)
+const MAU_HANG = {
+    THANH_VIEN: { icon: "👤", nen: "#f1f3f5", chu: "#5f6b7a", vien: "#d9dee5" },
+    BAC:        { icon: "🥈", nen: "#eceff3", chu: "#4b5563", vien: "#c7ced8" },
+    VANG:       { icon: "🥇", nen: "#fff4d6", chu: "#946200", vien: "#f0d27c" },
+    KIM_CUONG:  { icon: "💎", nen: "#e0f4ff", chu: "#0a6c9e", vien: "#9bd3f0" },
+};
+const mauHang = (ma) => MAU_HANG[String(ma || "").toUpperCase()] || MAU_HANG.THANH_VIEN;
 
 function formatSoTienInput(value) {
     if (!value) return "";
@@ -504,8 +513,8 @@ export default function AdminVoucher() {
                                         <div style={{ fontSize: 11, color: "#666" }}>Đã dùng: {v.soLuongDaDung ?? 0}/{v.soLuong ?? 0}</div>
                                         {v.hangToiThieu && (
                                             <div style={{ marginTop: 4 }}>
-                                                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "#fff4e0", color: "#b7791f", whiteSpace: "nowrap" }}>
-                                                    ⭐ Hạng {tenHangVoucher(v.hangToiThieu)}+
+                                                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: mauHang(v.hangToiThieu).nen, color: mauHang(v.hangToiThieu).chu, border: `1px solid ${mauHang(v.hangToiThieu).vien}`, whiteSpace: "nowrap" }}>
+                                                    {mauHang(v.hangToiThieu).icon} Hạng {tenHangVoucher(v.hangToiThieu)}+
                                                 </span>
                                             </div>
                                         )}
@@ -624,7 +633,7 @@ export default function AdminVoucher() {
                                     <select className="price-input" value={form.hangToiThieu} onChange={(e) => handleChange("hangToiThieu", e.target.value)}>
                                         <option value="">Tất cả khách hàng</option>
                                         {cacHang.map((h) => (
-                                            <option key={h.ma} value={h.ma}>Hạng {h.ten} trở lên (chi tiêu từ {formatGia(h.nguong)})</option>
+                                            <option key={h.ma} value={h.ma}>{mauHang(h.ma).icon} Hạng {h.ten} trở lên (chi tiêu từ {formatGia(h.nguong)})</option>
                                         ))}
                                     </select>
                                     <small style={{ display: "block", marginTop: 4, color: "#888", fontSize: 11 }}>
@@ -655,4 +664,4 @@ function Field({ label, children }) {
             {children}
         </div>
     );
-}s
+}

@@ -78,6 +78,15 @@ function dangKyNgheVoucher(callback) {
 const HANG_THU_TU = ["THANH_VIEN", "BAC", "VANG", "KIM_CUONG"];
 const TEN_HANG = { THANH_VIEN: "Thành viên", BAC: "Bạc", VANG: "Vàng", KIM_CUONG: "Kim cương" };
 const thuHang = (ma) => Math.max(0, HANG_THU_TU.indexOf(String(ma || "").toUpperCase()));
+// ⭐ MÀU + BIỂU TƯỢNG TỪNG HẠNG — muốn đổi màu hạng nào thì sửa đúng dòng của hạng đó
+// (nen = màu nền, chu = màu chữ, vien = màu viền, icon = biểu tượng)
+const MAU_HANG = {
+    THANH_VIEN: { icon: "👤", nen: "#f1f3f5", chu: "#5f6b7a", vien: "#d9dee5" },
+    BAC:        { icon: "🥈", nen: "#eceff3", chu: "#4b5563", vien: "#c7ced8" },
+    VANG:       { icon: "🥇", nen: "#fff4d6", chu: "#946200", vien: "#f0d27c" },
+    KIM_CUONG:  { icon: "💎", nen: "#e0f4ff", chu: "#0a6c9e", vien: "#9bd3f0" },
+};
+const mauHang = (ma) => MAU_HANG[String(ma || "").toUpperCase()] || MAU_HANG.THANH_VIEN;
 // Lý do khách chưa đủ hạng để dùng voucher ("" = dùng được hoặc voucher không giới hạn hạng)
 function lyDoChuaDuHang(v, hangKhach) {
     const yeuCau = String(v?.hangToiThieu || "").toUpperCase();
@@ -3560,8 +3569,8 @@ ${invoiceHtml.outerHTML}
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 9 }}>
                                         <strong style={{ fontSize: 13 }}>Voucher</strong>
                                         {hangKhach && (
-                                            <span style={{ fontSize: 11, color: "#7a5b12", background: "#fff4e0", padding: "3px 8px", borderRadius: 10, textAlign: "right" }}>
-                                                ⭐ Hạng {hangKhach.tenHang} · chi tiêu {formatGia(hangKhach.chiTieu)}
+                                            <span style={{ fontSize: 11, fontWeight: 600, color: mauHang(hangKhach.hang).chu, background: mauHang(hangKhach.hang).nen, border: `1px solid ${mauHang(hangKhach.hang).vien}`, padding: "3px 8px", borderRadius: 10, textAlign: "right" }}>
+                                                {mauHang(hangKhach.hang).icon} Hạng {hangKhach.tenHang} · chi tiêu {formatGia(hangKhach.chiTieu)}
                                                 {hangKhach.hangTiepTheo ? ` · còn ${formatGia(hangKhach.canThem)} để lên ${hangKhach.tenHangTiepTheo}` : ""}
                                             </span>
                                         )}
@@ -3588,7 +3597,7 @@ ${invoiceHtml.outerHTML}
                                                             </div>
                                                             <div style={{ color: "#555", fontSize: 12, marginTop: 4 }}>{v.tenVoucher || "Ưu đãi dành cho đơn hàng"}</div>
                                                             {Number(v.donToiThieu || 0) > 0 && <div style={{ color: "#777", fontSize: 11, marginTop: 3 }}>Đơn tối thiểu {formatGia(v.donToiThieu)}</div>}
-                                                            {v.hangToiThieu && <div style={{ color: chuaDuHang ? "#e53935" : "#b7791f", fontSize: 11, marginTop: 3, fontWeight: 600 }}>⭐ {chuaDuHang || `Dành cho hạng ${TEN_HANG[String(v.hangToiThieu).toUpperCase()] || v.hangToiThieu} trở lên`}</div>}
+                                                            {v.hangToiThieu && <div style={{ color: chuaDuHang ? "#e53935" : mauHang(v.hangToiThieu).chu, fontSize: 11, marginTop: 3, fontWeight: 600 }}>{mauHang(v.hangToiThieu).icon} {chuaDuHang || `Dành cho hạng ${TEN_HANG[String(v.hangToiThieu).toUpperCase()] || v.hangToiThieu} trở lên`}</div>}
                                                             {v.ngayKetThuc && <div style={{ color: "#888", fontSize: 11, marginTop: 2 }}>Hạn dùng: {new Date(v.ngayKetThuc).toLocaleString("vi-VN")}</div>}
                                                         </div>
                                                         <button type="button" onClick={() => chonVoucherCoSan(v)} disabled={daApDung || !!chuaDuHang || vouchers.length >= MAX_VOUCHER} style={{ flexShrink: 0, border: "1px solid #e65336", borderRadius: 6, padding: "7px 10px", background: daApDung ? "#f1faf2" : "#fff", color: daApDung ? "#287b38" : "#e65336", fontWeight: 700, fontSize: 12, cursor: daApDung || chuaDuHang || vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer", opacity: vouchers.length >= MAX_VOUCHER && !daApDung ? .55 : 1 }}>{daApDung ? "Đã chọn" : chuaDuHang ? "Chưa đủ hạng" : "Chọn mã"}</button>
@@ -3707,8 +3716,8 @@ ${invoiceHtml.outerHTML}
                                                             </div>
                                                         )}
                                                         {v.hangToiThieu && (
-                                                            <div style={{ fontSize: 12, color: chuaDuHang ? "#e53935" : "#b7791f", fontWeight: 600 }}>
-                                                                ⭐ {chuaDuHang || `Dành cho hạng ${TEN_HANG[String(v.hangToiThieu).toUpperCase()] || v.hangToiThieu} trở lên`}
+                                                            <div style={{ fontSize: 12, color: chuaDuHang ? "#e53935" : mauHang(v.hangToiThieu).chu, fontWeight: 600 }}>
+                                                                {mauHang(v.hangToiThieu).icon} {chuaDuHang || `Dành cho hạng ${TEN_HANG[String(v.hangToiThieu).toUpperCase()] || v.hangToiThieu} trở lên`}
                                                             </div>
                                                         )}
                                                     </div>
