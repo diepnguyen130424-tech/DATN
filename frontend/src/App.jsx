@@ -74,6 +74,23 @@ function dangKyNgheVoucher(callback) {
         dungNgheVoucher();
     };
 }
+/* ====== HẠNG KHÁCH HÀNG (theo tổng chi tiêu, backend tính) ====== */
+const HANG_THU_TU = ["THANH_VIEN", "BAC", "VANG", "KIM_CUONG"];
+const TEN_HANG = { THANH_VIEN: "Thành viên", BAC: "Bạc", VANG: "Vàng", KIM_CUONG: "Kim cương" };
+const thuHang = (ma) => Math.max(0, HANG_THU_TU.indexOf(String(ma || "").toUpperCase()));
+// Lý do khách chưa đủ hạng để dùng voucher ("" = dùng được hoặc voucher không giới hạn hạng)
+function lyDoChuaDuHang(v, hangKhach) {
+    const yeuCau = String(v?.hangToiThieu || "").toUpperCase();
+    if (!yeuCau || yeuCau === "THANH_VIEN") return "";
+    if (hangKhach && thuHang(hangKhach.hang) >= thuHang(yeuCau)) return "";
+    const ten = TEN_HANG[yeuCau] || yeuCau;
+    const nguong = (hangKhach?.cacHang || []).find((h) => h.ma === yeuCau)?.nguong;
+    if (hangKhach && nguong != null) {
+        const thieu = Math.max(0, Number(nguong) - Number(hangKhach.chiTieu || 0));
+        return `Dành cho hạng ${ten} trở lên · bạn cần chi tiêu thêm ${formatGia(thieu)}`;
+    }
+    return `Dành cho hạng ${ten} trở lên`;
+}
 // Trả về lý do voucher không dùng được nữa ("" = vẫn dùng được). Phải khớp điều kiện ở backend.
 function lyDoVoucherKhongDung(v) {
     if (!v) return "Mã giảm giá không còn tồn tại.";
@@ -2678,6 +2695,7 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
     const [demoPayment, setDemoPayment] = useState(null);
     const [vouchers, setVouchers] = useState([]);
     const [voucherLoi, setVoucherLoi] = useState({}); // { [voucherId]: lý do voucher không dùng được nữa }
+    const [hangKhach, setHangKhach] = useState(null); // { hang, tenHang, chiTieu, canThem, cacHang... } từ backend
     const [voucherError, setVoucherError] = useState("");
     const [, setCheckingVoucher] = useState(false);
     const [danhSachVoucherActive, setDanhSachVoucherActive] = useState([]);
@@ -2725,6 +2743,21 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
         };
         loadVoucherList();
         return dangKyNgheVoucher(() => loadVoucherList(false));
+    }, []);
+
+    // ⭐ Lấy hạng khách hàng (theo tổng chi tiêu) để khóa / mở voucher dành riêng cho từng hạng
+    useEffect(() => {
+        let huy = false;
+        try {
+            const tk = JSON.parse(localStorage.getItem("taiKhoan") || "null");
+            const khId = Number(tk?.khachHangId || 0);
+            if (!khId) return undefined;
+            fetch(`${API}/hang-khach-hang/${khId}`, { cache: "no-store" })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((d) => { if (!huy && d) setHangKhach(d); })
+                .catch(() => { /* backend vẫn kiểm tra khi áp mã / đặt hàng */ });
+        } catch { /* bỏ qua */ }
+        return () => { huy = true; };
     }, []);
 
     // ⭐ Kiểm tra liên tục các voucher ĐANG ÁP: admin tắt / xóa / hết hạn / hết lượt thì đánh dấu ngay,
@@ -3526,7 +3559,12 @@ ${invoiceHtml.outerHTML}
                                 <div style={{ marginTop: 14 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 9 }}>
                                         <strong style={{ fontSize: 13 }}>Voucher</strong>
-
+                                        {hangKhach && (
+                                            <span style={{ fontSize: 11, color: "#7a5b12", background: "#fff4e0", padding: "3px 8px", borderRadius: 10, textAlign: "right" }}>
+                                                ⭐ Hạng {hangKhach.tenHang} · chi tiêu {formatGia(hangKhach.chiTieu)}
+                                                {hangKhach.hangTiepTheo ? ` · còn ${formatGia(hangKhach.canThem)} để lên ${hangKhach.tenHangTiepTheo}` : ""}
+                                            </span>
+                                        )}
                                     </div>
                                     {dangTaiVoucher ? (
                                         <p style={{ margin: 0, color: "#777", fontSize: 12 }}>Đang tải voucher...</p>
@@ -3538,10 +3576,11 @@ ${invoiceHtml.outerHTML}
                                                 const ma = String(v.maVoucher || "").toUpperCase();
                                                 const daApDung = vouchers.some((x) => String(x.maVoucher || "").toUpperCase() === ma);
                                                 const free = String(v.loaiGiam || "").toUpperCase() === "FREESHIP";
+                                                const chuaDuHang = lyDoChuaDuHang(v, hangKhach);
                                                 const giaTri = Number(v.giaTriGiam || 0);
                                                 const moTaGiam = free ? "Miễn phí vận chuyển" : String(v.loaiGiam || "").toUpperCase() === "PHAN_TRAM" ? `Giảm ${giaTri}%${v.giamToiDa != null ? ` · tối đa ${formatGia(v.giamToiDa)}` : ""}` : `Giảm ${formatGia(giaTri)}`;
                                                 return (
-                                                    <div key={v.id ?? ma} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 12px", border: "1px dashed #e7b6a9", borderRadius: 9, background: daApDung ? "#f1faf2" : "#fffaf8" }}>
+                                                    <div key={v.id ?? ma} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 12px", border: "1px dashed #e7b6a9", borderRadius: 9, background: daApDung ? "#f1faf2" : "#fffaf8", opacity: chuaDuHang ? 0.6 : 1 }}>
                                                         <div style={{ minWidth: 0 }}>
                                                             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
                                                                 <strong style={{ color: "#d94d32" }}>{ma || "VOUCHER"}</strong>
@@ -3549,9 +3588,10 @@ ${invoiceHtml.outerHTML}
                                                             </div>
                                                             <div style={{ color: "#555", fontSize: 12, marginTop: 4 }}>{v.tenVoucher || "Ưu đãi dành cho đơn hàng"}</div>
                                                             {Number(v.donToiThieu || 0) > 0 && <div style={{ color: "#777", fontSize: 11, marginTop: 3 }}>Đơn tối thiểu {formatGia(v.donToiThieu)}</div>}
+                                                            {v.hangToiThieu && <div style={{ color: chuaDuHang ? "#e53935" : "#b7791f", fontSize: 11, marginTop: 3, fontWeight: 600 }}>⭐ {chuaDuHang || `Dành cho hạng ${TEN_HANG[String(v.hangToiThieu).toUpperCase()] || v.hangToiThieu} trở lên`}</div>}
                                                             {v.ngayKetThuc && <div style={{ color: "#888", fontSize: 11, marginTop: 2 }}>Hạn dùng: {new Date(v.ngayKetThuc).toLocaleString("vi-VN")}</div>}
                                                         </div>
-                                                        <button type="button" onClick={() => chonVoucherCoSan(v)} disabled={daApDung || vouchers.length >= MAX_VOUCHER} style={{ flexShrink: 0, border: "1px solid #e65336", borderRadius: 6, padding: "7px 10px", background: daApDung ? "#f1faf2" : "#fff", color: daApDung ? "#287b38" : "#e65336", fontWeight: 700, fontSize: 12, cursor: daApDung || vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer", opacity: vouchers.length >= MAX_VOUCHER && !daApDung ? .55 : 1 }}>{daApDung ? "Đã chọn" : "Chọn mã"}</button>
+                                                        <button type="button" onClick={() => chonVoucherCoSan(v)} disabled={daApDung || !!chuaDuHang || vouchers.length >= MAX_VOUCHER} style={{ flexShrink: 0, border: "1px solid #e65336", borderRadius: 6, padding: "7px 10px", background: daApDung ? "#f1faf2" : "#fff", color: daApDung ? "#287b38" : "#e65336", fontWeight: 700, fontSize: 12, cursor: daApDung || chuaDuHang || vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer", opacity: vouchers.length >= MAX_VOUCHER && !daApDung ? .55 : 1 }}>{daApDung ? "Đã chọn" : chuaDuHang ? "Chưa đủ hạng" : "Chọn mã"}</button>
                                                     </div>
                                                 );
                                             })}
@@ -3610,7 +3650,8 @@ ${invoiceHtml.outerHTML}
                                             const donToiThieu = Number(v.donToiThieu || 0);
                                             const chuaDuDieuKien = donToiThieu > 0 && tongTienHang < donToiThieu;
                                             const hetLuot = (v.soLuong ?? 0) > 0 && (v.soLuongDaDung ?? 0) >= v.soLuong;
-                                            const disabled = daApDung || chuaDuDieuKien || hetLuot || vouchers.length >= MAX_VOUCHER;
+                                            const chuaDuHang = lyDoChuaDuHang(v, hangKhach);
+                                            const disabled = daApDung || chuaDuDieuKien || hetLuot || !!chuaDuHang || vouchers.length >= MAX_VOUCHER;
 
                                             return (
                                                 <div
@@ -3663,6 +3704,11 @@ ${invoiceHtml.outerHTML}
                                                         {hetLuot && (
                                                             <div style={{ fontSize: 12, color: "#e53935", fontWeight: 600 }}>
                                                                 Đã hết lượt sử dụng
+                                                            </div>
+                                                        )}
+                                                        {v.hangToiThieu && (
+                                                            <div style={{ fontSize: 12, color: chuaDuHang ? "#e53935" : "#b7791f", fontWeight: 600 }}>
+                                                                ⭐ {chuaDuHang || `Dành cho hạng ${TEN_HANG[String(v.hangToiThieu).toUpperCase()] || v.hangToiThieu} trở lên`}
                                                             </div>
                                                         )}
                                                     </div>
@@ -3722,7 +3768,7 @@ ${invoiceHtml.outerHTML}
                                                             cursor: disabled ? "not-allowed" : "pointer",
                                                         }}
                                                     >
-                                                        {daApDung ? "Đã dùng" : chuaDuDieuKien ? "Chưa đủ" : hetLuot ? "Hết" : "Chọn"}
+                                                        {daApDung ? "Đã dùng" : chuaDuDieuKien ? "Chưa đủ" : hetLuot ? "Hết" : chuaDuHang ? "Chưa đủ hạng" : "Chọn"}
                                                     </button>
                                                 </div>
                                             );

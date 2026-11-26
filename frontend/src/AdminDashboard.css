@@ -596,38 +596,6 @@
 }
 
 @media (max-width: 820px) {
-    .admin-layout {
-        grid-template-columns: 82px minmax(0, 1fr);
-    }
-
-    .admin-sidebar {
-        width: 82px;
-        padding: 18px 10px;
-    }
-
-    .admin-brand {
-        justify-content: center;
-        padding-left: 0;
-        padding-right: 0;
-    }
-
-    .admin-brand > div:last-child,
-    .admin-section-title,
-    .admin-nav button > span:last-child,
-    .admin-sidebar-footer button > span:last-child {
-        display: none;
-    }
-
-    .admin-nav button,
-    .admin-sidebar-footer button {
-        justify-content: center;
-        padding: 0;
-    }
-
-    .admin-nav-icon {
-        margin: 0;
-    }
-
     .admin-main-body {
         padding: 22px 18px;
     }
@@ -3085,4 +3053,127 @@
 
 .payment-compact-table tr {
     height: auto;
+}
+
+
+/* =========================================================
+   SIDEBAR THU GỌN / MỞ RỘNG
+   - Mở rộng: giữ nguyên giao diện cũ
+   - Thu gọn (.is-collapsed): chỉ còn logo "F" + icon.
+     Rê chuột (hoặc Tab bằng bàn phím) vào sidebar thì bung đầy đủ, đè lên nội dung; rời chuột là co lại ngay
+     (bấm chuột vào mục không làm sidebar bị kẹt mở vì chỉ tính :focus-visible).
+   ========================================================= */
+.admin-layout {
+    transition: grid-template-columns 0.25s ease;
+}
+
+.admin-sidebar {
+    overflow-x: hidden;
+    transition: width 0.25s ease, padding 0.25s ease, box-shadow 0.25s ease;
+}
+
+.admin-nav button,
+.admin-sidebar-footer button {
+    white-space: nowrap;
+}
+
+/* Cột sidebar luôn chỉ rộng 76px khi thu gọn; lúc bung ra thì sidebar tràn đè lên nội dung */
+.admin-layout.is-collapsed {
+    grid-template-columns: 76px minmax(0, 1fr) !important;
+}
+
+.admin-layout.is-collapsed .admin-sidebar {
+    z-index: 30;              /* cao hơn thanh topbar (z-index 5) */
+    min-height: 100vh !important;
+}
+
+.admin-layout.is-collapsed .admin-sidebar:hover,
+.admin-layout.is-collapsed .admin-sidebar:has(:focus-visible) {
+    box-shadow: 14px 0 40px rgba(10, 14, 22, 0.3);
+}
+
+/* ----- Trạng thái co lại (không rê chuột / không focus) ----- */
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) {
+    width: 76px !important;
+    padding: 25px 10px 18px !important;
+}
+
+/* Logo giữ nguyên ô "F", chỉ ẩn chữ FShop / ADMIN PANEL */
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-brand {
+    justify-content: center;
+    margin: 0 0 15px !important;
+    padding: 0 0 21px !important;
+}
+
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-brand > div:last-child {
+    display: none;
+}
+
+/* Tiêu đề "QUẢN LÝ" thành đường kẻ mảnh */
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-section-title {
+    height: 1px;
+    margin: 12px 10px;
+    padding: 0 !important;
+    overflow: hidden;
+    font-size: 0;
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-nav button,
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-sidebar-footer button {
+    justify-content: center !important;
+    gap: 0 !important;
+    padding: 0 !important;
+}
+
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-nav-label,
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-nav-arrow,
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-submenu {
+    display: none !important;
+}
+
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-nav button:hover,
+.admin-layout.is-collapsed .admin-sidebar:not(:hover):not(:has(:focus-visible)) .admin-sidebar-footer button:hover {
+    transform: none;
+}
+
+/* Nút bật/tắt sidebar ở thanh trên cùng */
+.admin-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.admin-sidebar-toggle {
+    width: 41px;
+    height: 41px;
+    flex: 0 0 41px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #e8edf4;
+    border-radius: 12px;
+    background: #fff;
+    color: #4b5668;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(24, 34, 48, 0.04);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-sidebar-toggle:hover {
+    background: #fff1f0;
+    border-color: #ffd0cc;
+    color: #e53935;
+}
+
+.admin-sidebar-toggle:focus-visible {
+    outline: 2px solid #e53935;
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-layout,
+    .admin-sidebar {
+        transition: none;
+    }
 }

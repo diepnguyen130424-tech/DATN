@@ -37,6 +37,8 @@ public class HoaDonService {
     private final NhanVienRepository nhanVienRepository;
     private final TaiKhoanRepository taiKhoanRepository;
     private final ShippingService shippingService;
+    private final VoucherEventService voucherEventService;
+    private final HangKhachHangService hangKhachHangService;
 
 
     public List<HoaDon> getAll() {
@@ -402,6 +404,12 @@ public class HoaDonService {
             }
         }
 
+        // ⭐ Voucher đã ngưng / chưa tới hạn / hết hạn / hết lượt / chưa đủ hạng → CHẶN đặt hàng.
+        // Khách phải bỏ voucher này thì mới đặt được (và khi đó không còn được giảm).
+        if (voucher != null) {
+            kiemTraVoucherDungDuoc(voucher, gioHang.getKhachHang().getId());
+        }
+
         if (voucher != null) {
             if ("PHAN_TRAM".equalsIgnoreCase(voucher.getLoaiGiam())) {
 
@@ -455,6 +463,9 @@ public class HoaDonService {
                         "Voucher này không phải là FREESHIP"
                 );
             }
+
+            // ⭐ Voucher FREESHIP cũng phải còn dùng được
+            kiemTraVoucherDungDuoc(voucherFreeship, gioHang.getKhachHang().getId());
         }
 
 
@@ -611,6 +622,7 @@ public class HoaDonService {
 
                 voucher.setSoLuongDaDung(daDung + 1);
                 maGiamGiaRepository.save(voucher);
+                voucherEventService.phat(voucher.getId(), voucher.getTrangThai());
 
                 System.out.println("✅ Đã trừ 1 lượt voucher: "
                         + voucher.getMaVoucher()
@@ -630,6 +642,7 @@ public class HoaDonService {
 
                 voucherFreeship.setSoLuongDaDung(daDung + 1);
                 maGiamGiaRepository.save(voucherFreeship);
+                voucherEventService.phat(voucherFreeship.getId(), voucherFreeship.getTrangThai());
 
                 System.out.println("✅ Đã trừ 1 lượt voucher FREESHIP: "
                         + voucherFreeship.getMaVoucher()
@@ -2640,6 +2653,52 @@ public class HoaDonService {
         int tonKho = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
         spct.setSoLuongTon(tonKho + soLuong);
         sanPhamChiTietRepository.save(spct);
+    }
+
+
+    // =========================================================
+    // KIỂM TRA VOUCHER CÒN DÙNG ĐƯỢC KHI ĐẶT HÀNG
+    // (giống các điều kiện ở MaGiamGiaService.kiemTraVoucher)
+    // =========================================================
+    private void kiemTraVoucherDungDuoc(MaGiamGia v, Long khachHangId) {
+
+        String ma = v.getMaVoucher();
+
+        if (!"HOAT_DONG".equalsIgnoreCase(v.getTrangThai())) {
+            throw new RuntimeException(
+                    "Mã giảm giá " + ma + " đã bị ngưng sử dụng. "
+                            + "Vui lòng bỏ mã này để tiếp tục đặt hàng.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (v.getNgayBatDau() != null && now.isBefore(v.getNgayBatDau())) {
+            throw new RuntimeException(
+                    "Mã giảm giá " + ma + " chưa đến thời gian sử dụng. "
+                            + "Vui lòng bỏ mã này để tiếp tục đặt hàng.");
+        }
+
+        if (v.getNgayKetThuc() != null && now.isAfter(v.getNgayKetThuc())) {
+            throw new RuntimeException(
+                    "Mã giảm giá " + ma + " đã hết hạn. "
+                            + "Vui lòng bỏ mã này để tiếp tục đặt hàng.");
+        }
+
+        if (v.getSoLuong() != null) {
+            int daDung = v.getSoLuongDaDung() != null ? v.getSoLuongDaDung() : 0;
+            if (daDung >= v.getSoLuong()) {
+                throw new RuntimeException(
+                        "Mã giảm giá " + ma + " đã hết lượt sử dụng. "
+                                + "Vui lòng bỏ mã này để tiếp tục đặt hàng.");
+            }
+        }
+
+        // Voucher dành riêng cho hạng khách hàng (tính theo tổng chi tiêu)
+        String loiHang = hangKhachHangService.kiemTraDuHang(v.getHangToiThieu(), khachHangId);
+        if (loiHang != null) {
+            throw new RuntimeException(
+                    loiHang + " Vui lòng bỏ mã này để tiếp tục đặt hàng.");
+        }
     }
 
 }

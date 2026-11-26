@@ -21,6 +21,8 @@ public class MaGiamGiaService {
 
     private final MaGiamGiaRepository maGiamGiaRepository;
     private final ThongBaoService thongBaoService;
+    private final VoucherEventService voucherEventService;
+    private final HangKhachHangService hangKhachHangService;
 
 
     // =========================================================
@@ -170,6 +172,19 @@ public class MaGiamGiaService {
                     "Ngày kết thúc phải sau ngày bắt đầu");
         }
 
+        // HẠNG KHÁCH HÀNG TỐI THIỂU (rỗng / Thành viên = mọi khách hàng)
+        String hangNhap = maGiamGia.getHangToiThieu();
+        HangKhachHang hangToiThieu = HangKhachHang.tuMa(hangNhap);
+
+        if (hangNhap != null && !hangNhap.trim().isEmpty() && hangToiThieu == null) {
+            throw new RuntimeException("Hạng khách hàng không hợp lệ");
+        }
+
+        maGiamGia.setHangToiThieu(
+                hangToiThieu == null || hangToiThieu == HangKhachHang.THANH_VIEN
+                        ? null
+                        : hangToiThieu.name());
+
         // TRẠNG THÁI
         if (maGiamGia.getTrangThai() == null
                 || maGiamGia.getTrangThai().trim().isEmpty()) {
@@ -203,6 +218,9 @@ public class MaGiamGiaService {
                 thongBaoService.thongBaoKichHoatLai(saved);
             }
         }
+
+        // Báo ngay cho các trình duyệt khách đang mở (SSE)
+        voucherEventService.phat(saved.getId(), saved.getTrangThai());
 
         return saved;
     }
@@ -244,6 +262,9 @@ public class MaGiamGiaService {
             thongBaoService.thongBaoKichHoatLai(saved);
         }
 
+        // Báo ngay cho các trình duyệt khách đang mở (SSE)
+        voucherEventService.phat(saved.getId(), saved.getTrangThai());
+
         return saved;
     }
 
@@ -263,6 +284,7 @@ public class MaGiamGiaService {
         }
 
         maGiamGiaRepository.deleteById(id);
+        voucherEventService.phat(id, "DA_XOA");
     }
 
 
@@ -374,6 +396,14 @@ public class MaGiamGiaService {
             }
         }
 
+        // GIỚI HẠN THEO HẠNG KHÁCH HÀNG
+        String loiHang = hangKhachHangService.kiemTraDuHang(
+                voucher.getHangToiThieu(), khachHangId);
+
+        if (loiHang != null) {
+            throw new RuntimeException(loiHang);
+        }
+
         if (voucher.getDonToiThieu() != null
                 && tongTien.compareTo(voucher.getDonToiThieu()) < 0) {
             throw new RuntimeException(
@@ -419,6 +449,7 @@ public class MaGiamGiaService {
         result.put("tienGiam", tienGiam);
         result.put("tongTienSauGiam", tongTienSauGiam);
         result.put("freeship", laFreeship);
+        result.put("hangToiThieu", voucher.getHangToiThieu());
 
         // Cảnh báo mềm nếu sắp hết hạn (vẫn dùng được)
         if (voucher.getNgayKetThuc() != null) {
@@ -476,5 +507,6 @@ public class MaGiamGiaService {
 
         voucher.setSoLuongDaDung(daDung + 1);
         maGiamGiaRepository.saveAndFlush(voucher);
+        voucherEventService.phat(voucher.getId(), voucher.getTrangThai());
     }
 }
