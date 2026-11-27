@@ -13,7 +13,6 @@ import AIDoSize from "./ai/AIDoSize";
 import ChatWidget from "./chat/ChatWidget";
 import Contact from "./Contact";
 import { anhUrl, isActive } from "./CatalogCrud";
-import { RatingBadge, ProductReviews, ReviewModal, lamMoiThongKeDanhGia } from "./Reviews";
 
 const API = "http://localhost:8080/api";
 
@@ -73,32 +72,6 @@ function dangKyNgheVoucher(callback) {
         window.removeEventListener("focus", goi);
         dungNgheVoucher();
     };
-}
-/* ====== HẠNG KHÁCH HÀNG (theo tổng chi tiêu, backend tính) ====== */
-const HANG_THU_TU = ["THANH_VIEN", "BAC", "VANG", "KIM_CUONG"];
-const TEN_HANG = { THANH_VIEN: "Thành viên", BAC: "Bạc", VANG: "Vàng", KIM_CUONG: "Kim cương" };
-const thuHang = (ma) => Math.max(0, HANG_THU_TU.indexOf(String(ma || "").toUpperCase()));
-// ⭐ MÀU + BIỂU TƯỢNG TỪNG HẠNG — muốn đổi màu hạng nào thì sửa đúng dòng của hạng đó
-// (nen = màu nền, chu = màu chữ, vien = màu viền, icon = biểu tượng)
-const MAU_HANG = {
-    THANH_VIEN: { icon: "👤", nen: "#f1f3f5", chu: "#5f6b7a", vien: "#d9dee5" },
-    BAC:        { icon: "🥈", nen: "#eceff3", chu: "#4b5563", vien: "#c7ced8" },
-    VANG:       { icon: "🥇", nen: "#fff4d6", chu: "#946200", vien: "#f0d27c" },
-    KIM_CUONG:  { icon: "💎", nen: "#e0f4ff", chu: "#0a6c9e", vien: "#9bd3f0" },
-};
-const mauHang = (ma) => MAU_HANG[String(ma || "").toUpperCase()] || MAU_HANG.THANH_VIEN;
-// Lý do khách chưa đủ hạng để dùng voucher ("" = dùng được hoặc voucher không giới hạn hạng)
-function lyDoChuaDuHang(v, hangKhach) {
-    const yeuCau = String(v?.hangToiThieu || "").toUpperCase();
-    if (!yeuCau || yeuCau === "THANH_VIEN") return "";
-    if (hangKhach && thuHang(hangKhach.hang) >= thuHang(yeuCau)) return "";
-    const ten = TEN_HANG[yeuCau] || yeuCau;
-    const nguong = (hangKhach?.cacHang || []).find((h) => h.ma === yeuCau)?.nguong;
-    if (hangKhach && nguong != null) {
-        const thieu = Math.max(0, Number(nguong) - Number(hangKhach.chiTieu || 0));
-        return `Dành cho hạng ${ten} trở lên · bạn cần chi tiêu thêm ${formatGia(thieu)}`;
-    }
-    return `Dành cho hạng ${ten} trở lên`;
 }
 // Trả về lý do voucher không dùng được nữa ("" = vẫn dùng được). Phải khớp điều kiện ở backend.
 function lyDoVoucherKhongDung(v) {
@@ -1361,6 +1334,8 @@ function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "
     const coSale = !!kmInfo;
     const gia = coSale ? kmInfo.giaSauGiam : giaGoc;
 
+    const rating = (4.6 + (index % 4) * 0.1).toFixed(1);
+    const rc = 20 + index * 13;
     const sold = [1200, 856, 931, 1400, 640, 720, 1100, 950][index % 8];
     const sT = sold >= 1000 ? `${(sold / 1000).toFixed(1).replace(".0", "")}k` : sold;
 
@@ -1388,7 +1363,7 @@ function ProductCard({ sanPham, index, xemSanPham, themVaoGio, selectedColor = "
                 <div className="product-brand">{sanPham.thuongHieu?.tenThuongHieu || "FShop"}</div>
                 <h3>{sanPham.tenSanPham}</h3>
                 <div className="rating">
-                    <RatingBadge sanPhamId={sanPham.id} variant="card" /><i>|</i><small>Đã bán {sT}</small>
+                    <span>★</span> {rating}<small>({rc})</small><i>|</i><small>Đã bán {sT}</small>
                 </div>
                 <div className="price-row">
                     <strong style={{ color: coSale ? "#e53935" : "" }}>{formatGia(gia)}</strong>
@@ -1829,7 +1804,8 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                             <div className="detail-brand">{sanPham.thuongHieu?.tenThuongHieu || "FSHOP"}</div>
                             <h1>{sanPham.tenSanPham}</h1>
                             <div className="detail-rating">
-                                <RatingBadge sanPhamId={sanPham.id} variant="detail" />
+                                <span>★</span> 4.8
+                                <span className="rating-count">(126 đánh giá)</span>
                             </div>
                             {kmInfo && !isSoldOut ? (
                                 <>
@@ -1973,7 +1949,6 @@ function ProductDetail({ sanPham, themVaoGio, setPage, khuyenMaiActive = null })
                     </div>
                 </div>
             </main>
-            <ProductReviews sanPhamId={sanPham.id} />
             {showAIDoSize && (
                 <AIDoSize
                     availableSizes={chiTietsHoatDong
@@ -2704,7 +2679,6 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
     const [demoPayment, setDemoPayment] = useState(null);
     const [vouchers, setVouchers] = useState([]);
     const [voucherLoi, setVoucherLoi] = useState({}); // { [voucherId]: lý do voucher không dùng được nữa }
-    const [hangKhach, setHangKhach] = useState(null); // { hang, tenHang, chiTieu, canThem, cacHang... } từ backend
     const [voucherError, setVoucherError] = useState("");
     const [, setCheckingVoucher] = useState(false);
     const [danhSachVoucherActive, setDanhSachVoucherActive] = useState([]);
@@ -2752,21 +2726,6 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
         };
         loadVoucherList();
         return dangKyNgheVoucher(() => loadVoucherList(false));
-    }, []);
-
-    // ⭐ Lấy hạng khách hàng (theo tổng chi tiêu) để khóa / mở voucher dành riêng cho từng hạng
-    useEffect(() => {
-        let huy = false;
-        try {
-            const tk = JSON.parse(localStorage.getItem("taiKhoan") || "null");
-            const khId = Number(tk?.khachHangId || 0);
-            if (!khId) return undefined;
-            fetch(`${API}/hang-khach-hang/${khId}`, { cache: "no-store" })
-                .then((r) => (r.ok ? r.json() : null))
-                .then((d) => { if (!huy && d) setHangKhach(d); })
-                .catch(() => { /* backend vẫn kiểm tra khi áp mã / đặt hàng */ });
-        } catch { /* bỏ qua */ }
-        return () => { huy = true; };
     }, []);
 
     // ⭐ Kiểm tra liên tục các voucher ĐANG ÁP: admin tắt / xóa / hết hạn / hết lượt thì đánh dấu ngay,
@@ -3025,6 +2984,7 @@ function Checkout({ gioHang, gioHangId, setPage, setGioHang, setSelectedVariantI
                     hoaDonId,
                     maHoaDon,
                     soTien: Number(hoaDon?.tongThanhToan ?? tongThanhToan),
+                    ngayLap: hoaDon?.ngayLap || hoaDon?.ngayCapNhat || new Date().toISOString(),
                 });
                 return;
             }
@@ -3426,6 +3386,7 @@ ${invoiceHtml.outerHTML}
                 hoaDonId={demoPayment.hoaDonId}
                 maHoaDon={demoPayment.maHoaDon}
                 soTien={demoPayment.soTien}
+                ngayLap={demoPayment.ngayLap}
                 onHome={() => setPage("home")}
             />
         );
@@ -3568,12 +3529,7 @@ ${invoiceHtml.outerHTML}
                                 <div style={{ marginTop: 14 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 9 }}>
                                         <strong style={{ fontSize: 13 }}>Voucher</strong>
-                                        {hangKhach && (
-                                            <span style={{ fontSize: 11, fontWeight: 600, color: mauHang(hangKhach.hang).chu, background: mauHang(hangKhach.hang).nen, border: `1px solid ${mauHang(hangKhach.hang).vien}`, padding: "3px 8px", borderRadius: 10, textAlign: "right" }}>
-                                                {mauHang(hangKhach.hang).icon} Hạng {hangKhach.tenHang} · chi tiêu {formatGia(hangKhach.chiTieu)}
-                                                {hangKhach.hangTiepTheo ? ` · còn ${formatGia(hangKhach.canThem)} để lên ${hangKhach.tenHangTiepTheo}` : ""}
-                                            </span>
-                                        )}
+
                                     </div>
                                     {dangTaiVoucher ? (
                                         <p style={{ margin: 0, color: "#777", fontSize: 12 }}>Đang tải voucher...</p>
@@ -3585,11 +3541,10 @@ ${invoiceHtml.outerHTML}
                                                 const ma = String(v.maVoucher || "").toUpperCase();
                                                 const daApDung = vouchers.some((x) => String(x.maVoucher || "").toUpperCase() === ma);
                                                 const free = String(v.loaiGiam || "").toUpperCase() === "FREESHIP";
-                                                const chuaDuHang = lyDoChuaDuHang(v, hangKhach);
                                                 const giaTri = Number(v.giaTriGiam || 0);
                                                 const moTaGiam = free ? "Miễn phí vận chuyển" : String(v.loaiGiam || "").toUpperCase() === "PHAN_TRAM" ? `Giảm ${giaTri}%${v.giamToiDa != null ? ` · tối đa ${formatGia(v.giamToiDa)}` : ""}` : `Giảm ${formatGia(giaTri)}`;
                                                 return (
-                                                    <div key={v.id ?? ma} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 12px", border: "1px dashed #e7b6a9", borderRadius: 9, background: daApDung ? "#f1faf2" : "#fffaf8", opacity: chuaDuHang ? 0.6 : 1 }}>
+                                                    <div key={v.id ?? ma} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 12px", border: "1px dashed #e7b6a9", borderRadius: 9, background: daApDung ? "#f1faf2" : "#fffaf8" }}>
                                                         <div style={{ minWidth: 0 }}>
                                                             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
                                                                 <strong style={{ color: "#d94d32" }}>{ma || "VOUCHER"}</strong>
@@ -3597,10 +3552,9 @@ ${invoiceHtml.outerHTML}
                                                             </div>
                                                             <div style={{ color: "#555", fontSize: 12, marginTop: 4 }}>{v.tenVoucher || "Ưu đãi dành cho đơn hàng"}</div>
                                                             {Number(v.donToiThieu || 0) > 0 && <div style={{ color: "#777", fontSize: 11, marginTop: 3 }}>Đơn tối thiểu {formatGia(v.donToiThieu)}</div>}
-                                                            {v.hangToiThieu && <div style={{ color: chuaDuHang ? "#e53935" : mauHang(v.hangToiThieu).chu, fontSize: 11, marginTop: 3, fontWeight: 600 }}>{mauHang(v.hangToiThieu).icon} {chuaDuHang || `Dành cho hạng ${TEN_HANG[String(v.hangToiThieu).toUpperCase()] || v.hangToiThieu} trở lên`}</div>}
                                                             {v.ngayKetThuc && <div style={{ color: "#888", fontSize: 11, marginTop: 2 }}>Hạn dùng: {new Date(v.ngayKetThuc).toLocaleString("vi-VN")}</div>}
                                                         </div>
-                                                        <button type="button" onClick={() => chonVoucherCoSan(v)} disabled={daApDung || !!chuaDuHang || vouchers.length >= MAX_VOUCHER} style={{ flexShrink: 0, border: "1px solid #e65336", borderRadius: 6, padding: "7px 10px", background: daApDung ? "#f1faf2" : "#fff", color: daApDung ? "#287b38" : "#e65336", fontWeight: 700, fontSize: 12, cursor: daApDung || chuaDuHang || vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer", opacity: vouchers.length >= MAX_VOUCHER && !daApDung ? .55 : 1 }}>{daApDung ? "Đã chọn" : chuaDuHang ? "Chưa đủ hạng" : "Chọn mã"}</button>
+                                                        <button type="button" onClick={() => chonVoucherCoSan(v)} disabled={daApDung || vouchers.length >= MAX_VOUCHER} style={{ flexShrink: 0, border: "1px solid #e65336", borderRadius: 6, padding: "7px 10px", background: daApDung ? "#f1faf2" : "#fff", color: daApDung ? "#287b38" : "#e65336", fontWeight: 700, fontSize: 12, cursor: daApDung || vouchers.length >= MAX_VOUCHER ? "not-allowed" : "pointer", opacity: vouchers.length >= MAX_VOUCHER && !daApDung ? .55 : 1 }}>{daApDung ? "Đã chọn" : "Chọn mã"}</button>
                                                     </div>
                                                 );
                                             })}
@@ -3659,8 +3613,7 @@ ${invoiceHtml.outerHTML}
                                             const donToiThieu = Number(v.donToiThieu || 0);
                                             const chuaDuDieuKien = donToiThieu > 0 && tongTienHang < donToiThieu;
                                             const hetLuot = (v.soLuong ?? 0) > 0 && (v.soLuongDaDung ?? 0) >= v.soLuong;
-                                            const chuaDuHang = lyDoChuaDuHang(v, hangKhach);
-                                            const disabled = daApDung || chuaDuDieuKien || hetLuot || !!chuaDuHang || vouchers.length >= MAX_VOUCHER;
+                                            const disabled = daApDung || chuaDuDieuKien || hetLuot || vouchers.length >= MAX_VOUCHER;
 
                                             return (
                                                 <div
@@ -3713,11 +3666,6 @@ ${invoiceHtml.outerHTML}
                                                         {hetLuot && (
                                                             <div style={{ fontSize: 12, color: "#e53935", fontWeight: 600 }}>
                                                                 Đã hết lượt sử dụng
-                                                            </div>
-                                                        )}
-                                                        {v.hangToiThieu && (
-                                                            <div style={{ fontSize: 12, color: chuaDuHang ? "#e53935" : mauHang(v.hangToiThieu).chu, fontWeight: 600 }}>
-                                                                {mauHang(v.hangToiThieu).icon} {chuaDuHang || `Dành cho hạng ${TEN_HANG[String(v.hangToiThieu).toUpperCase()] || v.hangToiThieu} trở lên`}
                                                             </div>
                                                         )}
                                                     </div>
@@ -3777,7 +3725,7 @@ ${invoiceHtml.outerHTML}
                                                             cursor: disabled ? "not-allowed" : "pointer",
                                                         }}
                                                     >
-                                                        {daApDung ? "Đã dùng" : chuaDuDieuKien ? "Chưa đủ" : hetLuot ? "Hết" : chuaDuHang ? "Chưa đủ hạng" : "Chọn"}
+                                                        {daApDung ? "Đã dùng" : chuaDuDieuKien ? "Chưa đủ" : hetLuot ? "Hết" : "Chọn"}
                                                     </button>
                                                 </div>
                                             );
@@ -4002,22 +3950,30 @@ ${invoiceHtml.outerHTML}
 }
 
 
-function SePayDemoPayment({ hoaDonId, maHoaDon, soTien, onHome }) {
+function SePayDemoPayment({ hoaDonId, maHoaDon, soTien, ngayLap, onHome }) {
     const [dangXacNhan, setDangXacNhan] = useState(false);
     const [daThanhToan, setDaThanhToan] = useState(false);
     const [daHuy, setDaHuy] = useState(false);
     const [dangHuy, setDangHuy] = useState(false);
     const [loi, setLoi] = useState("");
-    const [thoiGianConLai, setThoiGianConLai] = useState(15 * 60);
+    const mocTaoDonRef = useRef(Number.isFinite(Date.parse(ngayLap || ""))
+        ? Date.parse(ngayLap)
+        : Date.now());
+    const hanThanhToanRef = useRef(mocTaoDonRef.current + 5 * 60 * 1000);
+    const [thoiGianConLai, setThoiGianConLai] = useState(() =>
+        Math.max(0, Math.ceil((hanThanhToanRef.current - Date.now()) / 1000))
+    );
+    const daTuDongHuyRef = useRef(false);
 
-    // Bộ đếm 15 phút tính từ lúc mở màn hình thanh toán.
+    // Đếm ngược theo thời điểm tạo hóa đơn trong database, không reset khi render.
     useEffect(() => {
-        if (daThanhToan || daHuy || thoiGianConLai <= 0) return undefined;
-        const timer = window.setInterval(() => {
-            setThoiGianConLai((current) => Math.max(0, current - 1));
-        }, 1000);
+        const capNhatDongHo = () => {
+            setThoiGianConLai(Math.max(0, Math.ceil((hanThanhToanRef.current - Date.now()) / 1000)));
+        };
+        capNhatDongHo();
+        const timer = window.setInterval(capNhatDongHo, 250);
         return () => window.clearInterval(timer);
-    }, [daThanhToan, daHuy, thoiGianConLai <= 0]);
+    }, []);
 
     const phutConLai = String(Math.floor(thoiGianConLai / 60)).padStart(2, "0");
     const giayConLai = String(thoiGianConLai % 60).padStart(2, "0");
@@ -4040,7 +3996,7 @@ function SePayDemoPayment({ hoaDonId, maHoaDon, soTien, onHome }) {
     );
 
     const xacNhanThanhToanDemo = async () => {
-        if (dangXacNhan || dangHuy || daThanhToan || daHuy) return;
+        if (dangXacNhan || dangHuy || daThanhToan || daHuy || thoiGianConLai <= 0) return;
         setDangXacNhan(true);
         setLoi("");
         try {
@@ -4060,9 +4016,9 @@ function SePayDemoPayment({ hoaDonId, maHoaDon, soTien, onHome }) {
         }
     };
 
-    const huyDonHangDemo = async () => {
+    const huyDonHangDemo = async (tuDong = false) => {
         if (dangHuy || dangXacNhan || daThanhToan || daHuy) return;
-        if (!window.confirm("Bạn có chắc muốn hủy thanh toán và đơn hàng này không?")) return;
+        if (!tuDong && !window.confirm("Bạn có chắc muốn hủy thanh toán và đơn hàng này không?")) return;
         setDangHuy(true);
         setLoi("");
         try {
@@ -4082,6 +4038,13 @@ function SePayDemoPayment({ hoaDonId, maHoaDon, soTien, onHome }) {
             setDangHuy(false);
         }
     };
+
+    // Khi hết 5 phút, tự gọi backend hủy đơn để hoàn kho; backend scheduler là lớp bảo vệ dự phòng.
+    useEffect(() => {
+        if (thoiGianConLai > 0 || daThanhToan || daHuy || dangXacNhan || dangHuy || daTuDongHuyRef.current) return;
+        daTuDongHuyRef.current = true;
+        huyDonHangDemo(true);
+    }, [thoiGianConLai, daThanhToan, daHuy, dangXacNhan, dangHuy]);
 
     const maHienThi = maHoaDon || `#${hoaDonId}`;
     const noiDung = `F SHOP ${maHoaDon || hoaDonId}`;
@@ -4159,8 +4122,8 @@ function SePayDemoPayment({ hoaDonId, maHoaDon, soTien, onHome }) {
                                         <strong>{formatGia(soTien)}</strong>
                                     </div>
                                     <div className="sepay-actions">
-                                        <button type="button" onClick={xacNhanThanhToanDemo} disabled={dangXacNhan || dangHuy} className="sepay-confirm-btn">
-                                            {dangXacNhan ? <><span className="sepay-spinner" /> Đang xác nhận...</> : <>▣ &nbsp; Thanh Toán <span>→</span></>}
+                                        <button type="button" onClick={xacNhanThanhToanDemo} disabled={dangXacNhan || dangHuy || thoiGianConLai <= 0} className="sepay-confirm-btn">
+                                            {dangXacNhan ? <><span className="sepay-spinner" /> Đang xác nhận...</> : thoiGianConLai <= 0 ? "Đã hết thời gian thanh toán" : <>▣ &nbsp; Thanh Toán <span>→</span></>}
                                         </button>
                                         <button type="button" onClick={huyDonHangDemo} disabled={dangXacNhan || dangHuy} className="sepay-cancel-btn">
                                             {dangHuy ? "Đang hủy đơn..." : <>⊗ &nbsp; Hủy thanh toán</>}
@@ -4286,8 +4249,6 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
     const [searchOrder, setSearchOrder] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6; // Số đơn hàng trên 1 trang
-    const [reviewItem, setReviewItem] = useState(null);
-    const [daDanhGia, setDaDanhGia] = useState(new Set()); // id chi tiết hóa đơn đã đánh giá
 
     const khachHangId = taiKhoan?.khachHangId;
 
@@ -4298,7 +4259,6 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
         DANG_GIAO: { label: "Đang giao", step: 4, className: "shipping" },
         DA_GIAO: { label: "Đã giao", step: 5, className: "delivered" },
         DA_HUY: { label: "Đã hủy", step: 0, className: "cancelled" },
-        HOAN_HANG: { label: "Hoàn hàng", step: 0, className: "cancelled" },
     };
 
     const normalizeStatus = (value) =>
@@ -4330,7 +4290,6 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
         ["DANG_GIAO", "Đang giao"],
         ["DA_GIAO", "Đã giao"],
         ["DA_HUY", "Đã hủy"],
-        ["HOAN_HANG", "Hoàn hàng"],
     ];
 
     const filteredOrders = orders.filter((order) => {
@@ -4387,15 +4346,6 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
             const detailData = detailResponse.ok ? await detailResponse.json() : [];
             const historyData = historyResponse.ok ? await historyResponse.json() : [];
             const paymentData = paymentResponse.ok ? await paymentResponse.json() : null;
-
-            // Các dòng sản phẩm đã được đánh giá (để ẩn nút "Đánh giá")
-            try {
-                const rvRes = await fetch(`${API}/danh-gia/hoa-don/${id}`);
-                const rvData = rvRes.ok ? await rvRes.json() : [];
-                setDaDanhGia(new Set((Array.isArray(rvData) ? rvData : []).map((r) => r.chiTietHoaDonId)));
-            } catch {
-                setDaDanhGia(new Set());
-            }
 
             setSelectedOrder({
                 ...order,
@@ -4672,20 +4622,6 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
 
                                             {detailError && <div className="order-inline-error">{detailError}</div>}
 
-                                            {reviewItem && (
-                                                <ReviewModal
-                                                    item={reviewItem}
-                                                    orderCode={getOrderCode(selectedOrder)}
-                                                    khachHangId={khachHangId}
-                                                    onClose={() => setReviewItem(null)}
-                                                    onSubmitted={() => {
-                                                        setDaDanhGia((prev) => new Set(prev).add(reviewItem.id));
-                                                        setReviewItem(null);
-                                                        lamMoiThongKeDanhGia();
-                                                    }}
-                                                />
-                                            )}
-
                                             <div className={`order-progress ${getStatus(selectedOrder).className}`}>
                                                 {steps.map(([key, label], index) => {
                                                     const currentStep = getStatus(selectedOrder).step;
@@ -4853,32 +4789,9 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
                                                                         </span>
                                                                         <small>x{item?.soLuong || 0}</small>
                                                                     </div>
-                                                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                                                                        <strong>
-                                                                            {formatGia(item?.thanhTien ?? Number(item?.donGia || 0) * Number(item?.soLuong || 0))}
-                                                                        </strong>
-                                                                        {getStatus(selectedOrder).className === "delivered" && item?.id && (
-                                                                            daDanhGia.has(item.id) ? (
-                                                                                <span style={{ fontSize: 13, color: "#15803d", fontWeight: 600 }}>✓ Đã đánh giá</span>
-                                                                            ) : (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => setReviewItem(item)}
-                                                                                    style={{
-                                                                                        border: "1px solid #ee4d2d",
-                                                                                        borderRadius: 8,
-                                                                                        padding: "6px 14px",
-                                                                                        background: "#fff",
-                                                                                        color: "#ee4d2d",
-                                                                                        fontWeight: 700,
-                                                                                        cursor: "pointer",
-                                                                                    }}
-                                                                                >
-                                                                                    ★ Đánh giá
-                                                                                </button>
-                                                                            )
-                                                                        )}
-                                                                    </div>
+                                                                    <strong>
+                                                                        {formatGia(item?.thanhTien ?? Number(item?.donGia || 0) * Number(item?.soLuong || 0))}
+                                                                    </strong>
                                                                 </div>
                                                             );
                                                         })}

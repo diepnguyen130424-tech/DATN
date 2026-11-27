@@ -4,22 +4,20 @@ import com.example.bangiay.entity.HoaDon;
 import com.example.bangiay.entity.ThanhToan;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -36,6 +34,10 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Long>, JpaSpecif
 
     List<HoaDon> findByTrangThai(String trangThai);
 
+    // Đơn online chờ xác nhận đã quá hạn thanh toán.
+    List<HoaDon> findByLoaiHoaDonAndTrangThaiAndNgayLapBefore(
+            String loaiHoaDon, String trangThai, LocalDateTime mocThoiGian);
+
     List<HoaDon> findByLoaiHoaDon(String loaiHoaDon);
 
     // Hóa đơn gần nhất có cùng SĐT người mua và đã có tên (để tự điền tên)
@@ -49,11 +51,20 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Long>, JpaSpecif
     // Kiểm tra khách đã dùng voucher này chưa
     boolean existsByKhachHang_IdAndVoucher_Id(Long khachHangId, Long voucherId);
 
-    // Tổng tiền khách đã chi tiêu (chỉ tính các đơn có trạng thái trong danh sách) -> dùng để xếp hạng khách hàng
-    @Query("select sum(h.tongThanhToan) from HoaDon h "
-            + "where h.khachHang.id = :khachHangId and upper(h.trangThai) in :trangThais")
-    BigDecimal tongChiTieuKhachHang(@Param("khachHangId") Long khachHangId,
-                                    @Param("trangThais") Collection<String> trangThais);
+    /**
+     * Tổng chi tiêu của khách hàng theo các trạng thái được phép tính.
+     * Dùng tổng tiền trên hóa đơn; trả về 0 nếu khách chưa có hóa đơn phù hợp.
+     */
+    @Query("""
+            SELECT COALESCE(SUM(h.tongThanhToan), 0)
+            FROM HoaDon h
+            WHERE h.khachHang.id = :khachHangId
+              AND h.trangThai IN :trangThai
+            """)
+    BigDecimal tongChiTieuKhachHang(
+            @Param("khachHangId") Long khachHangId,
+            @Param("trangThai") List<String> trangThai
+    );
 
     /**
      * EntityGraph giúp tải sẵn thông tin khách hàng cần cho báo cáo,

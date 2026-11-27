@@ -1,3 +1,4 @@
+
 package com.example.bangiay.controller;
 
 import com.example.bangiay.service.HoaDonService;
@@ -36,9 +37,10 @@ public class SePayIpnController {
         );
     }
 
+
     /**
      * Endpoint giả lập dành cho trình diễn đồ án.
-     * Không truy cập quan hệ LAZY thanhToan.hoaDon sau khi service đã kết thúc.
+     * Luồng cập nhật dùng chung bộ kiểm tra IPN hiện có.
      */
     @PostMapping("/demo-confirm/{hoaDonId}")
     public ResponseEntity<Map<String, Object>> xacNhanThanhToanDemo(
@@ -51,7 +53,6 @@ public class SePayIpnController {
         }
 
         try {
-            // Lấy bản ghi thanh toán theo ID hóa đơn.
             var thanhToan = hoaDonService.getThanhToanByHoaDonId(hoaDonId);
             if (thanhToan == null) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -60,10 +61,8 @@ public class SePayIpnController {
                 ));
             }
 
-            // Truy vấn hóa đơn riêng bằng ID, không gọi thanhToan.getHoaDon()
-            // vì quan hệ này được cấu hình FetchType.LAZY.
+            // Lấy hóa đơn bằng ID riêng để tránh truy cập quan hệ LAZY sau khi Session đóng.
             var hoaDon = hoaDonService.getById(hoaDonId);
-
             if (!"ONLINE".equalsIgnoreCase(hoaDon.getLoaiHoaDon())
                     || !"CHUYEN_KHOAN".equalsIgnoreCase(thanhToan.getPhuongThuc())) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -71,7 +70,6 @@ public class SePayIpnController {
                         "message", "Chỉ hỗ trợ giả lập thanh toán chuyển khoản cho đơn hàng online."
                 ));
             }
-
             if (thanhToan.getSoTien() == null || hoaDon.getMaHoaDon() == null) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "success", false,
@@ -96,12 +94,11 @@ public class SePayIpnController {
             payload.put("order", order);
             payload.put("transaction", transaction);
 
-            // Giữ nguyên luồng xử lý IPN: cập nhật thanh toán và xác nhận đơn hàng.
+            // Cập nhật trạng thái thanh toán và tự động chuyển đơn sang DA_XAC_NHAN.
             hoaDonService.xuLyIpnSePay(payload);
 
             var paymentUpdated = hoaDonService.getThanhToanByHoaDonId(hoaDonId);
             var invoiceUpdated = hoaDonService.getById(hoaDonId);
-
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Giả lập thanh toán thành công. Đơn hàng đã được xác nhận.",
@@ -117,6 +114,7 @@ public class SePayIpnController {
             ));
         }
     }
+
 
     /**
      * Hủy đơn đang chờ thanh toán từ màn hình QR demo và hoàn kho một lần.
@@ -155,8 +153,13 @@ public class SePayIpnController {
 
     @PostMapping("/ipn")
     public ResponseEntity<Map<String, Object>> receiveIpn(
-            @RequestHeader(value = "X-Secret-Key", required = false) String receivedSecret,
-            @RequestBody(required = false) Map<String, Object> payload) {
+            @RequestHeader(
+                    value = "X-Secret-Key",
+                    required = false
+            ) String receivedSecret,
+
+            @RequestBody(required = false)
+            Map<String, Object> payload) {
 
         // 1. Xác thực Secret Key
         if (receivedSecret == null
@@ -165,43 +168,63 @@ public class SePayIpnController {
                 || ipnSecretKey.isBlank()
                 || !MessageDigest.isEqual(
                 ipnSecretKey.getBytes(StandardCharsets.UTF_8),
-                receivedSecret.getBytes(StandardCharsets.UTF_8))) {
+                receivedSecret.getBytes(StandardCharsets.UTF_8)
+        )) {
 
-            System.err.println("SePay IPN: Xác thực X-Secret-Key thất bại");
+            System.err.println(
+                    "SePay IPN: Xác thực X-Secret-Key thất bại"
+            );
 
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                    "success", false,
-                    "message", "Unauthorized"
-            ));
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of(
+                            "success", false,
+                            "message", "Unauthorized"
+                    ));
         }
 
         // 2. Kiểm tra payload
         if (payload == null || payload.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "Empty payload"
-            ));
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of(
+                            "success", false,
+                            "message", "Empty payload"
+                    ));
         }
 
         try {
-            Object notificationType = payload.get("notification_type");
-            System.out.println("SePay IPN nhận được: " + notificationType);
+            Object notificationType =
+                    payload.get("notification_type");
+
+            System.out.println(
+                    "SePay IPN nhận được: " + notificationType
+            );
 
             // 3. Xử lý thanh toán và tự động cập nhật đơn hàng
             hoaDonService.xuLyIpnSePay(payload);
 
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "IPN processed successfully"
-            ));
+            return ResponseEntity.ok(
+                    Map.of(
+                            "success", true,
+                            "message", "IPN processed successfully"
+                    )
+            );
+
         } catch (Exception e) {
-            System.err.println("Lỗi xử lý SePay IPN: " + e.getMessage());
+
+            System.err.println(
+                    "Lỗi xử lý SePay IPN: " + e.getMessage()
+            );
+
             e.printStackTrace();
 
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                    "success", false,
-                    "message", "IPN processing failed"
-            ));
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of(
+                            "success", false,
+                            "message", "IPN processing failed"
+                    ));
         }
     }
 }

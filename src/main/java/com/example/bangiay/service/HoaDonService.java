@@ -37,8 +37,6 @@ public class HoaDonService {
     private final NhanVienRepository nhanVienRepository;
     private final TaiKhoanRepository taiKhoanRepository;
     private final ShippingService shippingService;
-    private final VoucherEventService voucherEventService;
-    private final HangKhachHangService hangKhachHangService;
 
 
     public List<HoaDon> getAll() {
@@ -72,14 +70,6 @@ public class HoaDonService {
         if (hoaDon.getId() != null && hoaDon.getNgayNhanHang() == null) {
             hoaDonRepository.findById(hoaDon.getId()).ifPresent(cu ->
                     hoaDon.setNgayNhanHang(cu.getNgayNhanHang())
-            );
-        }
-
-        // Không cho đổi trạng thái qua PUT/POST cả object vì sẽ bỏ qua bước trừ/hoàn kho.
-        // Muốn đổi trạng thái phải gọi PUT /api/hoa-don/{id}/trang-thai (capNhatTrangThai).
-        if (hoaDon.getId() != null) {
-            hoaDonRepository.findById(hoaDon.getId()).ifPresent(cu ->
-                    hoaDon.setTrangThai(cu.getTrangThai())
             );
         }
 
@@ -339,9 +329,11 @@ public class HoaDonService {
                 );
             }
 
-            // Đặt hàng online CHỈ kiểm tra tồn kho, KHÔNG trừ kho.
-            // Tồn kho chỉ bị trừ khi đơn được xác nhận
-            // (CHO_XAC_NHAN -> DA_XAC_NHAN, hoặc SePay tự xác nhận).
+            // Kiểm tra và trừ kho đúng một lần cho đơn online.
+            // Không kiểm tra lại sau khi đã trừ vì tồn kho có thể vừa về 0
+            // khi khách mua hết số lượng còn lại.
+            spct.setSoLuongTon(spct.getSoLuongTon() - soLuong);
+            sanPhamChiTietRepository.save(spct);
 
             // -------------------------------------------------
             // LẤY GIÁ
@@ -404,12 +396,6 @@ public class HoaDonService {
             }
         }
 
-        // ⭐ Voucher đã ngưng / chưa tới hạn / hết hạn / hết lượt / chưa đủ hạng → CHẶN đặt hàng.
-        // Khách phải bỏ voucher này thì mới đặt được (và khi đó không còn được giảm).
-        if (voucher != null) {
-            kiemTraVoucherDungDuoc(voucher, gioHang.getKhachHang().getId());
-        }
-
         if (voucher != null) {
             if ("PHAN_TRAM".equalsIgnoreCase(voucher.getLoaiGiam())) {
 
@@ -463,9 +449,6 @@ public class HoaDonService {
                         "Voucher này không phải là FREESHIP"
                 );
             }
-
-            // ⭐ Voucher FREESHIP cũng phải còn dùng được
-            kiemTraVoucherDungDuoc(voucherFreeship, gioHang.getKhachHang().getId());
         }
 
 
@@ -622,7 +605,6 @@ public class HoaDonService {
 
                 voucher.setSoLuongDaDung(daDung + 1);
                 maGiamGiaRepository.save(voucher);
-                voucherEventService.phat(voucher.getId(), voucher.getTrangThai());
 
                 System.out.println("✅ Đã trừ 1 lượt voucher: "
                         + voucher.getMaVoucher()
@@ -642,7 +624,6 @@ public class HoaDonService {
 
                 voucherFreeship.setSoLuongDaDung(daDung + 1);
                 maGiamGiaRepository.save(voucherFreeship);
-                voucherEventService.phat(voucherFreeship.getId(), voucherFreeship.getTrangThai());
 
                 System.out.println("✅ Đã trừ 1 lượt voucher FREESHIP: "
                         + voucherFreeship.getMaVoucher()
@@ -810,7 +791,7 @@ public class HoaDonService {
 
 
         // -----------------------------------------------------
-        // 15. XÓA GIỎ HÀNG (Kho chưa trừ, chỉ trừ khi xác nhận đơn)
+        // 15. XÓA GIỎ HÀNG (Kho đã được trừ ở bước 6)
         // -----------------------------------------------------
 
         chiTietGioHangRepository.deleteAll(
@@ -1547,8 +1528,8 @@ public class HoaDonService {
                 hoaDonCapNhat.getKhachHang() != null
                         ? String.valueOf(hoaDonCapNhat.getKhachHang().getId())
                         : hoaDonCapNhat.getKhachHangQuay() != null
-                        ? String.valueOf(hoaDonCapNhat.getKhachHangQuay().getId())
-                        : null
+                          ? String.valueOf(hoaDonCapNhat.getKhachHangQuay().getId())
+                          : null
         );
 
 
@@ -1629,6 +1610,49 @@ public class HoaDonService {
     // THANH TOÁN
     // =========================================================
 
+    /**
+     * Tự động hủy các đơn online chuyển khoản chưa thanh toán sau 5 phút.
+     * Việc hủy đi qua capNhatTrangThai để dùng đúng luồng hoàn kho và ghi lịch sử.
+     */
+    @Transactional
+    public int tuDongHuyDonChuyenKhoanHetHan() {
+        LocalDateTime mocHetHan = LocalDateTime.now().minusMinutes(5);
+        List<HoaDon> donHetHan = hoaDonRepository
+                .findByLoaiHoaDonAndTrangThaiAndNgayLapBefore(
+                        "ONLINE", "CHO_XAC_NHAN", mocHetHan);
+
+        int soDonDaHuy = 0;
+        for (HoaDon hoaDon : donHetHan) {
+            ThanhToan thanhToan = thanhToanRepository
+                    .findByHoaDon_Id(hoaDon.getId())
+                    .stream()
+                    .filter(tt -> "CHUYEN_KHOAN".equalsIgnoreCase(tt.getPhuongThuc()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (thanhToan == null
+                    || "DA_THANH_TOAN".equalsIgnoreCase(thanhToan.getTrangThai())
+                    || "DA_HUY".equalsIgnoreCase(thanhToan.getTrangThai())) {
+                continue;
+            }
+
+            // Cập nhật trạng thái qua luồng hiện có để hoàn kho đúng một lần.
+            capNhatTrangThai(
+                    hoaDon.getId(),
+                    "DA_HUY",
+                    "Tự động hủy: khách hàng không hoàn tất chuyển khoản trong 5 phút. Hệ thống đã hoàn lại tồn kho.",
+                    null,
+                    "Hệ thống",
+                    "HE_THONG",
+                    null
+            );
+            thanhToan.setTrangThai("DA_HUY");
+            thanhToanRepository.save(thanhToan);
+            soDonDaHuy++;
+        }
+        return soDonDaHuy;
+    }
+
     public ThanhToan getThanhToanByHoaDonId(Long hoaDonId) {
         // Lấy giao dịch đầu tiên, trả về null nếu không tìm thấy
         return thanhToanRepository.findByHoaDon_Id(hoaDonId)
@@ -1676,7 +1700,7 @@ public class HoaDonService {
         HoaDon daHuy = capNhatTrangThai(
                 hoaDonId,
                 "DA_HUY",
-                "Khách hàng hủy thanh toán tại màn hình QR demo. Đơn chưa xác nhận nên chưa trừ tồn kho.",
+                "Khách hàng hủy thanh toán tại màn hình QR demo. Hệ thống hoàn lại tồn kho.",
                 null,
                 "Khách hàng",
                 null,
@@ -1879,13 +1903,11 @@ public class HoaDonService {
         // -----------------------------------------------------
         // 🔒 Đơn đã hủy / đã thanh toán → không được đổi nữa
         // -----------------------------------------------------
-        if ("DA_HUY".equals(cu) || "DA_THANH_TOAN".equals(cu) || "HOAN_HANG".equals(cu)) {
+        if ("DA_HUY".equals(cu) || "DA_THANH_TOAN".equals(cu)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "DA_HUY".equals(cu)
                             ? "Đơn hàng đã bị hủy, không thể thay đổi"
-                            : "HOAN_HANG".equals(cu)
-                            ? "Đơn hàng đã hoàn hàng, không thể thay đổi"
                             : "Đơn hàng đã hoàn tất, không thể thay đổi"
             );
         }
@@ -1902,49 +1924,11 @@ public class HoaDonService {
         }
 
         // -----------------------------------------------------
-        // 🔒 HOAN_HANG (giao không thành công / khách không nhận hàng)
-        //    chỉ áp dụng cho đơn ONLINE đang giao (DANG_GIAO).
-        // -----------------------------------------------------
-        if ("HOAN_HANG".equals(moi)) {
-            if (!"DANG_GIAO".equals(cu)) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Chỉ hoàn hàng được khi đơn đang giao"
-                );
-            }
-            if (!"ONLINE".equalsIgnoreCase(
-                    hoaDon.getLoaiHoaDon() == null ? "" : hoaDon.getLoaiHoaDon().trim())) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Chỉ hoàn hàng được với đơn online"
-                );
-            }
-        }
-
-        // -----------------------------------------------------
-        // ⭐ TRỪ KHO khi xác nhận đơn online (CHO_XAC_NHAN -> trạng thái tiếp theo).
-        //    Đơn tại quầy đã trừ kho riêng (giuHang) nên không trừ lại.
-        //    Không đủ tồn → ném lỗi, đơn giữ nguyên CHO_XAC_NHAN.
-        // -----------------------------------------------------
-        if ("CHO_XAC_NHAN".equals(cu)
-                && !"CHO_XAC_NHAN".equals(moi)
-                && !"DA_HUY".equals(moi)
-                && "ONLINE".equalsIgnoreCase(
-                hoaDon.getLoaiHoaDon() == null ? "" : hoaDon.getLoaiHoaDon().trim())) {
-            truKhoTheoHoaDon(hoaDon);
-        }
-
-        // -----------------------------------------------------
         // ⭐ HOÀN KHO khi hủy đơn, CHỈ khi trước đó đã trừ
-        //    (đơn CHO_XAC_NHAN chưa trừ kho nên hủy không cần hoàn)
+        //    (hiện chỉ còn hủy được ở CHO_XAC_NHAN)
         // -----------------------------------------------------
         if ("DA_HUY".equals(moi)
                 && daTruKhoRoi(trangThaiCu)) {
-            hoanKhoTheoHoaDon(hoaDon);
-        }
-
-        // ⭐ HOÀN KHO khi khách không nhận hàng (đơn đã trừ kho từ lúc xác nhận)
-        if ("HOAN_HANG".equals(moi)) {
             hoanKhoTheoHoaDon(hoaDon);
         }
 
@@ -2202,13 +2186,14 @@ public class HoaDonService {
 
     /**
      * Kiểm tra trạng thái cũ đã từng trừ kho chưa.
-     * Chỉ những trạng thái từ DA_XAC_NHAN trở đi mới coi là đã trừ
-     * (CHO_XAC_NHAN chưa trừ kho).
+     * Chỉ những trạng thái từ DA_XAC_NHAN trở đi mới coi là đã trừ.
      */
     private boolean daTruKhoRoi(String trangThaiCu) {
         if (trangThaiCu == null) return false;
         String s = trangThaiCu.trim().toUpperCase();
-        return "DA_XAC_NHAN".equals(s)
+        // Đơn CHO_XAC_NHAN cũng đã bị trừ kho lúc đặt hàng
+        return "CHO_XAC_NHAN".equals(s)
+                || "DA_XAC_NHAN".equals(s)
                 || "DANG_CHUAN_BI".equals(s)
                 || "DANG_GIAO".equals(s)
                 || "DA_GIAO".equals(s)
@@ -2232,9 +2217,6 @@ public class HoaDonService {
             );
         }
 
-        // Gộp số lượng theo biến thể (cùng 1 SKU có thể nằm ở nhiều dòng)
-        Map<Long, Integer> canTheoSpct = new java.util.LinkedHashMap<>();
-
         for (ChiTietHoaDon ct : chiTiets) {
 
             SanPhamChiTiet spct = ct.getSanPhamChiTiet();
@@ -2245,21 +2227,8 @@ public class HoaDonService {
                 );
             }
 
-            int soLuong = ct.getSoLuong() != null
-                    ? ct.getSoLuong() : 0;
-
-            canTheoSpct.merge(spct.getId(), soLuong, Integer::sum);
-        }
-
-        // Bước 1: kiểm tra đủ tồn cho TẤT CẢ dòng trước khi trừ,
-        // tránh trừ dở dang rồi mới báo lỗi.
-        Map<Long, SanPhamChiTiet> freshMap = new java.util.LinkedHashMap<>();
-
-        for (Map.Entry<Long, Integer> e : canTheoSpct.entrySet()) {
-
-            Long spctId = e.getKey();
-
             // Query lại để lấy số tồn kho MỚI NHẤT
+            Long spctId = spct.getId();
             SanPhamChiTiet fresh = sanPhamChiTietRepository
                     .findById(spctId)
                     .orElseThrow(() -> new RuntimeException(
@@ -2268,26 +2237,20 @@ public class HoaDonService {
 
             int tonCu = fresh.getSoLuongTon() != null
                     ? fresh.getSoLuongTon() : 0;
+            int soLuong = ct.getSoLuong() != null
+                    ? ct.getSoLuong() : 0;
 
-            if (tonCu < e.getValue()) {
+            if (tonCu < soLuong) {
                 String sku = fresh.getMaSku() != null
                         ? fresh.getMaSku()
                         : ("#" + spctId);
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Không thể xác nhận đơn: sản phẩm " + sku
-                                + " không đủ tồn kho. Còn " + tonCu
-                                + ", cần " + e.getValue()
+                throw new RuntimeException(
+                        "Sản phẩm " + sku + " không đủ tồn kho. " +
+                                "Còn " + tonCu + ", cần " + soLuong
                 );
             }
 
-            freshMap.put(spctId, fresh);
-        }
-
-        // Bước 2: trừ kho
-        for (Map.Entry<Long, Integer> e : canTheoSpct.entrySet()) {
-            SanPhamChiTiet fresh = freshMap.get(e.getKey());
-            fresh.setSoLuongTon(fresh.getSoLuongTon() - e.getValue());
+            fresh.setSoLuongTon(tonCu - soLuong);
             sanPhamChiTietRepository.save(fresh);
         }
     }
@@ -2489,6 +2452,18 @@ public class HoaDonService {
             );
         }
 
+        // Không chấp nhận thanh toán sau khi đơn đã hủy.
+        if ("DA_HUY".equalsIgnoreCase(hoaDon.getTrangThai())
+                || "DA_HUY".equalsIgnoreCase(thanhToan.getTrangThai())) {
+            throw new RuntimeException("Đơn hàng đã hết hạn hoặc đã bị hủy, không thể xác nhận thanh toán.");
+        }
+        // Giao dịch đã được xác nhận trước đó vẫn idempotent khi SePay gửi IPN lặp.
+        boolean daThanhToanTruocDo = "DA_THANH_TOAN".equalsIgnoreCase(thanhToan.getTrangThai());
+        if (!daThanhToanTruocDo && (hoaDon.getNgayLap() == null
+                || !LocalDateTime.now().isBefore(hoaDon.getNgayLap().plusMinutes(5)))) {
+            throw new RuntimeException("Đã hết thời hạn thanh toán 5 phút. Đơn hàng sẽ được hệ thống tự động hủy.");
+        }
+
         // 8. Kiểm tra tiền tệ
         String orderCurrency = String.valueOf(
                 order.get("order_currency")
@@ -2575,27 +2550,6 @@ public class HoaDonService {
 
             LocalDateTime now = LocalDateTime.now();
 
-            // Tự xác nhận => lúc này mới trừ kho.
-            // truKhoTheoHoaDon kiểm tra đủ tồn trước khi trừ nên lỗi không để lại trừ dở.
-            // Nếu không đủ tồn: tiền đã nhận nhưng đơn giữ CHO_XAC_NHAN để nhân viên xử lý.
-            try {
-                truKhoTheoHoaDon(hoaDon);
-            } catch (RuntimeException ex) {
-                LichSuHoaDon canhBao = new LichSuHoaDon();
-                canhBao.setHoaDon(hoaDon);
-                canhBao.setTrangThai("CHO_XAC_NHAN");
-                canhBao.setThoiGian(now);
-                canhBao.setGhiChu(
-                        "Thanh toán SePay thành công nhưng chưa thể tự xác nhận: "
-                                + (ex instanceof ResponseStatusException rse
-                                ? rse.getReason() : ex.getMessage())
-                                + ". Vui lòng nhân viên xử lý.");
-                canhBao.setVaiTro("HE_THONG");
-                canhBao.setNguoiThucHien("Hệ thống (SePay)");
-                lichSuHoaDonRepository.save(canhBao);
-                return;
-            }
-
             hoaDon.setTrangThai("DA_XAC_NHAN");
             hoaDon.setNgayCapNhat(now);
 
@@ -2680,52 +2634,6 @@ public class HoaDonService {
         int tonKho = spct.getSoLuongTon() == null ? 0 : spct.getSoLuongTon();
         spct.setSoLuongTon(tonKho + soLuong);
         sanPhamChiTietRepository.save(spct);
-    }
-
-
-    // =========================================================
-    // KIỂM TRA VOUCHER CÒN DÙNG ĐƯỢC KHI ĐẶT HÀNG
-    // (giống các điều kiện ở MaGiamGiaService.kiemTraVoucher)
-    // =========================================================
-    private void kiemTraVoucherDungDuoc(MaGiamGia v, Long khachHangId) {
-
-        String ma = v.getMaVoucher();
-
-        if (!"HOAT_DONG".equalsIgnoreCase(v.getTrangThai())) {
-            throw new RuntimeException(
-                    "Mã giảm giá " + ma + " đã bị ngưng sử dụng. "
-                            + "Vui lòng bỏ mã này để tiếp tục đặt hàng.");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-
-        if (v.getNgayBatDau() != null && now.isBefore(v.getNgayBatDau())) {
-            throw new RuntimeException(
-                    "Mã giảm giá " + ma + " chưa đến thời gian sử dụng. "
-                            + "Vui lòng bỏ mã này để tiếp tục đặt hàng.");
-        }
-
-        if (v.getNgayKetThuc() != null && now.isAfter(v.getNgayKetThuc())) {
-            throw new RuntimeException(
-                    "Mã giảm giá " + ma + " đã hết hạn. "
-                            + "Vui lòng bỏ mã này để tiếp tục đặt hàng.");
-        }
-
-        if (v.getSoLuong() != null) {
-            int daDung = v.getSoLuongDaDung() != null ? v.getSoLuongDaDung() : 0;
-            if (daDung >= v.getSoLuong()) {
-                throw new RuntimeException(
-                        "Mã giảm giá " + ma + " đã hết lượt sử dụng. "
-                                + "Vui lòng bỏ mã này để tiếp tục đặt hàng.");
-            }
-        }
-
-        // Voucher dành riêng cho hạng khách hàng (tính theo tổng chi tiêu)
-        String loiHang = hangKhachHangService.kiemTraDuHang(v.getHangToiThieu(), khachHangId);
-        if (loiHang != null) {
-            throw new RuntimeException(
-                    loiHang + " Vui lòng bỏ mã này để tiếp tục đặt hàng.");
-        }
     }
 
 }

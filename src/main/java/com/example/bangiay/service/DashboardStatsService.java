@@ -53,13 +53,13 @@ public class DashboardStatsService {
         );
         List<Long> filteredInvoiceIds = filteredInvoices.stream()
                 .map(HoaDon::getId).filter(Objects::nonNull).toList();
-        Map<Long, ThanhToan> paymentByInvoiceId = filteredInvoiceIds.isEmpty()
+        // Một hóa đơn có thể có nhiều dòng thanh toán (tiền mặt + chuyển khoản).
+        // Gom tất cả khoản theo hóa đơn, không chỉ lấy dòng đầu tiên.
+        Map<Long, List<ThanhToan>> paymentsByInvoiceId = filteredInvoiceIds.isEmpty()
                 ? Collections.emptyMap()
                 : thanhToanRepository.findByHoaDon_IdIn(filteredInvoiceIds).stream()
                 .filter(payment -> payment.getHoaDon() != null && payment.getHoaDon().getId() != null)
-                .collect(Collectors.toMap(
-                        payment -> payment.getHoaDon().getId(), payment -> payment, (first, ignored) -> first
-                ));
+                .collect(Collectors.groupingBy(payment -> payment.getHoaDon().getId()));
 
         List<HoaDon> revenueInvoices = filteredInvoices.stream()
                 .filter(this::isRevenueInvoice)
@@ -81,23 +81,26 @@ public class DashboardStatsService {
         BigDecimal onlineCashRevenue = BigDecimal.ZERO;
         BigDecimal onlineTransferRevenue = BigDecimal.ZERO;
         for (HoaDon invoice : revenueInvoices) {
-            ThanhToan payment = paymentByInvoiceId.get(invoice.getId());
-            if (payment == null || payment.getSoTien() == null) continue;
-            String method = normalize(payment.getPhuongThuc());
+            List<ThanhToan> invoicePayments = paymentsByInvoiceId.getOrDefault(
+                    invoice.getId(), Collections.emptyList());
             String channel = normalize(invoice.getLoaiHoaDon());
-            BigDecimal amount = payment.getSoTien();
-            boolean cash = "TIEN_MAT".equals(method) || "COD".equals(method);
-            boolean electronic = "CHUYEN_KHOAN".equals(method) || "SEPAY".equals(method)
-                    || "BANK_TRANSFER".equals(method) || "VNPAY".equals(method)
-                    || "MOMO".equals(method);
-            if (cash) {
-                cashRevenue = cashRevenue.add(amount);
-                if ("TAI_QUAY".equals(channel)) counterCashRevenue = counterCashRevenue.add(amount);
-                else if ("ONLINE".equals(channel)) onlineCashRevenue = onlineCashRevenue.add(amount);
-            } else if (electronic) {
-                transferRevenue = transferRevenue.add(amount);
-                if ("TAI_QUAY".equals(channel)) counterTransferRevenue = counterTransferRevenue.add(amount);
-                else if ("ONLINE".equals(channel)) onlineTransferRevenue = onlineTransferRevenue.add(amount);
+            for (ThanhToan payment : invoicePayments) {
+                if (payment.getSoTien() == null) continue;
+                String method = normalize(payment.getPhuongThuc());
+                BigDecimal amount = payment.getSoTien();
+                boolean cash = "TIEN_MAT".equals(method) || "COD".equals(method);
+                boolean electronic = "CHUYEN_KHOAN".equals(method) || "SEPAY".equals(method)
+                        || "BANK_TRANSFER".equals(method) || "VNPAY".equals(method)
+                        || "MOMO".equals(method);
+                if (cash) {
+                    cashRevenue = cashRevenue.add(amount);
+                    if ("TAI_QUAY".equals(channel)) counterCashRevenue = counterCashRevenue.add(amount);
+                    else if ("ONLINE".equals(channel)) onlineCashRevenue = onlineCashRevenue.add(amount);
+                } else if (electronic) {
+                    transferRevenue = transferRevenue.add(amount);
+                    if ("TAI_QUAY".equals(channel)) counterTransferRevenue = counterTransferRevenue.add(amount);
+                    else if ("ONLINE".equals(channel)) onlineTransferRevenue = onlineTransferRevenue.add(amount);
+                }
             }
         }
         long onlineOrderCount = filteredInvoices.stream()
@@ -110,7 +113,7 @@ public class DashboardStatsService {
         Map<String, Long> statusCounts = new LinkedHashMap<>();
         for (String key : List.of(
                 "CHO_XAC_NHAN", "DA_XAC_NHAN", "DANG_CHUAN_BI",
-                "DANG_GIAO", "DA_GIAO", "DA_THANH_TOAN", "DA_HUY", "HOAN_HANG"
+                "DANG_GIAO", "DA_GIAO", "DA_THANH_TOAN", "DA_HUY"
         )) {
             statusCounts.put(key, filteredInvoices.stream()
                     .filter(invoice -> key.equals(normalize(invoice.getTrangThai())))
@@ -218,8 +221,16 @@ public class DashboardStatsService {
                     row.put("trangThai", invoice.getTrangThai());
                     row.put("loaiHoaDon", invoice.getLoaiHoaDon());
                     row.put("ngayLap", invoice.getNgayLap());
-                    ThanhToan payment = paymentByInvoiceId.get(invoice.getId());
-                    row.put("phuongThucThanhToan", payment == null ? null : payment.getPhuongThuc());
+                    List<ThanhToan> invoicePayments = paymentsByInvoiceId.getOrDefault(
+                            invoice.getId(), Collections.emptyList());
+                    String paymentMethods = invoicePayments.stream()
+                            .map(ThanhToan::getPhuongThuc)
+                            .filter(Objects::nonNull)
+                            .map(String::trim)
+                            .filter(value -> !value.isEmpty())
+                            .distinct()
+                            .collect(Collectors.joining(" + "));
+                    row.put("phuongThucThanhToan", paymentMethods.isEmpty() ? null : paymentMethods);
                     return row;
                 })
                 .toList();
@@ -330,13 +341,11 @@ public class DashboardStatsService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        Map<Long, ThanhToan> paymentByInvoiceId = invoiceIds.isEmpty()
+        Map<Long, List<ThanhToan>> paymentsByInvoiceId = invoiceIds.isEmpty()
                 ? Collections.emptyMap()
                 : thanhToanRepository.findByHoaDon_IdIn(invoiceIds).stream()
                 .filter(p -> p.getHoaDon() != null && p.getHoaDon().getId() != null)
-                .collect(Collectors.toMap(
-                        p -> p.getHoaDon().getId(), p -> p, (first, ignored) -> first
-                ));
+                .collect(Collectors.groupingBy(p -> p.getHoaDon().getId()));
 
         List<HoaDon> revenueInvoices = invoices.stream()
                 .filter(this::isRevenueInvoice)
@@ -354,25 +363,26 @@ public class DashboardStatsService {
             totalRevenue = totalRevenue.add(
                     invoice.getTongThanhToan() == null ? BigDecimal.ZERO : invoice.getTongThanhToan()
             );
-            ThanhToan payment = paymentByInvoiceId.get(invoice.getId());
-            if (payment == null || payment.getSoTien() == null) continue;
-
-            String method = normalize(payment.getPhuongThuc());
             String channel = normalize(invoice.getLoaiHoaDon());
-            BigDecimal amount = payment.getSoTien();
-            boolean cash = "TIEN_MAT".equals(method) || "COD".equals(method);
-            boolean electronic = "CHUYEN_KHOAN".equals(method) || "SEPAY".equals(method)
-                    || "BANK_TRANSFER".equals(method) || "VNPAY".equals(method)
-                    || "MOMO".equals(method);
-
-            if (cash) {
-                cashRevenue = cashRevenue.add(amount);
-                if ("TAI_QUAY".equals(channel)) counterCashRevenue = counterCashRevenue.add(amount);
-                else if ("ONLINE".equals(channel)) onlineCashRevenue = onlineCashRevenue.add(amount);
-            } else if (electronic) {
-                transferRevenue = transferRevenue.add(amount);
-                if ("TAI_QUAY".equals(channel)) counterTransferRevenue = counterTransferRevenue.add(amount);
-                else if ("ONLINE".equals(channel)) onlineTransferRevenue = onlineTransferRevenue.add(amount);
+            List<ThanhToan> invoicePayments = paymentsByInvoiceId.getOrDefault(
+                    invoice.getId(), Collections.emptyList());
+            for (ThanhToan payment : invoicePayments) {
+                if (payment.getSoTien() == null) continue;
+                String method = normalize(payment.getPhuongThuc());
+                BigDecimal amount = payment.getSoTien();
+                boolean cash = "TIEN_MAT".equals(method) || "COD".equals(method);
+                boolean electronic = "CHUYEN_KHOAN".equals(method) || "SEPAY".equals(method)
+                        || "BANK_TRANSFER".equals(method) || "VNPAY".equals(method)
+                        || "MOMO".equals(method);
+                if (cash) {
+                    cashRevenue = cashRevenue.add(amount);
+                    if ("TAI_QUAY".equals(channel)) counterCashRevenue = counterCashRevenue.add(amount);
+                    else if ("ONLINE".equals(channel)) onlineCashRevenue = onlineCashRevenue.add(amount);
+                } else if (electronic) {
+                    transferRevenue = transferRevenue.add(amount);
+                    if ("TAI_QUAY".equals(channel)) counterTransferRevenue = counterTransferRevenue.add(amount);
+                    else if ("ONLINE".equals(channel)) onlineTransferRevenue = onlineTransferRevenue.add(amount);
+                }
             }
         }
 
