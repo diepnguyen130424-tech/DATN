@@ -51,4 +51,11 @@ public class MaGiamGia {
 
     @Column(name = "trang_thai", nullable = false)
     private String trangThai;
+
+    /**
+     * Hạng khách hàng tối thiểu được dùng voucher: null = mọi khách hàng,
+     * BAC / VANG / KIM_CUONG = khách hạng đó trở lên (hạng tính theo tổng chi tiêu).
+     */
+    @Column(name = "hang_toi_thieu", length = 20)
+    private String hangToiThieu;
 }

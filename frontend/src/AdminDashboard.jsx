@@ -4654,17 +4654,29 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
     const [activeMenu, setActiveMenu] = useState("dashboard");
     // ⭐ State quản lý đóng/mở menu con (Mặc định là đóng)
     const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
+    // ⭐ Thu gọn / mở rộng sidebar (nhớ lựa chọn lần sau; màn hình hẹp mặc định thu gọn)
+    const [sidebarThuGon, setSidebarThuGon] = useState(() => {
+        try {
+            const daLuu = localStorage.getItem("fshop:admin-sidebar-collapsed");
+            if (daLuu !== null) return daLuu === "1";
+        } catch { /* bỏ qua */ }
+        return typeof window !== "undefined" && window.innerWidth < 1100;
+    });
+    const datSidebarThuGon = (giaTri) => {
+        setSidebarThuGon(giaTri);
+        try { localStorage.setItem("fshop:admin-sidebar-collapsed", giaTri ? "1" : "0"); } catch { /* bỏ qua */ }
+    };
     const chonMenu = (menuId) => setActiveMenu(menuId);
     const activeLabel =
         activeMenu === "cai-dat"
             ? "Cài đặt"
             : menuItems.find((item) => item.id === activeMenu)?.label ||
             "Tổng quan";
-    return (<div className="admin-layout">
+    return (<div className={`admin-layout ${sidebarThuGon ? "is-collapsed" : ""}`}>
 
         {/* SIDEBAR */}
 
-        <aside className="admin-sidebar">
+        <aside className="admin-sidebar" aria-label="Menu quản trị">
 
             <div className="admin-brand">
 
@@ -4701,21 +4713,22 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
                                     type="button"
                                     className={activeMenu === item.id || item.children.some(c => c.id === activeMenu) ? "active" : ""}
                                     onClick={() => setIsProductMenuOpen(!isProductMenuOpen)}
+                                    title={item.label}
                                     style={{ display: "flex", justifyContent: "space-between", width: "100%" }}
                                 >
                                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                         <span className="admin-nav-icon">{item.icon}</span>
-                                        <span>{item.label}</span>
+                                        <span className="admin-nav-label">{item.label}</span>
                                     </div>
                                     {/* Mũi tên xoay lên/xuống */}
-                                    <span style={{ transform: isProductMenuOpen ? "rotate(180deg)" : "rotate(0)", transition: "0.2s" }}>
+                                    <span className="admin-nav-arrow" style={{ transform: isProductMenuOpen ? "rotate(180deg)" : "rotate(0)", transition: "0.2s" }}>
                                         ⌄
                                     </span>
                                 </button>
 
                                 {/* Danh sách Menu Con (Chỉ hiển thị khi isProductMenuOpen = true) */}
                                 {isProductMenuOpen && (
-                                    <div style={{
+                                    <div className="admin-submenu" style={{
                                         paddingLeft: 20,
                                         display: "flex",
                                         flexDirection: "column",
@@ -4750,9 +4763,9 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
 
                     // Các menu bình thường khác (Tổng quan, Bán hàng, Hóa đơn...)
                     return (
-                        <button type="button" key={item.id} className={activeMenu === item.id ? "active" : ""} onClick={() => setActiveMenu(item.id)}>
+                        <button type="button" key={item.id} className={activeMenu === item.id ? "active" : ""} onClick={() => setActiveMenu(item.id)} title={item.label}>
                             <span className="admin-nav-icon">{item.icon}</span>
-                            <span>{item.label}</span>
+                            <span className="admin-nav-label">{item.label}</span>
                         </button>
                     );
                 })}
@@ -4764,20 +4777,15 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
                     type="button"
                     className={activeMenu === "cai-dat" ? "active" : ""}
                     onClick={() => chonMenu("cai-dat")}
+                    title="Cài đặt"
                 >
-                        <span>
-                            ⚙
-                        </span>
-
-                    Cài đặt
+                    <span className="admin-nav-icon">⚙</span>
+                    <span className="admin-nav-label">Cài đặt</span>
                 </button>
 
-                <button type="button" onClick={dangXuat}>
-                        <span>
-                            ↪
-                        </span>
-
-                    Đăng xuất
+                <button type="button" onClick={dangXuat} title="Đăng xuất">
+                    <span className="admin-nav-icon">↪</span>
+                    <span className="admin-nav-label">Đăng xuất</span>
                 </button>
 
             </div>
@@ -4791,6 +4799,21 @@ export default function AdminDashboard({ dangXuat, taiKhoan, }) {
             <header className="admin-topbar">
 
                 <div className="admin-topbar-left">
+
+                    <button
+                        type="button"
+                        className="admin-sidebar-toggle"
+                        onClick={() => datSidebarThuGon(!sidebarThuGon)}
+                        aria-label={sidebarThuGon ? "Mở rộng menu" : "Thu gọn menu"}
+                        aria-expanded={!sidebarThuGon}
+                        title={sidebarThuGon ? "Mở rộng menu" : "Thu gọn menu"}
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <line x1="4" y1="6" x2="20" y2="6" />
+                            <line x1="4" y1="12" x2="20" y2="12" />
+                            <line x1="4" y1="18" x2="20" y2="18" />
+                        </svg>
+                    </button>
 
                     <div className="admin-breadcrumb">
 

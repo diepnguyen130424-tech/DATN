@@ -5,6 +5,23 @@ const API = "http://localhost:8080/api";
 const CACHE_KEY = "admin_voucher_cache";
 const CACHE_TTL = 60 * 1000;
 
+// Hạng khách hàng (mặc định; sẽ được thay bằng dữ liệu từ backend /hang-khach-hang/cac-hang)
+const HANG_MAC_DINH = [
+    { ma: "BAC", ten: "Bạc", nguong: 2000000 },
+    { ma: "VANG", ten: "Vàng", nguong: 5000000 },
+    { ma: "KIM_CUONG", ten: "Kim cương", nguong: 10000000 },
+];
+const tenHangVoucher = (ma) => ({ BAC: "Bạc", VANG: "Vàng", KIM_CUONG: "Kim cương" }[ma] || ma);
+// ⭐ MÀU + BIỂU TƯỢNG TỪNG HẠNG (giống bảng MAU_HANG trong App.jsx) — muốn đổi màu hạng nào thì sửa đúng dòng của hạng đó
+// (nen = màu nền, chu = màu chữ, vien = màu viền, icon = biểu tượng)
+const MAU_HANG = {
+    THANH_VIEN: { icon: "👤", nen: "#f1f3f5", chu: "#5f6b7a", vien: "#d9dee5" },
+    BAC:        { icon: "🥈", nen: "#eceff3", chu: "#4b5563", vien: "#c7ced8" },
+    VANG:       { icon: "🥇", nen: "#fff4d6", chu: "#946200", vien: "#f0d27c" },
+    KIM_CUONG:  { icon: "💎", nen: "#e0f4ff", chu: "#0a6c9e", vien: "#9bd3f0" },
+};
+const mauHang = (ma) => MAU_HANG[String(ma || "").toUpperCase()] || MAU_HANG.THANH_VIEN;
+
 function formatSoTienInput(value) {
     if (!value) return "";
     const num = String(value).replace(/\D/g, "");
@@ -29,6 +46,7 @@ const EMPTY_FORM = {
     ngayBatDau: "",
     ngayKetThuc: "",
     trangThai: "HOAT_DONG",
+    hangToiThieu: "",
 };
 
 function formatGia(gia) {
@@ -140,6 +158,7 @@ export default function AdminVoucher() {
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState("");
     const [toggling, setToggling] = useState(null);
+    const [cacHang, setCacHang] = useState(HANG_MAC_DINH);
 
     const [search, setSearch] = useState("");
     const [filterTrangThai, setFilterTrangThai] = useState("TAT_CA");
@@ -213,6 +232,20 @@ export default function AdminVoucher() {
         void loadDanhSach();
     }, [loadDanhSach]);
 
+    // Lấy danh sách hạng + mốc chi tiêu từ backend (lỗi thì dùng mặc định)
+    useEffect(() => {
+        let huy = false;
+        fetch(`${API}/hang-khach-hang/cac-hang`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((ds) => {
+                if (huy || !Array.isArray(ds)) return;
+                const loc = ds.filter((h) => h.ma && h.ma !== "THANH_VIEN");
+                if (loc.length) setCacHang(loc);
+            })
+            .catch(() => { /* dùng mặc định */ });
+        return () => { huy = true; };
+    }, []);
+
     const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setFormError(""); setShowModal(true); };
 
     const openEdit = (v) => {
@@ -227,6 +260,7 @@ export default function AdminVoucher() {
             ngayBatDau: v.ngayBatDau ? v.ngayBatDau.slice(0, 16) : "",
             ngayKetThuc: v.ngayKetThuc ? v.ngayKetThuc.slice(0, 16) : "",
             trangThai: v.trangThai === "NGUNG_HOAT_DONG" ? "NGUNG_HOAT_DONG" : "HOAT_DONG",
+            hangToiThieu: v.hangToiThieu || "",
         });
         setFormError(""); setShowModal(true);
     };
@@ -259,6 +293,7 @@ export default function AdminVoucher() {
                 loaiGiam: form.loaiGiam, giaTriGiam: laFreeship ? 0 : Number(form.giaTriGiam),
                 giamToiDa: laFreeship ? null : form.giamToiDa ? Number(form.giamToiDa) : null,
                 donToiThieu: form.donToiThieu ? Number(form.donToiThieu) : null,
+                hangToiThieu: form.hangToiThieu || null,
                 soLuong: Number(form.soLuong), soLuongDaDung: Number(form.soLuongDaDung) || 0,
                 ngayBatDau: form.ngayBatDau ? form.ngayBatDau + ":00" : null,
                 ngayKetThuc: form.ngayKetThuc ? form.ngayKetThuc + ":00" : null,
@@ -476,6 +511,13 @@ export default function AdminVoucher() {
                                     <td>
                                         <div style={{ fontSize: 12 }}>Đơn từ: <strong>{formatGia(v.donToiThieu)}</strong></div>
                                         <div style={{ fontSize: 11, color: "#666" }}>Đã dùng: {v.soLuongDaDung ?? 0}/{v.soLuong ?? 0}</div>
+                                        {v.hangToiThieu && (
+                                            <div style={{ marginTop: 4 }}>
+                                                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: mauHang(v.hangToiThieu).nen, color: mauHang(v.hangToiThieu).chu, border: `1px solid ${mauHang(v.hangToiThieu).vien}`, whiteSpace: "nowrap" }}>
+                                                    {mauHang(v.hangToiThieu).icon} Hạng {tenHangVoucher(v.hangToiThieu)}+
+                                                </span>
+                                            </div>
+                                        )}
                                     </td>
 
                                     <td style={{ whiteSpace: "nowrap" }}>
@@ -586,6 +628,19 @@ export default function AdminVoucher() {
                                 </>
                             )}
                             <Field label="Đơn tối thiểu (đ)"><input className="price-input" type="text" value={formatSoTienInput(form.donToiThieu)} onChange={(e) => handleChange("donToiThieu", parseSoTienInput(e.target.value))} placeholder="VD: 500.000" /></Field>
+                            <div style={{ gridColumn: "1 / -1" }}>
+                                <Field label="Áp dụng cho hạng khách hàng">
+                                    <select className="price-input" value={form.hangToiThieu} onChange={(e) => handleChange("hangToiThieu", e.target.value)}>
+                                        <option value="">Tất cả khách hàng</option>
+                                        {cacHang.map((h) => (
+                                            <option key={h.ma} value={h.ma}>{mauHang(h.ma).icon} Hạng {h.ten} trở lên (chi tiêu từ {formatGia(h.nguong)})</option>
+                                        ))}
+                                    </select>
+                                    <small style={{ display: "block", marginTop: 4, color: "#888", fontSize: 11 }}>
+                                        Hạng tính theo tổng tiền các đơn đã giao / đã thanh toán của khách. Hạng cao dùng được cả voucher của hạng thấp hơn.
+                                    </small>
+                                </Field>
+                            </div>
                             <Field label="Số lượng *"><input className="price-input" type="number" value={form.soLuong} onChange={(e) => handleChange("soLuong", e.target.value)} placeholder="VD: 100" /></Field>
                             <Field label="Ngày bắt đầu"><input className="price-input" type="datetime-local" value={form.ngayBatDau} onChange={(e) => handleChange("ngayBatDau", e.target.value)} /></Field>
                             <Field label="Ngày kết thúc"><input className="price-input" type="datetime-local" value={form.ngayKetThuc} onChange={(e) => handleChange("ngayKetThuc", e.target.value)} /></Field>
