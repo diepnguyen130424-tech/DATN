@@ -4080,7 +4080,7 @@ export function BanHangTaiQuayContent() {
     };
 
     const changeQuantity = async (variantId, delta) => {
-        const item = cart.find((i) => i.variant.id === variantId);
+        const item = cart.find((i) => String(i.variant.id) === String(variantId));
         if (!item) return;
 
         const currentVariant = variants.find(v => String(v.id) === String(variantId));
@@ -4089,8 +4089,10 @@ export function BanHangTaiQuayContent() {
         const newQty = item.quantity + delta;
         if (newQty < 1) return;
 
-        if (delta > 0 && newQty > Number(currentVariant.soLuongTon)) {
-            setError(`Chỉ còn ${currentVariant.soLuongTon} sản phẩm.`);
+        // Khi tăng số lượng, chỉ so sánh phần tăng thêm với tồn kho còn lại,
+        // không so sánh tổng số lượng trong giỏ với tồn kho còn lại.
+        if (delta > Number(currentVariant.soLuongTon || 0)) {
+            setError(`Chỉ còn ${currentVariant.soLuongTon} sản phẩm có thể thêm.`);
             return;
         }
 
@@ -4106,16 +4108,29 @@ export function BanHangTaiQuayContent() {
                 throw new Error(errorText || "Lỗi cập nhật kho");
             }
 
+            // Đồng bộ số lượng mua và tồn kho còn lại ngay trong giỏ hàng.
             setCart(old => old.map(i =>
-                i.variant.id === variantId ? { ...i, quantity: newQty } : i
+                String(i.variant.id) === String(variantId)
+                    ? {
+                        ...i,
+                        quantity: newQty,
+                        variant: {
+                            ...i.variant,
+                            soLuongTon: Math.max(0, Number(i.variant.soLuongTon || 0) - delta)
+                        }
+                    }
+                    : i
             ));
 
+            // Đồng bộ danh sách biến thể để giới hạn số lượng và thẻ sản phẩm
+            // cũng phản ánh đúng tồn kho mới.
             setVariants(old => old.map(v =>
                 String(v.id) === String(variantId)
-                    ? { ...v, soLuongTon: Number(v.soLuongTon) - delta }
+                    ? { ...v, soLuongTon: Math.max(0, Number(v.soLuongTon || 0) - delta) }
                     : v
             ));
 
+            capNhatTonKhoSanPham(variantId, -delta);
             setError("");
         } catch (err) {
             setError(err.message || "Lỗi cập nhật kho");
@@ -4378,19 +4393,18 @@ export function BanHangTaiQuayContent() {
                                 className="pos-quantity-input"
                                 type="number"
                                 min="1"
-                                max={item.variant.soLuongTon}
+                                max={item.quantity + Number(variants.find(v => String(v.id) === String(item.variant.id))?.soLuongTon ?? item.variant.soLuongTon ?? 0)}
                                 key={item.quantity}
-                                defaultValue={item.quantity}                                onBlur={(e) => {
-                                const value = Math.max(
-                                    1,
-                                    Math.min(
-                                        Number(e.target.value) || 1,
-                                        Number(item.variant.soLuongTon)
-                                    )
-                                );
-                                changeQuantity(item.variant.id, value - item.quantity);
-                                e.target.value = value;
-                            }}
+                                defaultValue={item.quantity}
+                                onBlur={(e) => {
+                                    const maxQuantity = item.quantity + Number(variants.find(v => String(v.id) === String(item.variant.id))?.soLuongTon ?? item.variant.soLuongTon ?? 0);
+                                    const value = Math.max(
+                                        1,
+                                        Math.min(Number(e.target.value) || 1, maxQuantity)
+                                    );
+                                    changeQuantity(item.variant.id, value - item.quantity);
+                                    e.target.value = value;
+                                }}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter") e.target.blur();
                                 }}
@@ -4405,7 +4419,7 @@ export function BanHangTaiQuayContent() {
                             </button>
 
                             <small className="pos-quantity-stock">
-                                Còn {item.variant.soLuongTon}
+                                Còn {Number(variants.find(v => String(v.id) === String(item.variant.id))?.soLuongTon ?? item.variant.soLuongTon ?? 0)}
                             </small>
                         </div>
 
