@@ -169,6 +169,7 @@ const TRANG_THAI_HOA_DON = [
     "DA_GIAO",
     "DA_THANH_TOAN",
     "DA_HUY",
+    "HOAN_HANG",
 ];
 
 /* ⭐ BẢNG CHUYỂN TRẠNG THÁI — BẮT BUỘC tuần tự, không nhảy cóc */
@@ -176,10 +177,11 @@ const TRANSITION_HOA_DON = {
     CHO_XAC_NHAN:  ["DA_XAC_NHAN", "DA_HUY"],   // chỉ hủy được khi CHƯA xác nhận
     DA_XAC_NHAN:   ["DANG_CHUAN_BI"],           // đã xác nhận → không được hủy nữa
     DANG_CHUAN_BI: ["DANG_GIAO"],
-    DANG_GIAO:     ["DA_GIAO"],
+    DANG_GIAO:     ["DA_GIAO", "HOAN_HANG"],   // HOAN_HANG: khách không nhận → hoàn lại tồn kho
     DA_GIAO:       ["DA_THANH_TOAN"],
     DA_THANH_TOAN: [],
     DA_HUY:        [],
+    HOAN_HANG:     [],
 };
 /* ⭐ Lấy danh sách trạng thái được phép chuyển từ trạng thái hiện tại */
 function layTrangThaiChoPhep(trangThaiHienTai) {
@@ -190,7 +192,7 @@ function layTrangThaiChoPhep(trangThaiHienTai) {
 /* ⭐ Đang ở trạng thái kết thúc (không đổi được nữa)? */
 function laTrangThaiKetThuc(trangThai) {
     const key = String(trangThai || "").trim().toUpperCase();
-    return key === "DA_THANH_TOAN" || key === "DA_HUY";
+    return key === "DA_THANH_TOAN" || key === "DA_HUY" || key === "HOAN_HANG";
 }
 const TRANG_THAI_THANH_TOAN = [
     "CHO_THANH_TOAN",
@@ -222,6 +224,7 @@ function tenTrangThaiHoaDon(trangThai) {
         DA_GIAO: "Đã giao",
         DA_THANH_TOAN: "Đã thanh toán",
         DA_HUY: "Đã hủy",
+        HOAN_HANG: "Hoàn hàng",
     };
     return (map[trangThai] ||
         trangThai ||
@@ -256,6 +259,10 @@ function getTrangThaiDonHangStyle(trangThai) {
         DA_HUY: {
             background: "#ffebee",
             color: "#c62828",
+        },
+        HOAN_HANG: {
+            background: "#fff3e0",
+            color: "#bf360c",
         },
     };
 
@@ -542,6 +549,7 @@ function DashboardContent({ eyebrow = "FSHOP ADMIN" }) {
                         <option value="DA_GIAO">Đã giao</option>
                         <option value="DA_THANH_TOAN">Đã thanh toán</option>
                         <option value="DA_HUY">Đã hủy</option>
+                        <option value="HOAN_HANG">Hoàn hàng</option>
                     </select>
                     <select value={filterOrderType} onChange={(event) => setFilterOrderType(event.target.value)} aria-label="Lọc loại đơn hàng">
                         <option value="">Tất cả loại đơn</option>
@@ -1057,6 +1065,10 @@ function HoaDonContent({ taiKhoan }) {
             !window.confirm("Hủy đơn này? Sau khi hủy sẽ không thể khôi phục.")) {
             return;
         }
+        if (trangThai === "HOAN_HANG" &&
+            !window.confirm("Khách không nhận hàng? Đơn sẽ chuyển sang Hoàn hàng và số lượng sản phẩm được cộng lại vào kho.")) {
+            return;
+        }
         try {
             setUpdatingStatus(true);
             const params = new URLSearchParams();
@@ -1154,7 +1166,7 @@ function HoaDonContent({ taiKhoan }) {
         );
     }, [totalPages]);
 
-    const tongTienLoc = danhSachLoc.reduce((sum, item) => item.trangThai === "DA_HUY" ? sum : sum + Number(item.tongThanhToan || 0), 0);
+    const tongTienLoc = danhSachLoc.reduce((sum, item) => item.trangThai === "DA_HUY" || item.trangThai === "HOAN_HANG" ? sum : sum + Number(item.tongThanhToan || 0), 0);
 
     return (<div style={{
         padding: "4px",
@@ -1408,7 +1420,7 @@ function HoaDonContent({ taiKhoan }) {
                         const ketThuc = laTrangThaiKetThuc(ttHienTai);
                         // 🔒 Trạng thái kết thúc → không cho đổi
                         if (ketThuc) {
-                            const laHuy = ttHienTai === "DA_HUY";
+                            const laHuy = ttHienTai === "DA_HUY" || ttHienTai === "HOAN_HANG";
                             return (
                                 <div style={{
                                     padding: "10px 14px",
@@ -1419,7 +1431,9 @@ function HoaDonContent({ taiKhoan }) {
                                     fontSize: 13,
                                     display: "inline-block",
                                 }}>
-                                    {laHuy
+                                    {ttHienTai === "HOAN_HANG"
+                                        ? "↩️ Khách không nhận hàng — đã hoàn kho, không thể thay đổi"
+                                        : laHuy
                                         ? "❌ Hóa đơn đã bị hủy — không thể thay đổi"
                                         : "✅ Hóa đơn đã hoàn tất — không thể thay đổi"}
                                 </div>
@@ -1432,6 +1446,7 @@ function HoaDonContent({ taiKhoan }) {
                             DA_GIAO: "Đã giao hàng",
                             DA_THANH_TOAN: "Xác nhận thanh toán",
                             DA_HUY: "Hủy đơn",
+                            HOAN_HANG: "Khách không nhận – hoàn hàng",
                         };
                         return (
                             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -1440,7 +1455,7 @@ function HoaDonContent({ taiKhoan }) {
                                         <button
                                             key={trangThaiMoi}
                                             type="button"
-                                            className={`hd-btn ${trangThaiMoi === "DA_HUY" ? "danger" : "primary"}`}
+                                            className={`hd-btn ${trangThaiMoi === "DA_HUY" || trangThaiMoi === "HOAN_HANG" ? "danger" : "primary"}`}
                                             onClick={() => capNhatTrangThai(trangThaiMoi)}
                                             disabled={updatingStatus}
                                         >

@@ -4243,6 +4243,7 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
         DANG_GIAO: { label: "Đang giao", step: 4, className: "shipping" },
         DA_GIAO: { label: "Đã giao", step: 5, className: "delivered" },
         DA_HUY: { label: "Đã hủy", step: 0, className: "cancelled" },
+        HOAN_HANG: { label: "Hoàn hàng", step: 0, className: "cancelled" },
     };
 
     const normalizeStatus = (value) =>
@@ -4274,6 +4275,7 @@ function OrderHistory({ taiKhoan, setPage, onRequestReturn }) {
         ["DANG_GIAO", "Đang giao"],
         ["DA_GIAO", "Đã giao"],
         ["DA_HUY", "Đã hủy"],
+        ["HOAN_HANG", "Hoàn hàng"],
     ];
 
     const filteredOrders = orders.filter((order) => {

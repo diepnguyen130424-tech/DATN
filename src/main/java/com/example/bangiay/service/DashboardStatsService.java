@@ -110,7 +110,7 @@ public class DashboardStatsService {
         Map<String, Long> statusCounts = new LinkedHashMap<>();
         for (String key : List.of(
                 "CHO_XAC_NHAN", "DA_XAC_NHAN", "DANG_CHUAN_BI",
-                "DANG_GIAO", "DA_GIAO", "DA_THANH_TOAN", "DA_HUY"
+                "DANG_GIAO", "DA_GIAO", "DA_THANH_TOAN", "DA_HUY", "HOAN_HANG"
         )) {
             statusCounts.put(key, filteredInvoices.stream()
                     .filter(invoice -> key.equals(normalize(invoice.getTrangThai())))

@@ -396,10 +396,11 @@ export const TRANSITION_HOA_DON = {
     CHO_XAC_NHAN: ["DA_XAC_NHAN", "DA_HUY"], // chỉ hủy được khi CHƯA xác nhận
     DA_XAC_NHAN: ["DANG_CHUAN_BI"],
     DANG_CHUAN_BI: ["DANG_GIAO"],
-    DANG_GIAO: ["DA_GIAO"],
+    DANG_GIAO: ["DA_GIAO", "HOAN_HANG"], // HOAN_HANG: khách không nhận → hoàn lại tồn kho
     DA_GIAO: ["DA_THANH_TOAN"],
     DA_THANH_TOAN: [],
     DA_HUY: [],
+    HOAN_HANG: [],
 };
 
 const NUT_TRANG_THAI_LABEL = {
@@ -409,6 +410,7 @@ const NUT_TRANG_THAI_LABEL = {
     DA_GIAO: "Đã giao hàng",
     DA_THANH_TOAN: "Xác nhận thanh toán",
     DA_HUY: "Hủy đơn",
+    HOAN_HANG: "Khách không nhận – hoàn hàng",
 };
 
 export function laDonOnline(hoaDon) {
@@ -426,12 +428,18 @@ export function XuLyHoaDon({ order, onChange }) {
 
     const tt = String(order.trangThai || "").trim().toUpperCase();
     const dsChoPhep = TRANSITION_HOA_DON[tt] || [];
-    const ketThuc = tt === "DA_THANH_TOAN" || tt === "DA_HUY";
+    const ketThuc = tt === "DA_THANH_TOAN" || tt === "DA_HUY" || tt === "HOAN_HANG";
 
     const bam = async (trangThaiMoi) => {
         if (
             trangThaiMoi === "DA_HUY" &&
             !window.confirm("Hủy đơn này? Sau khi hủy sẽ không thể khôi phục.")
+        ) {
+            return;
+        }
+        if (
+            trangThaiMoi === "HOAN_HANG" &&
+            !window.confirm("Khách không nhận hàng? Đơn sẽ chuyển sang Hoàn hàng và số lượng sản phẩm được cộng lại vào kho.")
         ) {
             return;
         }
@@ -450,8 +458,8 @@ export function XuLyHoaDon({ order, onChange }) {
                 <div
                     style={{
                         padding: "10px 14px",
-                        background: tt === "DA_HUY" ? "#fdecea" : "#eaf7ed",
-                        color: tt === "DA_HUY" ? "#c0392b" : "#24833b",
+                        background: tt === "DA_HUY" || tt === "HOAN_HANG" ? "#fdecea" : "#eaf7ed",
+                        color: tt === "DA_HUY" || tt === "HOAN_HANG" ? "#c0392b" : "#24833b",
                         borderRadius: 8,
                         fontWeight: 700,
                         fontSize: 13,
@@ -460,6 +468,8 @@ export function XuLyHoaDon({ order, onChange }) {
                 >
                     {tt === "DA_HUY"
                         ? "❌ Hóa đơn đã bị hủy — không thể thay đổi"
+                        : tt === "HOAN_HANG"
+                        ? "↩️ Khách không nhận hàng — đã hoàn kho, không thể thay đổi"
                         : "✅ Hóa đơn đã hoàn tất — không thể thay đổi"}
                 </div>
             ) : (
@@ -469,7 +479,7 @@ export function XuLyHoaDon({ order, onChange }) {
                             <button
                                 key={moi}
                                 type="button"
-                                className={`hd-btn ${moi === "DA_HUY" ? "danger" : "primary"}`}
+                                className={`hd-btn ${moi === "DA_HUY" || moi === "HOAN_HANG" ? "danger" : "primary"}`}
                                 onClick={() => bam(moi)}
                                 disabled={dangXuLy}
                             >

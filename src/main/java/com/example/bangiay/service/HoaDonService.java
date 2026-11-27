@@ -1866,11 +1866,13 @@ public class HoaDonService {
         // -----------------------------------------------------
         // 🔒 Đơn đã hủy / đã thanh toán → không được đổi nữa
         // -----------------------------------------------------
-        if ("DA_HUY".equals(cu) || "DA_THANH_TOAN".equals(cu)) {
+        if ("DA_HUY".equals(cu) || "DA_THANH_TOAN".equals(cu) || "HOAN_HANG".equals(cu)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "DA_HUY".equals(cu)
                             ? "Đơn hàng đã bị hủy, không thể thay đổi"
+                            : "HOAN_HANG".equals(cu)
+                            ? "Đơn hàng đã hoàn hàng, không thể thay đổi"
                             : "Đơn hàng đã hoàn tất, không thể thay đổi"
             );
         }
@@ -1884,6 +1886,26 @@ public class HoaDonService {
                     HttpStatus.BAD_REQUEST,
                     "Đơn hàng đã được xác nhận, không thể hủy"
             );
+        }
+
+        // -----------------------------------------------------
+        // 🔒 HOAN_HANG (giao không thành công / khách không nhận hàng)
+        //    chỉ áp dụng cho đơn ONLINE đang giao (DANG_GIAO).
+        // -----------------------------------------------------
+        if ("HOAN_HANG".equals(moi)) {
+            if (!"DANG_GIAO".equals(cu)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Chỉ hoàn hàng được khi đơn đang giao"
+                );
+            }
+            if (!"ONLINE".equalsIgnoreCase(
+                    hoaDon.getLoaiHoaDon() == null ? "" : hoaDon.getLoaiHoaDon().trim())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Chỉ hoàn hàng được với đơn online"
+                );
+            }
         }
 
         // -----------------------------------------------------
@@ -1905,6 +1927,11 @@ public class HoaDonService {
         // -----------------------------------------------------
         if ("DA_HUY".equals(moi)
                 && daTruKhoRoi(trangThaiCu)) {
+            hoanKhoTheoHoaDon(hoaDon);
+        }
+
+        // ⭐ HOÀN KHO khi khách không nhận hàng (đơn đã trừ kho từ lúc xác nhận)
+        if ("HOAN_HANG".equals(moi)) {
             hoanKhoTheoHoaDon(hoaDon);
         }
 

@@ -31,6 +31,11 @@ public class DoiTraService {
     private final DoiTraChiTietRepository chiTietRepository;
     private final HoaDonService hoaDonService;
 
+    /** Các trạng thái nghĩa là shop đã nhận hàng trả về (đã cộng lại tồn kho). */
+    private static final Set<String> DA_NHAN_HANG_VE = Set.of(
+            "DA_NHAN_HANG", "DANG_KIEM_TRA", "CHO_HOAN_TIEN", "HOAN_TAT"
+    );
+
     /*
      * Tạo JsonMapper trực tiếp để không yêu cầu Spring inject
      * bean ObjectMapper qua constructor.
@@ -201,7 +206,29 @@ public class DoiTraService {
                         "Không tìm thấy yêu cầu đổi trả."
                 ));
 
-        item.setTrangThai(trangThai.toUpperCase(Locale.ROOT));
+        String moi = trangThai.toUpperCase(Locale.ROOT);
+        String cu = String.valueOf(item.getTrangThai()).toUpperCase(Locale.ROOT);
+
+        boolean cuDaNhan = DA_NHAN_HANG_VE.contains(cu);
+        boolean moiDaNhan = DA_NHAN_HANG_VE.contains(moi);
+
+        // Hàng đã nhận về kho và cộng lại tồn → không cho lùi trạng thái (tránh cộng kho 2 lần)
+        if (cuDaNhan && !moiDaNhan) {
+            throw bad("Hàng trả đã nhận về kho, không thể chuyển về trạng thái trước đó.");
+        }
+
+        // Lần đầu shop nhận được hàng trả về → khôi phục số lượng tồn
+        if (!cuDaNhan && moiDaNhan) {
+            for (DoiTraChiTiet d : item.getSanPhamTra()) {
+                ChiTietHoaDon ct = d.getChiTietHoaDon();
+                if (ct != null && ct.getSanPhamChiTiet() != null
+                        && d.getSoLuong() != null && d.getSoLuong() > 0) {
+                    hoaDonService.nhaHang(ct.getSanPhamChiTiet().getId(), d.getSoLuong());
+                }
+            }
+        }
+
+        item.setTrangThai(moi);
         item.setNgayCapNhat(LocalDateTime.now());
 
         return toResponse(yeuCauRepository.save(item));

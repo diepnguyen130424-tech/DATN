@@ -56,6 +56,7 @@ const STATUS_LABEL = {
     DA_GIAO: "Đã giao",
     DA_THANH_TOAN: "Đã thanh toán",
     DA_HUY: "Đã hủy",
+    HOAN_HANG: "Hoàn hàng",
 };
 
 const STATUS_CLASS = {
@@ -66,6 +67,7 @@ const STATUS_CLASS = {
     DA_GIAO: "done",
     DA_THANH_TOAN: "paid",
     DA_HUY: "cancelled",
+    HOAN_HANG: "cancelled",
 };
 
 function formatMoney(value) {
@@ -134,6 +136,7 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
         ["Đang giao", "DANG_GIAO"],
         ["Đã giao", "DA_GIAO"],
         ["Đã hủy", "DA_HUY"],
+        ["Hoàn hàng", "HOAN_HANG"],
     ];
     const filtered = onlineOrders.filter((item) => {
         const keyword = search.trim().toLowerCase();
@@ -258,6 +261,16 @@ function OnlineOrders({orders, onUpdateOrder, onOpenDetail}) {
                                                     Đã giao
                                                 </button>
                                             )}
+                                            {order.trangThai === "DANG_GIAO" && (
+                                                <button type="button"
+                                                        onClick={() => {
+                                                            if (window.confirm("Khách không nhận hàng? Đơn chuyển sang Hoàn hàng và số lượng được cộng lại vào kho.")) {
+                                                                onUpdateOrder(order, "HOAN_HANG");
+                                                            }
+                                                        }}>
+                                                    Không nhận
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 );
@@ -286,6 +299,7 @@ const HD_BADGE_STYLE = {
     DA_GIAO: {background: "#e8f5e9", color: "#2e9d5b"},
     DA_THANH_TOAN: {background: "#e8f5e9", color: "#2e7d32"},
     DA_HUY: {background: "#ffebee", color: "#c62828"},
+    HOAN_HANG: {background: "#fff3e0", color: "#bf360c"},
 };
 
 const HD_LOAI_LABEL = {ONLINE: "Online", TAI_QUAY: "Tại quầy"};
@@ -339,7 +353,7 @@ function HoaDonPage({orders, onOpenDetail, onRefresh, refreshing}) {
         );
     });
     const tongTien = filtered.reduce(
-        (sum, item) => (item.trangThai === "DA_HUY" ? sum : sum + Number(item.tongThanhToan || 0)),
+        (sum, item) => (item.trangThai === "DA_HUY" || item.trangThai === "HOAN_HANG" ? sum : sum + Number(item.tongThanhToan || 0)),
         0
     );
     const totalPages = Math.max(1, Math.ceil(filtered.length / HD_PAGE_SIZE));
